@@ -122,18 +122,187 @@ def render(card_path: str, art_root: str | None, out: str | None,
     click.echo(f"wrote: {written}")
 
 
-@main.command()
+@main.group()
 def mine() -> None:
-    """Start the mining daemon. (NOT YET IMPLEMENTED — V1.1.)"""
-    click.echo("not yet implemented", err=True)
-    sys.exit(2)
+    """Mining: ledger status, Claude Code hook install, manual receipt entry."""
+
+
+@mine.command("status")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def mine_status(as_json: bool) -> None:
+    """Show current balance + recent ledger activity."""
+    import json as _json
+
+    from nullpoint.mining import get_recent_entries, get_stats, verify_ledger
+    from nullpoint.mining.ledger import LEDGER_PATH as _LP
+
+    if not _LP.exists():
+        if as_json:
+            click.echo(_json.dumps({"balance": 0, "ledger_entries": 0,
+                                    "verified": True, "recent": []}))
+        else:
+            click.echo("balance:        0")
+            click.echo("ledger:         (empty — no productive work recorded yet)")
+            click.echo("hint:           run `np mine install-hook` to start mining")
+        return
+
+    stats = get_stats()
+    verification = verify_ledger()
+    recent = get_recent_entries(limit=10)
+
+    if as_json:
+        click.echo(_json.dumps({
+            "balance": stats.balance,
+            "total_mined": stats.total_mined,
+            "total_pulled": stats.total_pulled,
+            "mine_count": stats.mine_count,
+            "pull_count": stats.pull_count,
+            "ledger_entries": stats.entry_count,
+            "verified": verification.get("ok"),
+            "errors": verification.get("errors", []),
+            "recent": [{k: v for k, v in e.items()
+                        if k in ("ts", "kind", "amount", "tool_name",
+                                 "card_id", "rarity")}
+                       for e in recent],
+        }, indent=2))
+        return
+
+    click.echo(f"balance:        {stats.balance}")
+    click.echo(f"total mined:    {stats.total_mined}  ({stats.mine_count} events)")
+    click.echo(f"total pulled:   {stats.total_pulled}  ({stats.pull_count} events)")
+    click.echo(f"ledger:         {stats.entry_count} entries — "
+               f"{'OK' if verification.get('ok') else 'CORRUPT'}")
+    if not verification.get("ok"):
+        for err in verification.get("errors", [])[:3]:
+            click.echo(f"  ! {err}")
+    if recent:
+        click.echo("\nrecent:")
+        for e in recent[-10:]:
+            kind = e.get("kind", "?")
+            amount = e.get("amount", 0)
+            label = e.get("tool_name") or e.get("card_id") or ""
+            click.echo(f"  {e.get('ts', '')[:19]}  {kind:8} {amount:+5}  {label}")
+
+
+@mine.command("install-hook")
+@click.option("--settings", default=None, help="Override settings.json path.")
+@click.option("--dry-run", is_flag=True, help="Show what would change.")
+def mine_install_hook(settings: str | None, dry_run: bool) -> None:
+    """Register the NULLPOINT PostToolUse hook in Claude Code settings."""
+    from pathlib import Path
+    from nullpoint.mining.installer import (
+        DEFAULT_SETTINGS_PATH,
+        install_hook,
+    )
+
+    settings_path = Path(settings) if settings else DEFAULT_SETTINGS_PATH
+    try:
+        result = install_hook(settings_path=settings_path, dry_run=dry_run)
+    except RuntimeError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(1)
+
+    click.echo(f"action:         {result['action']}")
+    click.echo(f"settings:       {result['settings_path']}")
+    if result.get("backup_path"):
+        click.echo(f"backup:         {result['backup_path']}")
+    if result["action"] == "installed":
+        click.echo("\nHook is live. Productive Claude Code tool calls will now mine "
+                   "currency.\nRun `np mine status` to inspect the ledger.")
+
+
+@mine.command("uninstall-hook")
+@click.option("--settings", default=None, help="Override settings.json path.")
+@click.option("--dry-run", is_flag=True, help="Show what would change.")
+def mine_uninstall_hook(settings: str | None, dry_run: bool) -> None:
+    """Remove the NULLPOINT PostToolUse hook from Claude Code settings."""
+    from pathlib import Path
+    from nullpoint.mining.installer import (
+        DEFAULT_SETTINGS_PATH,
+        uninstall_hook,
+    )
+
+    settings_path = Path(settings) if settings else DEFAULT_SETTINGS_PATH
+    try:
+        result = uninstall_hook(settings_path=settings_path, dry_run=dry_run)
+    except RuntimeError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(1)
+
+    click.echo(f"action:    {result['action']}")
+    click.echo(f"settings:  {result['settings_path']}")
+    if result.get("backup_path"):
+        click.echo(f"backup:    {result['backup_path']}")
+
+
+@mine.command("receipt")
+@click.option("--verbose", is_flag=True, help="Print one-line JSON status.")
+@click.option("--ledger", default=None, help="Override ledger path.")
+def mine_receipt(verbose: bool, ledger: str | None) -> None:
+    """Hook entrypoint — reads a Claude Code PostToolUse event from stdin."""
+    from nullpoint.mining.hook import main as _hook_main
+
+    argv: list = []
+    if verbose:
+        argv.append("--verbose")
+    if ledger:
+        argv.extend(["--ledger", ledger])
+    sys.exit(_hook_main(argv))
 
 
 @main.command()
-def pull() -> None:
-    """Spend currency on a gacha pull. (NOT YET IMPLEMENTED — V1.1.)"""
-    click.echo("not yet implemented", err=True)
-    sys.exit(2)
+@click.option("--seed", default=None, help="Hex 32-byte seed (default: random).")
+@click.option("--catalog", default=None, help="Catalog id (default: v1_alpha).")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def pull(seed: str | None, catalog: str | None, as_json: bool) -> None:
+    """Spend 100 currency on a gacha card pull from the bundled catalog."""
+    import json as _json
+
+    from nullpoint.catalog import DEFAULT_CATALOG_ID
+    from nullpoint.mining.ledger import InsufficientBalanceError
+    from nullpoint.pulls import perform_pull
+
+    seed_bytes = None
+    if seed:
+        try:
+            seed_bytes = bytes.fromhex(seed)
+            if len(seed_bytes) != 32:
+                click.echo(f"error: seed must be 32 bytes, got {len(seed_bytes)}",
+                           err=True)
+                sys.exit(1)
+        except ValueError as e:
+            click.echo(f"error: seed not hex: {e}", err=True)
+            sys.exit(1)
+
+    try:
+        receipt = perform_pull(
+            catalog_name=catalog or DEFAULT_CATALOG_ID,
+            seed=seed_bytes,
+        )
+    except FileNotFoundError:
+        click.echo("error: no identity. Run `np init` first.", err=True)
+        sys.exit(1)
+    except InsufficientBalanceError as e:
+        click.echo(f"error: {e}", err=True)
+        click.echo("hint: run `np mine status` to see your balance.", err=True)
+        sys.exit(2)
+    except RuntimeError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(3)
+
+    if as_json:
+        click.echo(_json.dumps(receipt.to_dict(), indent=2))
+        return
+
+    payload = receipt.payload
+    click.echo(f"PULL  {receipt.rarity.upper():9} — {payload.get('name', receipt.card_id)}")
+    click.echo(f"  card_id:       {receipt.card_id}")
+    click.echo(f"  serial:        {receipt.serial.serial}")
+    click.echo(f"  pack:          {receipt.pack}")
+    click.echo(f"  cost:          {receipt.cost}")
+    click.echo(f"  balance now:   {receipt.balance_after}")
+    click.echo(f"  seed:          {receipt.seed_hex}")
+    click.echo(f"  ledger hash:   {receipt.ledger_entry_hash[:16]}…")
 
 
 if __name__ == "__main__":

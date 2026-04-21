@@ -48,7 +48,9 @@ mcp = FastMCP("nullpoint")
 
 CONFIG_DIR = Path.home() / ".config" / "nullpoint"
 COLLECTION_PATH = CONFIG_DIR / "collection.json"
-LEDGER_PATH = CONFIG_DIR / "mining_ledger.json"
+# Note: ledger lives at mining_ledger.jsonl (one entry per line). The legacy
+# .json path is still recognized as a "no ledger" sentinel by older callers.
+LEDGER_PATH = CONFIG_DIR / "mining_ledger.jsonl"
 
 
 # ---------------------------------------------------------------------------
@@ -235,45 +237,133 @@ def np_collection() -> Dict[str, Any]:
 
 @mcp.tool()
 def np_mine_status() -> Dict[str, Any]:
-    """Return current mining balance and recent receipts.
+    """Return current mining balance, ledger stats, and recent receipts.
 
-    V1 alpha: STUB. Reads ~/.config/nullpoint/mining_ledger.json if present —
-    the mining daemon (V1.1) will populate this. Until then, returns
-    {"status": "not_yet_implemented", "balance": 0, "receipts": []}.
+    Reads ~/.config/nullpoint/mining_ledger.jsonl. The ledger is populated by
+    the Claude Code PostToolUse hook (`np mine receipt`).
+
+    Returns:
+      {"status": "ok",
+       "balance": int,
+       "total_mined": int, "total_pulled": int,
+       "mine_count": int, "pull_count": int,
+       "ledger_entries": int,
+       "verified": bool,
+       "recent": [...]}    last 10 entries (entry shape, not raw signatures)
     """
-    if not LEDGER_PATH.exists():
-        return {
-            "status": "not_yet_implemented",
-            "balance": 0,
-            "receipts": [],
-            "hint": "Mining daemon ships in V1.1.",
-        }
-    try:
-        ledger = json.loads(LEDGER_PATH.read_text())
+    from nullpoint.mining.ledger import (
+        LEDGER_PATH as _LP,
+        get_recent_entries,
+        get_stats,
+        verify_ledger,
+    )
+
+    if not _LP.exists():
         return {
             "status": "ok",
-            "balance": int(ledger.get("balance", 0)),
-            "receipts": ledger.get("receipts", [])[-10:],  # last 10
+            "balance": 0,
+            "total_mined": 0,
+            "total_pulled": 0,
+            "mine_count": 0,
+            "pull_count": 0,
+            "ledger_entries": 0,
+            "verified": True,
+            "recent": [],
+            "hint": (
+                "No ledger yet. Install the Claude Code hook with "
+                "`np mine install-hook` so productive work is recorded."
+            ),
         }
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+
+    stats = get_stats()
+    verification = verify_ledger()
+    recent = [
+        {k: v for k, v in e.items()
+         if k in ("ts", "kind", "amount", "tool_name", "card_id",
+                  "rarity", "pack")}
+        for e in get_recent_entries(limit=10)
+    ]
+    out: Dict[str, Any] = {
+        "status": "ok",
+        "balance": stats.balance,
+        "total_mined": stats.total_mined,
+        "total_pulled": stats.total_pulled,
+        "mine_count": stats.mine_count,
+        "pull_count": stats.pull_count,
+        "ledger_entries": stats.entry_count,
+        "verified": bool(verification.get("ok")),
+        "recent": recent,
+    }
+    if not verification.get("ok"):
+        out["verification_errors"] = verification.get("errors", [])[:5]
+    return out
 
 
 @mcp.tool()
-def np_pull() -> Dict[str, Any]:
-    """Spend 100 currency on a gacha card pull.
+def np_pull(seed: Optional[str] = None,
+            catalog: Optional[str] = None) -> Dict[str, Any]:
+    """Spend 100 currency on a gacha card pull from the bundled catalog.
 
-    V1 alpha: STUB. Pull RNG + cardpack OCI fetch + collection update is
-    integrated in V1.1. Always returns
-    {"status": "not_yet_implemented", "hint": "..."}.
+    Args:
+      seed: Optional 32-byte hex seed (64 chars). Default = random.
+            Same seed → same card_id outcome. The minted serial UUID is
+            always fresh.
+      catalog: Optional catalog id (default "v1_alpha"). The pack ships in
+            the engine wheel — additional packs land via OCI in V1.5.
+
+    Returns on success:
+      {"status": "ok", "serial": "uuid", "card_id": "...", "rarity": "...",
+       "pack": "v1_alpha", "balance_after": int, "ledger_entry_hash": "...",
+       "seed_hex": "...", "payload": {full card JSON}}
+
+    Returns on failure (never raises):
+      {"status": "no_identity"}      → run `np init`
+      {"status": "insufficient_balance", "balance": int, "needed": int}
+      {"status": "ledger_corrupt", "errors": [...]}
+      {"status": "error", "message": "..."}
     """
-    return {
-        "status": "not_yet_implemented",
-        "hint": (
-            "Gacha pull lands in V1.1 alongside mining daemon. Use "
-            "np_mine_status to track progress."
-        ),
-    }
+    from nullpoint.catalog import DEFAULT_CATALOG_ID
+    from nullpoint.mining.ledger import InsufficientBalanceError
+    from nullpoint.pulls import perform_pull
+
+    seed_bytes: Optional[bytes] = None
+    if seed:
+        try:
+            seed_bytes = bytes.fromhex(seed)
+            if len(seed_bytes) != 32:
+                return {"status": "error",
+                        "message": f"seed must be 32 bytes, got {len(seed_bytes)}"}
+        except ValueError as e:
+            return {"status": "error", "message": f"seed not hex: {e}"}
+
+    try:
+        receipt = perform_pull(
+            catalog_name=catalog or DEFAULT_CATALOG_ID,
+            seed=seed_bytes,
+        )
+    except FileNotFoundError:
+        return {"status": "no_identity",
+                "hint": "Run `np init` to create your identity first."}
+    except InsufficientBalanceError as e:
+        from nullpoint.pulls import can_pull
+        cp = can_pull()
+        return {
+            "status": "insufficient_balance",
+            "message": str(e),
+            "balance": cp["balance"],
+            "needed": cp["needed"],
+            "cost": cp["cost"],
+        }
+    except RuntimeError as e:
+        msg = str(e)
+        if "ledger verification failed" in msg:
+            return {"status": "ledger_corrupt", "message": msg}
+        return {"status": "error", "message": msg}
+    except Exception as e:  # noqa: BLE001
+        return {"status": "error",
+                "message": f"{type(e).__name__}: {e}"}
+
+    return {"status": "ok", **receipt.to_dict()}
 
 
 # ---------------------------------------------------------------------------

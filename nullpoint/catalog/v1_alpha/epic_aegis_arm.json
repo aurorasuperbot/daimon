@@ -1,0 +1,16 @@
+{
+  "card_id": "epic_aegis_arm",
+  "slot": "ARM_R",
+  "atk": 5,
+  "def": 13,
+  "hp": 22,
+  "spd": 5,
+  "triggers": [
+    { "when": "ON_BATTLE_START", "op": "ADD_SHIELD", "target": "ALL_ALLIES", "value": 3 },
+    { "when": "ON_ALLY_DEATH", "op": "BUFF_DEF", "target": "SELF", "value": 2 }
+  ],
+  "name": "Aegis Arm",
+  "flavor": "Stand behind me.",
+  "rarity": "epic",
+  "art": "art/epic/aegis_arm.png"
+}

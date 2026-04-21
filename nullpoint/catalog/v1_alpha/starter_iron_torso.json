@@ -1,0 +1,13 @@
+{
+  "card_id": "starter_iron_torso",
+  "slot": "TORSO",
+  "atk": 4,
+  "def": 8,
+  "hp": 30,
+  "spd": 3,
+  "triggers": [],
+  "name": "Iron Torso",
+  "flavor": "Hold the line.",
+  "rarity": "common",
+  "art": "art/starter/iron_torso.png"
+}

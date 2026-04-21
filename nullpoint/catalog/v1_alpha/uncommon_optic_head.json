@@ -1,0 +1,15 @@
+{
+  "card_id": "uncommon_optic_head",
+  "slot": "HEAD",
+  "atk": 7,
+  "def": 5,
+  "hp": 20,
+  "spd": 9,
+  "triggers": [
+    { "when": "ON_BATTLE_START", "op": "BUFF_SPD", "target": "SELF", "value": 1 }
+  ],
+  "name": "Optic Head",
+  "flavor": "Sees the move before it happens.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/optic_head.png"
+}

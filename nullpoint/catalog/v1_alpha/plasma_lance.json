@@ -1,0 +1,16 @@
+{
+  "card_id": "plasma_lance",
+  "slot": "ARM_L",
+  "atk": 14,
+  "def": 3,
+  "hp": 18,
+  "spd": 7,
+  "triggers": [
+    { "when": "ON_BATTLE_START", "op": "BUFF_SPD", "target": "SELF", "value": 3 },
+    { "when": "ON_ATTACK", "op": "DAMAGE", "target": "RANDOM_ENEMY", "value": 4 }
+  ],
+  "name": "Plasma Lance",
+  "flavor": "First strike, second strike, third strike — all the same instant.",
+  "rarity": "legendary",
+  "art": "art/legendary/plasma_lance.png"
+}

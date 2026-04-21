@@ -1,0 +1,27 @@
+{
+  "pack_id": "v1_alpha",
+  "version": "0.1.0",
+  "description": "NULLPOINT V1 alpha bundled cardpool. Ships with the engine package so np_pull is functional out of the box. Will be supplemented (not replaced) by OCI cardpacks in V1.5.",
+  "rarity_weights": {
+    "common": 60,
+    "uncommon": 25,
+    "rare": 10,
+    "epic": 4,
+    "legendary": 1
+  },
+  "cards": [
+    {"card_id": "starter_scout_head",    "rarity": "common",    "file": "starter_scout_head.json"},
+    {"card_id": "starter_blade_arm",     "rarity": "common",    "file": "starter_blade_arm.json"},
+    {"card_id": "starter_buckler_arm",   "rarity": "common",    "file": "starter_buckler_arm.json"},
+    {"card_id": "starter_iron_torso",    "rarity": "common",    "file": "starter_iron_torso.json"},
+    {"card_id": "starter_runner_legs",   "rarity": "common",    "file": "starter_runner_legs.json"},
+    {"card_id": "starter_steady_core",   "rarity": "common",    "file": "starter_steady_core.json"},
+    {"card_id": "uncommon_optic_head",   "rarity": "uncommon",  "file": "uncommon_optic_head.json"},
+    {"card_id": "uncommon_riveted_torso","rarity": "uncommon",  "file": "uncommon_riveted_torso.json"},
+    {"card_id": "rare_pulse_core",       "rarity": "rare",      "file": "rare_pulse_core.json"},
+    {"card_id": "rare_kinetic_legs",     "rarity": "rare",      "file": "rare_kinetic_legs.json"},
+    {"card_id": "epic_aegis_arm",        "rarity": "epic",      "file": "epic_aegis_arm.json"},
+    {"card_id": "epic_oracle_head",      "rarity": "epic",      "file": "epic_oracle_head.json"},
+    {"card_id": "plasma_lance",          "rarity": "legendary", "file": "plasma_lance.json"}
+  ]
+}

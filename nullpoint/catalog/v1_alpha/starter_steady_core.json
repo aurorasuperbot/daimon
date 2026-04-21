@@ -1,0 +1,13 @@
+{
+  "card_id": "starter_steady_core",
+  "slot": "CORE",
+  "atk": 4,
+  "def": 5,
+  "hp": 25,
+  "spd": 5,
+  "triggers": [],
+  "name": "Steady Core",
+  "flavor": "Reliable. Boring. Reliable.",
+  "rarity": "common",
+  "art": "art/starter/steady_core.png"
+}

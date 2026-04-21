@@ -10,8 +10,8 @@ Coverage:
               log opt-in works; bare-list and dict-with-cards both accepted
   - np_loadout_validate: valid + invalid cases
   - np_collection: missing file → empty; corrupt JSON → error envelope
-  - np_pull: returns not_yet_implemented stub
-  - np_mine_status: missing ledger → not_yet_implemented stub
+  - np_pull: insufficient_balance without ledger; success after seeding ledger
+  - np_mine_status: missing ledger → empty; populated ledger → real stats
 """
 
 from __future__ import annotations
@@ -223,32 +223,100 @@ def test_collection_corrupt(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# np_pull / np_mine_status (stubs)
+# np_pull / np_mine_status (real implementations)
 # ---------------------------------------------------------------------------
 
-def test_pull_is_stub():
+def _isolate_paths(monkeypatch, tmp_path):
+    """Redirect identity/ledger/collection paths into a temp dir so tests
+    don't touch the user's real ~/.config/nullpoint."""
+    from nullpoint.identity import keys as identity_keys
+    from nullpoint.mining import ledger as ledger_mod
+    from nullpoint import collection as collection_mod
+
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    monkeypatch.setattr(identity_keys, "CONFIG_DIR", cfg)
+    monkeypatch.setattr(identity_keys, "PRIVATE_KEY_PATH", cfg / "identity.key")
+    monkeypatch.setattr(identity_keys, "PUBLIC_KEY_PATH", cfg / "identity.pub")
+    monkeypatch.setattr(identity_keys, "METADATA_PATH", cfg / "identity.json")
+    monkeypatch.setattr(ledger_mod, "LEDGER_PATH", cfg / "mining_ledger.jsonl")
+    monkeypatch.setattr(collection_mod, "COLLECTION_PATH",
+                        cfg / "collection.json")
+    monkeypatch.setattr(mcp_server, "LEDGER_PATH", cfg / "mining_ledger.jsonl")
+    monkeypatch.setattr(mcp_server, "COLLECTION_PATH",
+                        cfg / "collection.json")
+    return cfg
+
+
+def test_pull_no_identity(monkeypatch, tmp_path):
+    _isolate_paths(monkeypatch, tmp_path)
     result = _call(np_pull)
-    assert result["status"] == "not_yet_implemented"
+    assert result["status"] == "no_identity"
+
+
+def test_pull_insufficient_balance(monkeypatch, tmp_path):
+    _isolate_paths(monkeypatch, tmp_path)
+    from nullpoint.identity import generate_identity
+    generate_identity(force=True)
+    result = _call(np_pull)
+    assert result["status"] == "insufficient_balance"
+    assert result["balance"] == 0
+    assert result["needed"] == 100
+
+
+def test_pull_succeeds_with_funded_ledger(monkeypatch, tmp_path):
+    _isolate_paths(monkeypatch, tmp_path)
+    from nullpoint.identity import generate_identity
+    from nullpoint.mining import append_mine_entry
+    generate_identity(force=True)
+    # Manually credit balance.
+    append_mine_entry(
+        tool_name="Edit", amount=150,
+        factors={"base": 4}, novelty_key="seed",
+    )
+    seed_hex = "ab" * 32
+    result = _call(np_pull, seed=seed_hex)
+    assert result["status"] == "ok", result
+    assert result["balance_after"] == 50
+    assert result["seed_hex"] == seed_hex
+    assert "card_id" in result and "serial" in result
+
+
+def test_pull_seed_determinism(monkeypatch, tmp_path):
+    _isolate_paths(monkeypatch, tmp_path)
+    from nullpoint.identity import generate_identity
+    from nullpoint.mining import append_mine_entry
+    generate_identity(force=True)
+    append_mine_entry(tool_name="Edit", amount=300,
+                      factors={"base": 4}, novelty_key="seed")
+    seed_hex = "cd" * 32
+    r1 = _call(np_pull, seed=seed_hex)
+    r2 = _call(np_pull, seed=seed_hex)
+    # Same seed → same card_id (UUIDs differ).
+    assert r1["card_id"] == r2["card_id"]
+    assert r1["serial"] != r2["serial"]
 
 
 def test_mine_status_no_ledger(monkeypatch, tmp_path):
-    monkeypatch.setattr(mcp_server, "LEDGER_PATH", tmp_path / "nope.json")
+    _isolate_paths(monkeypatch, tmp_path)
     result = _call(np_mine_status)
-    assert result["status"] == "not_yet_implemented"
+    assert result["status"] == "ok"
     assert result["balance"] == 0
+    assert result["ledger_entries"] == 0
 
 
 def test_mine_status_with_ledger(monkeypatch, tmp_path):
-    path = tmp_path / "ledger.json"
-    path.write_text(json.dumps({
-        "balance": 273,
-        "receipts": [{"ts": "2026-04-21T10:00:00Z", "amount": 12, "tool": "Edit"}],
-    }))
-    monkeypatch.setattr(mcp_server, "LEDGER_PATH", path)
+    _isolate_paths(monkeypatch, tmp_path)
+    from nullpoint.identity import generate_identity
+    from nullpoint.mining import append_mine_entry
+    generate_identity(force=True)
+    append_mine_entry(tool_name="Edit", amount=12,
+                     factors={"base": 4}, novelty_key="x")
     result = _call(np_mine_status)
     assert result["status"] == "ok"
-    assert result["balance"] == 273
-    assert len(result["receipts"]) == 1
+    assert result["balance"] == 12
+    assert result["mine_count"] == 1
+    assert result["verified"] is True
 
 
 # ---------------------------------------------------------------------------

@@ -54,7 +54,7 @@ where = ["."]
 include = ["nullpoint*"]
 
 [tool.setuptools.package-data]
-nullpoint = ["py.typed"]
+nullpoint = ["py.typed", "catalog/*/manifest.json", "catalog/*/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
