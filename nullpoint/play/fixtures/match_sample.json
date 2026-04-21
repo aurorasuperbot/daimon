@@ -1,0 +1,127 @@
+{
+  "schema_version": 2,
+  "event_type": "match",
+  "match_id": "f4e2a1b9",
+  "kind": "pve",
+  "timestamp": "2026-04-22T00:45:12Z",
+  "participants": {
+    "player": {
+      "name": "santiago",
+      "rank": "Veteran #18",
+      "loadout": [
+        {"position": 0, "species": "glimmerowl", "element": "volt",   "name": "Glimmerowl",    "short_name": "Glimm",  "hp_max": 12, "hp": 8,  "rarity": "uncommon"},
+        {"position": 1, "species": "iron_boar",  "element": "nature", "name": "Iron Boar",     "short_name": "Boar",   "hp_max": 14, "hp": 14, "rarity": "common"},
+        {"position": 2, "species": "blade_foxling", "element": "fire", "name": "Blade Foxling", "short_name": "Fox L",  "hp_max": 13, "hp": 13, "rarity": "rare"},
+        {"position": 3, "species": "blade_foxling", "element": "fire", "name": "Blade Foxling", "short_name": "Fox R",  "hp_max": 6,  "hp": 6,  "rarity": "rare"},
+        {"position": 4, "species": "anvilram",   "element": "nature", "name": "Anvilram",      "short_name": "Anvil",  "hp_max": 11, "hp": 11, "rarity": "uncommon"},
+        {"position": 5, "species": "dashmouse",  "element": "volt",   "name": "Dashmouse",     "short_name": "Dash",   "hp_max": 13, "hp": 13, "rarity": "common"}
+      ]
+    },
+    "opponent": {
+      "name": "Champion Lyra",
+      "rank": "Champion",
+      "loadout": [
+        {"position": 0, "species": "voltcat_apex", "element": "volt",   "name": "Voltcat Apex",  "short_name": "Voltc", "hp_max": 14, "hp": 14, "rarity": "legendary"},
+        {"position": 1, "species": "bulwarthog",   "element": "nature", "name": "Bulwarthog",    "short_name": "Bulw",  "hp_max": 10, "hp": 6,  "rarity": "uncommon"},
+        {"position": 2, "species": "stormhare",    "element": "volt",   "name": "Stormhare",     "short_name": "Storm", "hp_max": 8,  "hp": 8,  "rarity": "rare"},
+        {"position": 3, "species": "tidewyrm",     "element": "water",  "name": "Tidewyrm",      "short_name": "Tide",  "hp_max": 8,  "hp": 8,  "rarity": "rare"},
+        {"position": 4, "species": "mindroot",     "element": "void",   "name": "Mindroot",      "short_name": "Mind",  "hp_max": 15, "hp": 15, "rarity": "legendary"},
+        {"position": 5, "species": "shellpup",     "element": "water",  "name": "Shellpup",      "short_name": "Shell", "hp_max": 12, "hp": 12, "rarity": "uncommon"}
+      ]
+    }
+  },
+  "seed": "0x9f3a6c2d",
+  "rounds": [
+    {
+      "round": 1,
+      "first_player": "opponent",
+      "actions": [
+        {
+          "action_id": "r1_a1",
+          "actor":  {"side": "opponent", "position": 0, "card": "Voltcat Apex"},
+          "target": {"side": "player",   "position": 2, "card": "Blade Foxling"},
+          "kind": "damage",
+          "amount": 7,
+          "hp_after": {"player/2": 6},
+          "triggers": [
+            {
+              "action_id": "r1_a1_t1",
+              "actor":  {"side": "player",   "position": 2, "card": "Blade Foxling"},
+              "target": {"side": "opponent", "position": 0, "card": "Voltcat Apex"},
+              "kind": "damage",
+              "amount": 3,
+              "hp_after": {"opponent/0": 11},
+              "reason": "ON_DAMAGE",
+              "log_line": "Blade Foxling ON_DAMAGE counter: 3 dmg → Voltcat Apex"
+            }
+          ],
+          "log_line": "Voltcat Apex attacks Blade Foxling for 7 damage  (HP 13→6)"
+        },
+        {
+          "action_id": "r1_a2",
+          "actor":  {"side": "player", "position": 1, "card": "Iron Boar"},
+          "target": null,
+          "kind": "buff",
+          "amount": 2,
+          "hp_after": {},
+          "log_line": "Iron Boar shields allies (+2 DEF this round)",
+          "reason": "PRE_ROUND"
+        },
+        {
+          "action_id": "r1_a3",
+          "actor":  {"side": "opponent", "position": 4, "card": "Mindroot"},
+          "target": {"side": "opponent", "position": 0, "card": "Voltcat Apex"},
+          "kind": "heal",
+          "amount": 2,
+          "hp_after": {"opponent/0": 13},
+          "log_line": "Mindroot heals Voltcat Apex for 2  (HP 11→13)"
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "first_player": "player",
+      "actions": [
+        {
+          "action_id": "r2_a1",
+          "actor":  {"side": "player",   "position": 2, "card": "Blade Foxling"},
+          "target": {"side": "opponent", "position": 1, "card": "Bulwarthog"},
+          "kind": "damage",
+          "amount": 6,
+          "hp_after": {"opponent/1": 0},
+          "log_line": "Blade Foxling attacks Bulwarthog for 6 damage  (HP 6→0)"
+        },
+        {
+          "action_id": "r2_a2",
+          "actor":  {"side": "opponent", "position": 1, "card": "Bulwarthog"},
+          "target": null,
+          "kind": "death",
+          "amount": null,
+          "hp_after": {},
+          "log_line": "Bulwarthog destroyed"
+        }
+      ]
+    }
+  ],
+  "outcome": {
+    "winner": "player",
+    "player_hp_remaining": 55,
+    "opponent_hp_remaining": 42,
+    "stats": {
+      "cards_killed": {"player": 2, "opponent": 4},
+      "biggest_hit":      {"by": "Voltcat Apex", "amount": 11},
+      "longest_survivor": {"card": "Mindroot",    "hp_remaining": 15},
+      "round_count": 4
+    },
+    "rewards": {
+      "currency": 12,
+      "rank_delta": "+2"
+    }
+  },
+  "render_hints": {
+    "reveal_mode": "full",
+    "animation_profile": "standard",
+    "pacing_multiplier": 1.0
+  },
+  "capabilities_required": []
+}
