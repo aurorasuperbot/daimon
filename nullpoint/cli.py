@@ -88,6 +88,41 @@ def match(loadout_a: str, loadout_b: str, seed: str | None) -> None:
 
 
 @main.command()
+@click.argument("card_path")
+@click.option("--art-root", default=None,
+              help="Directory containing art files referenced by _render_only.art (default: card file's dir).")
+@click.option("--out", default=None, help="Output PNG path (default: <card>.png next to source).")
+@click.option("--terminal", is_flag=True, help="Print hybrid terminal render instead of generating PNG.")
+@click.option("--tier", type=int, default=None, help="Force terminal tier 1–7 (default: auto-detect).")
+def render(card_path: str, art_root: str | None, out: str | None,
+           terminal: bool, tier: int | None) -> None:
+    """Render a card from its JSON definition."""
+    import json
+    from pathlib import Path
+
+    p = Path(card_path)
+    if not p.exists():
+        click.echo(f"error: {p} not found", err=True)
+        sys.exit(1)
+    pack = json.loads(p.read_text())
+
+    if terminal:
+        from nullpoint.cards import load_card_dict
+        from nullpoint.render import render_hybrid, render_info_from_pack_dict
+        card = load_card_dict(pack)
+        art_dir = Path(art_root) if art_root else p.parent
+        info = render_info_from_pack_dict(pack, art_dir)
+        click.echo(render_hybrid(card, info, tier=tier))
+        return
+
+    from nullpoint.render import compose_card_from_pack_dict
+    out_path = Path(out) if out else p.with_suffix(".png")
+    art_dir = Path(art_root) if art_root else p.parent
+    written = compose_card_from_pack_dict(pack, art_dir, out_path)
+    click.echo(f"wrote: {written}")
+
+
+@main.command()
 def mine() -> None:
     """Start the mining daemon. (NOT YET IMPLEMENTED — V1.1.)"""
     click.echo("not yet implemented", err=True)

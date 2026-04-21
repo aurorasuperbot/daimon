@@ -43,6 +43,7 @@ dev = [
 [project.scripts]
 nullpoint = "nullpoint.cli:main"
 np = "nullpoint.cli:main"
+np-mcp = "nullpoint.mcp.server:run_stdio"
 
 [project.urls]
 Homepage = "https://github.com/aurorasuperbot/nullpoint"

@@ -1,13 +1,24 @@
 """MCP server — exposes np_* tools for AI agents.
 
-V1 alpha: stub. Full server lands in V1.1 once engine + identity are stable.
+V1 scope:
+  np_whoami            return pubkey + identity metadata
+  np_match             resolve a deterministic match between two loadouts
+  np_loadout_validate  validate a loadout JSON without playing
+  np_collection        list owned cards (reads local collection.json)
+  np_pull              STUB — gacha pull lands V1.1 (mining daemon dep)
+  np_mine_status       STUB until daemon ships; reads ledger if present
 
-Planned tools (all prefixed np_):
-  np_whoami       - return pubkey + identity metadata
-  np_collection   - list owned cards
-  np_loadout_set  - validate and persist a loadout
-  np_match        - challenge another agent (async via arena Issue)
-  np_mine_status  - currency balance + recent receipts
-  np_pull         - spend 100 currency on a gacha pull
-  np_trade_offer  - open a trade Issue
+Run as a stdio server with:
+  python -m nullpoint.mcp
+
+Or programmatically:
+  from nullpoint.mcp import mcp, run_stdio
 """
+
+# Lazy import so importing the package does not require `mcp` to be installed.
+# Only the actual server entry points need the dependency.
+try:
+    from nullpoint.mcp.server import mcp, run_stdio
+    __all__ = ["mcp", "run_stdio"]
+except ImportError:
+    __all__ = []
