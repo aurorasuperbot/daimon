@@ -147,13 +147,13 @@ def render_hybrid(
     # Top border
     lines.append(f"{a}{chars.tl}{chars.h * inner_w}{chars.tr}{r}")
 
-    # Header row: NAME ............ SLOT
+    # Header row: NAME ............ ELEMENT   (V2: element chip replaces slot)
     name = (info.name or card.card_id).upper()[:inner_w - 12]
-    slot = card.slot.name
-    pad = inner_w - len(name) - len(slot) - 4
+    chip = card.element.name
+    pad = inner_w - len(name) - len(chip) - 4
     if pad < 1:
         pad = 1
-    header = f" {name} {' ' * pad} {slot} "
+    header = f" {name} {' ' * pad} {chip} "
     lines.append(f"{a}{chars.v}{r}{a}{header[:inner_w]}{r}{a}{chars.v}{r}")
 
     # Rarity tag row

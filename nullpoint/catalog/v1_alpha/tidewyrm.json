@@ -1,0 +1,20 @@
+{
+  "card_id": "tidewyrm",
+  "species": "tidewyrm",
+  "element": "WATER",
+  "atk": 5,
+  "def": 6,
+  "hp": 28,
+  "spd": 6,
+  "triggers": [
+    { "when": "ON_ROUND_START", "op": "HEAL", "target": "ALL_ALLIES", "value": 1 }
+  ],
+  "name": "Tidewyrm",
+  "flavor": "A small heartbeat for everyone.",
+  "rarity": "rare",
+  "art": "art/rare/tidewyrm.png",
+  "moves": [
+    {"name": "Surf Strike", "when": "ON_ATTACK"},
+    {"name": "Healing Tide", "when": "ON_ROUND_START"}
+  ]
+}

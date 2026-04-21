@@ -29,6 +29,7 @@ dependencies = [
     "textual>=0.50",             # TUI
     "Pillow>=10.0",              # render harness
     "mnemonic>=0.20",            # BIP39
+    "watchdog>=3.0",             # play.inbox file-watcher
 ]
 
 [project.optional-dependencies]

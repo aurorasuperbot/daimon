@@ -305,5 +305,87 @@ def pull(seed: str | None, catalog: str | None, as_json: bool) -> None:
     click.echo(f"  ledger hash:   {receipt.ledger_entry_hash[:16]}…")
 
 
+@main.command()
+@click.option("--inbox", default=None,
+              help="Override inbox dir (default: ~/.config/nullpoint/inbox).")
+@click.option("--no-consume", is_flag=True,
+              help="Don't delete event files after handling (useful for debugging).")
+@click.option("--replay-file", default=None, type=click.Path(exists=True),
+              help="Render one match JSON directly, skip the watcher (for dev loops).")
+def play(inbox: str | None, no_consume: bool, replay_file: str | None) -> None:
+    """Launch the battle-UI game terminal.
+
+    V1 alpha: basic event log. Runs the inbox watcher and prints each event as
+    it arrives. Full Textual TUI + animation layer lands in V1.x.
+    """
+    import datetime as _dt
+    import json as _json
+    import signal
+    from pathlib import Path
+
+    from nullpoint.play.inbox import InboxEvent, InboxWatcher, InboxWriter, resolve_inbox_dir
+
+    # --replay-file: one-shot render + exit, no watcher
+    if replay_file:
+        from nullpoint.play.schema import Match
+        payload = _json.loads(Path(replay_file).read_text())
+        match = Match.model_validate(payload)
+        click.echo(f"replay:  {match.match_id}  ({match.kind})")
+        click.echo(f"  player:   {match.participants['player'].name} ({match.participants['player'].rank})")
+        click.echo(f"  opponent: {match.participants['opponent'].name} ({match.participants['opponent'].rank})")
+        click.echo(f"  rounds:   {len(match.rounds)}")
+        if match.outcome:
+            click.echo(f"  winner:   {match.outcome.winner}")
+        click.echo("  (full Textual TUI render lands next session — this path is a stub)")
+        return
+
+    inbox_path = resolve_inbox_dir(Path(inbox) if inbox else None)
+
+    def _fmt_ts(ts_ns: int) -> str:
+        if ts_ns == 0:
+            return "?"
+        return _dt.datetime.fromtimestamp(ts_ns / 1_000_000_000).strftime("%H:%M:%S.%f")[:-3]
+
+    def on_match(ev: InboxEvent) -> None:
+        click.echo(f"[{_fmt_ts(ev.ts_ns)}] MATCH   {ev.payload.get('match_id', '?')[:12]} "
+                   f"{ev.payload.get('participants', {}).get('player', {}).get('name', '?')} vs "
+                   f"{ev.payload.get('participants', {}).get('opponent', {}).get('name', '?')}")
+
+    def on_pull(ev: InboxEvent) -> None:
+        click.echo(f"[{_fmt_ts(ev.ts_ns)}] PULL    {ev.payload.get('card_id', '?')} "
+                   f"({ev.payload.get('rarity', '?')})")
+
+    def on_mining(ev: InboxEvent) -> None:
+        click.echo(f"[{_fmt_ts(ev.ts_ns)}] MINING  +{ev.payload.get('amount', '?')} "
+                   f"({ev.payload.get('tool_name', '?')})")
+
+    def on_ping(ev: InboxEvent) -> None:
+        click.echo(f"[{_fmt_ts(ev.ts_ns)}] PING    {ev.payload.get('note', '')}")
+
+    handlers = {
+        "match": on_match,
+        "pull": on_pull,
+        "mining": on_mining,
+        "ping": on_ping,
+    }
+
+    click.echo(f"nullpoint play  —  watching {inbox_path}")
+    click.echo("press Ctrl-C to quit.")
+    click.echo()
+
+    watcher = InboxWatcher(
+        handlers=handlers,
+        inbox_dir=inbox_path,
+        consume=not no_consume,
+    )
+    # Handle Ctrl-C cleanly — stop observer thread, exit
+    signal.signal(signal.SIGINT, lambda *_: watcher.stop())
+    signal.signal(signal.SIGTERM, lambda *_: watcher.stop())
+
+    watcher.start()
+    watcher.wait()
+    click.echo("\nbye.")
+
+
 if __name__ == "__main__":
     main()

@@ -1,0 +1,15 @@
+{
+  "card_id": "iron_boar",
+  "species": "iron_boar",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 8,
+  "hp": 30,
+  "spd": 3,
+  "triggers": [],
+  "name": "Iron Boar",
+  "flavor": "Hold the line.",
+  "rarity": "common",
+  "art": "art/common/iron_boar.png",
+  "moves": [{"name": "Plated Charge", "when": "ON_ATTACK"}]
+}

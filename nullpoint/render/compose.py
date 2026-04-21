@@ -43,7 +43,7 @@ except ImportError as e:
     raise ImportError("nullpoint.render.compose requires Pillow >= 10. "
                       "Install with: pip install nullpoint[render]") from e
 
-from nullpoint.engine.types import Card, Slot
+from nullpoint.engine.types import Card, Element
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -232,14 +232,14 @@ def compose_card(
         art = _fit_art(Path(info.art_path), W, art_h)
         card_img.paste(art, (0, art_top))
     else:
-        # Placeholder: dark gradient with slot-name initial
+        # Placeholder: dark gradient with species/element initial
         placeholder = _vertical_gradient(W, art_h,
                                          (pal.bg_top[0] + 20, pal.bg_top[1] + 20, pal.bg_top[2] + 30),
                                          pal.bg_bottom)
         card_img.paste(placeholder, (0, art_top))
         ph_draw = ImageDraw.Draw(card_img)
         ph_font = _font(_FONT_BOLD, 60, s)
-        ph_text = card.slot.name[0]
+        ph_text = (card.species[:1] or card.card_id[:1] or "?").upper()
         bbox = ph_draw.textbbox((0, 0), ph_text, font=ph_font)
         ph_draw.text(
             ((W - (bbox[2] - bbox[0])) // 2, art_top + (art_h - (bbox[3] - bbox[1])) // 2 - 10 * s),
@@ -259,8 +259,8 @@ def compose_card(
     title_font = _font(_FONT_BOLD, 11, s)
     title = (info.name or card.card_id).upper()
     draw.text((10 * s, int(hdr_h * 0.25)), title, font=title_font, fill=pal.accent_light)
-    # slot chip on right
-    chip_text = card.slot.name
+    # element chip on right (replaces slot chip in V2)
+    chip_text = card.element.name
     chip_font = _font(_FONT_BOLD, 8, s)
     bbox = draw.textbbox((0, 0), chip_text, font=chip_font)
     cw = bbox[2] - bbox[0]

@@ -2,29 +2,51 @@
 
 All types here are pure data — no methods, no string parsing, no I/O.
 Engine consumes these structures and produces RoundLog/MatchResult.
+
+V2 (monster pivot, 2026-04-21):
+  - Slot enum REMOVED. A team is 6 monsters with positions 0..5.
+  - Positions are mutable strategy choices, not anatomical constraints.
+  - Card gains `element` (for type-effectiveness) and `species` (for evolution families).
+  - UnitState carries `status: dict[int,int]` for ticking status conditions
+    (burn/chill/root/charge — populated in later phases).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 
 # ---------------------------------------------------------------------------
-# Slots: a loadout has 6 named slots. Slot identity is structural, not flavor.
+# Team structure: 6 monsters at positions 0..5. Position is strategy, not anatomy.
 # ---------------------------------------------------------------------------
 
-class Slot(IntEnum):
-    HEAD = 0
-    TORSO = 1
-    ARM_L = 2
-    ARM_R = 3
-    LEGS = 4
-    CORE = 5
+TEAM_SIZE = 6
 
 
-SLOT_COUNT = len(Slot)
+# ---------------------------------------------------------------------------
+# Elements: for type-effectiveness. 5-element rock-paper-scissors loop.
+# ---------------------------------------------------------------------------
+
+class Element(IntEnum):
+    FIRE = 1
+    WATER = 2
+    NATURE = 3
+    VOLT = 4
+    VOID = 5
+
+
+# ---------------------------------------------------------------------------
+# Status conditions: persistent effects that tick across rounds.
+# Phase 6 wires the application + tick logic; phase 1 just reserves the ids.
+# ---------------------------------------------------------------------------
+
+class StatusCondition(IntEnum):
+    BURN = 1     # 3 dmg at round start, ticks down
+    CHILL = 2    # spd_mod -3 while active
+    ROOT = 3     # skip attack while active
+    CHARGE = 4   # next attack +6 atk, consumed on use
 
 
 # ---------------------------------------------------------------------------
@@ -78,17 +100,18 @@ class Trigger:
 
 
 # ---------------------------------------------------------------------------
-# Card: pure stat block + zero-or-more triggers. NO TEXT, NO NAME, NO FLAVOR.
-# Card text/art lives in the card-definitions repo and is loaded only by
-# the render layer, never the combat layer.
+# Card: pure stat block + element + species + zero-or-more triggers.
+# NO TEXT, NO NAME, NO FLAVOR, NO ART. The render layer owns all of that.
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Card:
-    card_id: str          # opaque identifier, never parsed for meaning
-    slot: Slot
+    card_id: str            # opaque identifier, unique within a pack
+    species: str            # family identifier (e.g. "embercub"); legendary/rare/uncommon
+                            # forms of the same creature share species
+    element: Element
     atk: int
-    defense: int          # 'def' is a Python keyword
+    defense: int            # 'def' is a Python keyword
     hp: int
     spd: int
     triggers: tuple[Trigger, ...] = ()
@@ -98,6 +121,10 @@ class Card:
                         (self.hp, "hp"), (self.spd, "spd")]:
             if not isinstance(v, int) or v < 0:
                 raise ValueError(f"Card.{name} must be non-negative int")
+        if not isinstance(self.species, str) or not self.species:
+            raise ValueError("Card.species must be non-empty string")
+        if not isinstance(self.element, Element):
+            raise TypeError("Card.element must be Element enum")
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +134,7 @@ class Card:
 @dataclass
 class UnitState:
     card: Card
-    slot: Slot
+    position: int         # 0..5, team ordering (replaces slot)
     side: int             # 0 or 1
     hp: int               # current
     atk_mod: int = 0
@@ -115,10 +142,14 @@ class UnitState:
     spd_mod: int = 0
     shield: int = 0
     alive: bool = True
+    # status[StatusCondition.BURN] = remaining rounds. 0/missing = not active.
+    status: Dict[int, int] = field(default_factory=dict)
 
     @property
     def effective_atk(self) -> int:
-        return max(0, self.card.atk + self.atk_mod)
+        base = max(0, self.card.atk + self.atk_mod)
+        # Charge consumes on read; combat resolver pops the flag on hit.
+        return base
 
     @property
     def effective_def(self) -> int:
@@ -126,7 +157,8 @@ class UnitState:
 
     @property
     def effective_spd(self) -> int:
-        return max(0, self.card.spd + self.spd_mod)
+        chill_penalty = 3 if self.status.get(int(StatusCondition.CHILL), 0) > 0 else 0
+        return max(0, self.card.spd + self.spd_mod - chill_penalty)
 
 
 # ---------------------------------------------------------------------------

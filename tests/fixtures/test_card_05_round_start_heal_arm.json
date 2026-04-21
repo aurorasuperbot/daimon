@@ -1,15 +1,21 @@
 {
   "card_id": "test_round_start_heal_arm",
-  "slot": "ARM_R",
   "atk": 3,
   "def": 3,
   "hp": 12,
   "spd": 4,
   "triggers": [
-    { "when": "ON_ROUND_START", "op": "HEAL", "target": "ALL_ALLIES", "value": 2 }
+    {
+      "when": "ON_ROUND_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
   ],
   "_render_only": {
     "name": "Round Start Heal Arm",
     "flavor": "exercise: ON_ROUND_START + HEAL fires every round"
-  }
+  },
+  "element": "NATURE",
+  "species": "round_start_heal_arm"
 }

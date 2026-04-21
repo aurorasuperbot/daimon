@@ -4,29 +4,36 @@ Reads card JSON files from disk and produces Card objects. The loader is
 responsible for VALIDATING and DROPPING all flavor text — only mechanical
 fields ever enter the engine.
 
-Card JSON schema (V1):
+Card JSON schema (V2 — monster pivot):
 {
   "card_id": "string",         # unique within pack
-  "slot": "HEAD|TORSO|ARM_L|ARM_R|LEGS|CORE",
+  "species": "string",         # family identifier; rarity tiers of same
+                               #   creature share species (e.g. "embercub")
+  "element": "FIRE|WATER|NATURE|VOLT|VOID",
   "atk": int >= 0,
   "def": int >= 0,
-  "hp": int >= 0,
+  "hp":  int >= 0,
   "spd": int >= 0,
   "triggers": [
       {
-        "when": "ON_BATTLE_START|ON_ROUND_START|ON_ATTACK|ON_TAKE_DAMAGE|ON_DEATH|ON_ALLY_DEATH",
-        "op":   "BUFF_ATK|DEBUFF_ATK|BUFF_DEF|DEBUFF_DEF|HEAL|DAMAGE|ADD_SHIELD|BUFF_SPD",
+        "when":  "ON_BATTLE_START|ON_ROUND_START|ON_ATTACK|ON_TAKE_DAMAGE|ON_DEATH|ON_ALLY_DEATH",
+        "op":    "BUFF_ATK|DEBUFF_ATK|BUFF_DEF|DEBUFF_DEF|HEAL|DAMAGE|ADD_SHIELD|BUFF_SPD",
         "target":"SELF|ALL_ALLIES|ALL_ENEMIES|LOWEST_HP_ENEMY|HIGHEST_HP_ENEMY|RANDOM_ENEMY|RANDOM_ALLY",
         "value": int
       }
   ],
 
   // Render-only fields (NEVER read by engine):
-  "name": "string",
+  "name":   "string",
   "flavor": "string",
   "rarity": "common|uncommon|rare|epic|legendary",
-  "art": "string"               # path or hash; render-layer only
+  "art":    "string",          # path or hash; render-layer only
+  "moves": [                   # optional display-only named abilities
+      {"name": "string", "when": "ON_ATTACK|..."}
+  ]
 }
+
+V1 catalogs (with `slot` field) are rejected with a clear migration hint.
 """
 
 from __future__ import annotations
@@ -38,7 +45,7 @@ from typing import Any, Dict
 from nullpoint.engine.types import (
     Card,
     EffectOp,
-    Slot,
+    Element,
     TargetFilter,
     Trigger,
     TriggerWhen,
@@ -87,11 +94,23 @@ def load_card_dict(d: Dict[str, Any]) -> Card:
     if not isinstance(d, dict):
         raise ValueError("card must be a JSON object")
 
+    # V1 catalog detection — clear migration error.
+    if "slot" in d and "element" not in d:
+        raise ValueError(
+            "legacy V1 card detected (has 'slot', missing 'element'). "
+            "Run scripts/migrate_v1_catalog.py or drop the slot field and add "
+            "'element' + 'species' (see cards/loader.py docstring)."
+        )
+
     card_id = d.get("card_id")
     if not isinstance(card_id, str) or not card_id:
         raise ValueError("card_id must be non-empty string")
 
-    slot = _parse_enum(Slot, d.get("slot"), "slot")
+    species = d.get("species")
+    if not isinstance(species, str) or not species:
+        raise ValueError("species must be non-empty string")
+
+    element = _parse_enum(Element, d.get("element"), "element")
     atk = _parse_stat(d.get("atk"), "atk")
     defense = _parse_stat(d.get("def"), "def")
     hp = _parse_stat(d.get("hp"), "hp")
@@ -108,7 +127,8 @@ def load_card_dict(d: Dict[str, Any]) -> Card:
 
     return Card(
         card_id=card_id,
-        slot=slot,
+        species=species,
+        element=element,
         atk=atk,
         defense=defense,
         hp=hp,

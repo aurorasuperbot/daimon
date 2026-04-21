@@ -1,6 +1,5 @@
 {
   "card_id": "test_vanilla_head",
-  "slot": "HEAD",
   "atk": 5,
   "def": 5,
   "hp": 20,
@@ -10,5 +9,7 @@
     "name": "Vanilla Head",
     "flavor": "no triggers, baseline stats",
     "rarity": "common"
-  }
+  },
+  "element": "NATURE",
+  "species": "vanilla_head"
 }

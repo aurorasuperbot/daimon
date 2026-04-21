@@ -1,0 +1,15 @@
+{
+  "card_id": "geodeling",
+  "species": "geodeling",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 5,
+  "hp": 25,
+  "spd": 5,
+  "triggers": [],
+  "name": "Geodeling",
+  "flavor": "Reliable. Boring. Reliable.",
+  "rarity": "common",
+  "art": "art/common/geodeling.png",
+  "moves": [{"name": "Stone Pulse", "when": "ON_ATTACK"}]
+}

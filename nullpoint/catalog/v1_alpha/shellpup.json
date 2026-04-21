@@ -1,0 +1,15 @@
+{
+  "card_id": "shellpup",
+  "species": "shellpup",
+  "element": "WATER",
+  "atk": 3,
+  "def": 9,
+  "hp": 16,
+  "spd": 4,
+  "triggers": [],
+  "name": "Shellpup",
+  "flavor": "A small shield, well placed.",
+  "rarity": "common",
+  "art": "art/common/shellpup.png",
+  "moves": [{"name": "Tide Guard", "when": "ON_ATTACK"}]
+}

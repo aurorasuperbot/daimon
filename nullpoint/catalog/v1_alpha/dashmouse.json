@@ -1,0 +1,15 @@
+{
+  "card_id": "dashmouse",
+  "species": "dashmouse",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 3,
+  "hp": 20,
+  "spd": 9,
+  "triggers": [],
+  "name": "Dashmouse",
+  "flavor": "Speed is its own armor.",
+  "rarity": "common",
+  "art": "art/common/dashmouse.png",
+  "moves": [{"name": "Spark Dash", "when": "ON_ATTACK"}]
+}

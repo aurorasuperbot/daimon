@@ -88,7 +88,8 @@ def _seed_from_arg(seed_hex: Optional[str]) -> bytes:
 def _card_to_jsonable(c: Card) -> Dict[str, Any]:
     return {
         "card_id": c.card_id,
-        "slot": c.slot.name,
+        "species": c.species,
+        "element": c.element.name,
         "atk": c.atk,
         "def": c.defense,
         "hp": c.hp,

@@ -1,0 +1,20 @@
+{
+  "card_id": "glimmerowl",
+  "species": "glimmerowl",
+  "element": "VOLT",
+  "atk": 7,
+  "def": 5,
+  "hp": 20,
+  "spd": 9,
+  "triggers": [
+    { "when": "ON_BATTLE_START", "op": "BUFF_SPD", "target": "SELF", "value": 1 }
+  ],
+  "name": "Glimmerowl",
+  "flavor": "Sees the move before it happens.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/glimmerowl.png",
+  "moves": [
+    {"name": "Static Swoop", "when": "ON_ATTACK"},
+    {"name": "Forewarning", "when": "ON_BATTLE_START"}
+  ]
+}

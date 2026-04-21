@@ -1,15 +1,21 @@
 {
   "card_id": "test_battle_start_buff_arm",
-  "slot": "ARM_L",
   "atk": 4,
   "def": 4,
   "hp": 15,
   "spd": 5,
   "triggers": [
-    { "when": "ON_BATTLE_START", "op": "BUFF_ATK", "target": "ALL_ALLIES", "value": 2 }
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
   ],
   "_render_only": {
     "name": "Battle Start Buff Arm",
     "flavor": "exercise: ON_BATTLE_START + ALL_ALLIES + BUFF_ATK"
-  }
+  },
+  "element": "NATURE",
+  "species": "battle_start_buff_arm"
 }

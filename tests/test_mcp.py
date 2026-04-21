@@ -50,10 +50,15 @@ def _vanilla_head_dict() -> dict:
     return json.loads((FIXTURE_DIR / "test_card_01_vanilla_head.json").read_text())
 
 
-def _filler_card_dict(slot: str, suffix: str = "f") -> dict:
+_FILLER_ELEMENTS = ["FIRE", "WATER", "NATURE", "VOLT", "VOID"]
+
+
+def _filler_card_dict(position: int, suffix: str = "f") -> dict:
+    element = _FILLER_ELEMENTS[position % len(_FILLER_ELEMENTS)]
     return {
-        "card_id": f"filler_{slot.lower()}_{suffix}",
-        "slot": slot,
+        "card_id": f"filler_{position}_{suffix}",
+        "species": f"filler_{position}",
+        "element": element,
         "atk": 5,
         "def": 5,
         "hp": 20,
@@ -63,10 +68,8 @@ def _filler_card_dict(slot: str, suffix: str = "f") -> dict:
 
 
 def _full_loadout_dict() -> dict:
-    head = _vanilla_head_dict()
-    cards = [head]
-    for slot in ["TORSO", "ARM_L", "ARM_R", "LEGS", "CORE"]:
-        cards.append(_filler_card_dict(slot))
+    lead = _vanilla_head_dict()
+    cards = [lead] + [_filler_card_dict(i) for i in range(1, 6)]
     return {"cards": cards}
 
 
@@ -173,12 +176,14 @@ def test_loadout_validate_ok():
     result = _call(np_loadout_validate, loadout=_full_loadout_dict())
     assert result["valid"] is True
     assert len(result["cards"]) == 6
-    assert result["cards"][0]["slot"] == "HEAD"
+    # V2: cards expose `element` + `species` (no more `slot`).
+    assert "element" in result["cards"][0]
+    assert "species" in result["cards"][0]
 
 
-def test_loadout_validate_missing_slot():
+def test_loadout_validate_wrong_count():
     lo = _full_loadout_dict()
-    lo["cards"] = lo["cards"][:5]  # only 5 cards
+    lo["cards"] = lo["cards"][:5]  # only 5 cards → must be rejected
     result = _call(np_loadout_validate, loadout=lo)
     assert result["valid"] is False
     assert "error" in result

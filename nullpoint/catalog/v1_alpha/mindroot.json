@@ -1,6 +1,7 @@
 {
-  "card_id": "epic_oracle_head",
-  "slot": "HEAD",
+  "card_id": "mindroot",
+  "species": "mindroot",
+  "element": "VOID",
   "atk": 8,
   "def": 6,
   "hp": 22,
@@ -9,8 +10,12 @@
     { "when": "ON_BATTLE_START", "op": "DEBUFF_ATK", "target": "ALL_ENEMIES", "value": 1 },
     { "when": "ON_ATTACK", "op": "DAMAGE", "target": "LOWEST_HP_ENEMY", "value": 2 }
   ],
-  "name": "Oracle Head",
+  "name": "Mindroot",
   "flavor": "Knew you'd flinch.",
   "rarity": "epic",
-  "art": "art/epic/oracle_head.png"
+  "art": "art/epic/mindroot.png",
+  "moves": [
+    {"name": "Nullwhisper", "when": "ON_ATTACK"},
+    {"name": "Psychic Press", "when": "ON_BATTLE_START"}
+  ]
 }
