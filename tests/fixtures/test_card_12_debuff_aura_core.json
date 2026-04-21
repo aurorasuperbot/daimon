@@ -1,0 +1,16 @@
+{
+  "card_id": "test_debuff_aura_core",
+  "slot": "CORE",
+  "atk": 3,
+  "def": 5,
+  "hp": 20,
+  "spd": 4,
+  "triggers": [
+    { "when": "ON_BATTLE_START", "op": "DEBUFF_ATK", "target": "ALL_ENEMIES", "value": 1 },
+    { "when": "ON_BATTLE_START", "op": "DEBUFF_DEF", "target": "ALL_ENEMIES", "value": 1 }
+  ],
+  "_render_only": {
+    "name": "Aura of Decay Core",
+    "flavor": "exercise: multiple triggers + DEBUFF ops + ALL_ENEMIES"
+  }
+}

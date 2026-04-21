@@ -1,0 +1,13 @@
+{
+  "card_id": "test_speedy_runner_legs",
+  "slot": "LEGS",
+  "atk": 7,
+  "def": 2,
+  "hp": 12,
+  "spd": 15,
+  "triggers": [],
+  "_render_only": {
+    "name": "Speed Demon Legs",
+    "flavor": "exercise: highest spd acts first in turn order"
+  }
+}

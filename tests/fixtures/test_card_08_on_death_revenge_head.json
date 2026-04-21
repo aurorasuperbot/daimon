@@ -1,0 +1,15 @@
+{
+  "card_id": "test_on_death_revenge_head",
+  "slot": "HEAD",
+  "atk": 4,
+  "def": 2,
+  "hp": 8,
+  "spd": 6,
+  "triggers": [
+    { "when": "ON_DEATH", "op": "DAMAGE", "target": "ALL_ENEMIES", "value": 4 }
+  ],
+  "_render_only": {
+    "name": "Vengeance Head",
+    "flavor": "exercise: ON_DEATH + DAMAGE + ALL_ENEMIES"
+  }
+}

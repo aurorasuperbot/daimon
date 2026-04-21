@@ -1,0 +1,15 @@
+{
+  "card_id": "test_on_take_damage_shield_core",
+  "slot": "CORE",
+  "atk": 2,
+  "def": 4,
+  "hp": 25,
+  "spd": 3,
+  "triggers": [
+    { "when": "ON_TAKE_DAMAGE", "op": "ADD_SHIELD", "target": "SELF", "value": 3 }
+  ],
+  "_render_only": {
+    "name": "Reactive Shield Core",
+    "flavor": "exercise: ON_TAKE_DAMAGE + ADD_SHIELD"
+  }
+}

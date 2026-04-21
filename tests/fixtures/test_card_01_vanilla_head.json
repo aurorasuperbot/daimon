@@ -1,0 +1,14 @@
+{
+  "card_id": "test_vanilla_head",
+  "slot": "HEAD",
+  "atk": 5,
+  "def": 5,
+  "hp": 20,
+  "spd": 5,
+  "triggers": [],
+  "_render_only": {
+    "name": "Vanilla Head",
+    "flavor": "no triggers, baseline stats",
+    "rarity": "common"
+  }
+}

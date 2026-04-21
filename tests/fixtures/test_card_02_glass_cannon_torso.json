@@ -1,0 +1,14 @@
+{
+  "card_id": "test_glass_cannon_torso",
+  "slot": "TORSO",
+  "atk": 20,
+  "def": 0,
+  "hp": 5,
+  "spd": 10,
+  "triggers": [],
+  "_render_only": {
+    "name": "Glass Cannon Torso",
+    "flavor": "exercise: high atk + low hp resolves before round cap",
+    "rarity": "common"
+  }
+}

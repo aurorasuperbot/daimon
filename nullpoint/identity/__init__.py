@@ -1,0 +1,20 @@
+"""Identity: ed25519 keypairs + BIP39 mnemonic recovery + GitHub binding."""
+
+from nullpoint.identity.bip39 import mnemonic_from_seed, seed_from_mnemonic
+from nullpoint.identity.keys import (
+    Identity,
+    generate_identity,
+    load_identity,
+    sign,
+    verify,
+)
+
+__all__ = [
+    "Identity",
+    "generate_identity",
+    "load_identity",
+    "mnemonic_from_seed",
+    "seed_from_mnemonic",
+    "sign",
+    "verify",
+]
