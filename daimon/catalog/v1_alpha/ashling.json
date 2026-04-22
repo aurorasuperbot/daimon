@@ -1,0 +1,15 @@
+{
+  "card_id": "ashling",
+  "species": "ashling",
+  "element": "FIRE",
+  "atk": 6,
+  "def": 3,
+  "hp": 14,
+  "spd": 7,
+  "triggers": [],
+  "name": "Ashling",
+  "flavor": "Cinders given the shape of a small, hungry thing.",
+  "rarity": "common",
+  "art": "art/common/ashling.png",
+  "moves": []
+}

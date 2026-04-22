@@ -1,0 +1,15 @@
+{
+  "card_id": "tidepup",
+  "species": "tidepup",
+  "element": "WATER",
+  "atk": 5,
+  "def": 5,
+  "hp": 20,
+  "spd": 5,
+  "triggers": [],
+  "name": "Tidepup",
+  "flavor": "Rolls in with one wave, out with the next.",
+  "rarity": "common",
+  "art": "art/common/tidepup.png",
+  "moves": []
+}

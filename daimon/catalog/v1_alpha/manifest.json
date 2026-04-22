@@ -1,8 +1,8 @@
 {
   "pack_id": "v1_alpha",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "schema_version": 2,
-  "description": "DAIMON V1 alpha bundled creature pool. Ships with the engine package so dm_pull is functional out of the box. 13 starter monsters across 5 elements (Fire/Water/Nature/Volt/Void). Will be supplemented (not replaced) by OCI cardpacks in V1.5.",
+  "description": "DAIMON V1 alpha bundled creature pool. Ships with the engine package so dm_pull is functional out of the box. 67 monsters across 5 elements (Fire/Water/Nature/Volt/Void), spread across 5 rarity tiers. Will be supplemented (not replaced) by OCI cardpacks in V1.5.",
   "rarity_weights": {
     "common": 60,
     "uncommon": 25,
@@ -11,18 +11,407 @@
     "legendary": 1
   },
   "cards": [
-    {"card_id": "scoutling",      "rarity": "common",    "element": "NATURE", "file": "scoutling.json"},
-    {"card_id": "iron_boar",      "rarity": "common",    "element": "NATURE", "file": "iron_boar.json"},
-    {"card_id": "blade_foxling",  "rarity": "common",    "element": "FIRE",   "file": "blade_foxling.json"},
-    {"card_id": "shellpup",       "rarity": "common",    "element": "WATER",  "file": "shellpup.json"},
-    {"card_id": "dashmouse",      "rarity": "common",    "element": "VOLT",   "file": "dashmouse.json"},
-    {"card_id": "geodeling",      "rarity": "common",    "element": "NATURE", "file": "geodeling.json"},
-    {"card_id": "glimmerowl",     "rarity": "uncommon",  "element": "VOLT",   "file": "glimmerowl.json"},
-    {"card_id": "anvilram",       "rarity": "uncommon",  "element": "NATURE", "file": "anvilram.json"},
-    {"card_id": "stormhare",      "rarity": "rare",      "element": "VOLT",   "file": "stormhare.json"},
-    {"card_id": "tidewyrm",       "rarity": "rare",      "element": "WATER",  "file": "tidewyrm.json"},
-    {"card_id": "bulwarthog",     "rarity": "epic",      "element": "NATURE", "file": "bulwarthog.json"},
-    {"card_id": "mindroot",       "rarity": "epic",      "element": "VOID",   "file": "mindroot.json"},
-    {"card_id": "voltcat_apex",   "rarity": "legendary", "element": "VOLT",   "file": "voltcat_apex.json"}
+    {
+      "card_id": "scoutling",
+      "rarity": "common",
+      "element": "NATURE",
+      "file": "scoutling.json"
+    },
+    {
+      "card_id": "iron_boar",
+      "rarity": "common",
+      "element": "NATURE",
+      "file": "iron_boar.json"
+    },
+    {
+      "card_id": "blade_foxling",
+      "rarity": "common",
+      "element": "FIRE",
+      "file": "blade_foxling.json"
+    },
+    {
+      "card_id": "shellpup",
+      "rarity": "common",
+      "element": "WATER",
+      "file": "shellpup.json"
+    },
+    {
+      "card_id": "dashmouse",
+      "rarity": "common",
+      "element": "VOLT",
+      "file": "dashmouse.json"
+    },
+    {
+      "card_id": "geodeling",
+      "rarity": "common",
+      "element": "NATURE",
+      "file": "geodeling.json"
+    },
+    {
+      "card_id": "glimmerowl",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "glimmerowl.json"
+    },
+    {
+      "card_id": "anvilram",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "anvilram.json"
+    },
+    {
+      "card_id": "stormhare",
+      "rarity": "rare",
+      "element": "VOLT",
+      "file": "stormhare.json"
+    },
+    {
+      "card_id": "tidewyrm",
+      "rarity": "rare",
+      "element": "WATER",
+      "file": "tidewyrm.json"
+    },
+    {
+      "card_id": "bulwarthog",
+      "rarity": "epic",
+      "element": "NATURE",
+      "file": "bulwarthog.json"
+    },
+    {
+      "card_id": "mindroot",
+      "rarity": "epic",
+      "element": "VOID",
+      "file": "mindroot.json"
+    },
+    {
+      "card_id": "voltcat_apex",
+      "rarity": "legendary",
+      "element": "VOLT",
+      "file": "voltcat_apex.json"
+    },
+    {
+      "card_id": "emberpup",
+      "rarity": "common",
+      "element": "FIRE",
+      "file": "emberpup.json"
+    },
+    {
+      "card_id": "ashling",
+      "rarity": "common",
+      "element": "FIRE",
+      "file": "ashling.json"
+    },
+    {
+      "card_id": "sparrowflame",
+      "rarity": "common",
+      "element": "FIRE",
+      "file": "sparrowflame.json"
+    },
+    {
+      "card_id": "coalmunch",
+      "rarity": "common",
+      "element": "FIRE",
+      "file": "coalmunch.json"
+    },
+    {
+      "card_id": "magmite",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "magmite.json"
+    },
+    {
+      "card_id": "pyroshrike",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "pyroshrike.json"
+    },
+    {
+      "card_id": "cinderhound",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "cinderhound.json"
+    },
+    {
+      "card_id": "flarewing",
+      "rarity": "rare",
+      "element": "FIRE",
+      "file": "flarewing.json"
+    },
+    {
+      "card_id": "blazewolf",
+      "rarity": "rare",
+      "element": "FIRE",
+      "file": "blazewolf.json"
+    },
+    {
+      "card_id": "molten_drake",
+      "rarity": "rare",
+      "element": "FIRE",
+      "file": "molten_drake.json"
+    },
+    {
+      "card_id": "inferno_lynx",
+      "rarity": "epic",
+      "element": "FIRE",
+      "file": "inferno_lynx.json"
+    },
+    {
+      "card_id": "ashen_phoenix",
+      "rarity": "epic",
+      "element": "FIRE",
+      "file": "ashen_phoenix.json"
+    },
+    {
+      "card_id": "pyrotyrant",
+      "rarity": "legendary",
+      "element": "FIRE",
+      "file": "pyrotyrant.json"
+    },
+    {
+      "card_id": "mistling",
+      "rarity": "common",
+      "element": "WATER",
+      "file": "mistling.json"
+    },
+    {
+      "card_id": "tidepup",
+      "rarity": "common",
+      "element": "WATER",
+      "file": "tidepup.json"
+    },
+    {
+      "card_id": "bubblefry",
+      "rarity": "common",
+      "element": "WATER",
+      "file": "bubblefry.json"
+    },
+    {
+      "card_id": "coralcub",
+      "rarity": "common",
+      "element": "WATER",
+      "file": "coralcub.json"
+    },
+    {
+      "card_id": "riverotter",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "riverotter.json"
+    },
+    {
+      "card_id": "frostfin",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "frostfin.json"
+    },
+    {
+      "card_id": "abysseel",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "abysseel.json"
+    },
+    {
+      "card_id": "riptide_wyrm",
+      "rarity": "rare",
+      "element": "WATER",
+      "file": "riptide_wyrm.json"
+    },
+    {
+      "card_id": "glacier_kraken",
+      "rarity": "rare",
+      "element": "WATER",
+      "file": "glacier_kraken.json"
+    },
+    {
+      "card_id": "maelstrom_serpent",
+      "rarity": "epic",
+      "element": "WATER",
+      "file": "maelstrom_serpent.json"
+    },
+    {
+      "card_id": "leviathan_prime",
+      "rarity": "legendary",
+      "element": "WATER",
+      "file": "leviathan_prime.json"
+    },
+    {
+      "card_id": "mossbat",
+      "rarity": "common",
+      "element": "NATURE",
+      "file": "mossbat.json"
+    },
+    {
+      "card_id": "sproutling",
+      "rarity": "common",
+      "element": "NATURE",
+      "file": "sproutling.json"
+    },
+    {
+      "card_id": "thornpup",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "thornpup.json"
+    },
+    {
+      "card_id": "bramblegoat",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "bramblegoat.json"
+    },
+    {
+      "card_id": "moss_titan",
+      "rarity": "rare",
+      "element": "NATURE",
+      "file": "moss_titan.json"
+    },
+    {
+      "card_id": "forest_warden",
+      "rarity": "epic",
+      "element": "NATURE",
+      "file": "forest_warden.json"
+    },
+    {
+      "card_id": "worldroot_colossus",
+      "rarity": "legendary",
+      "element": "NATURE",
+      "file": "worldroot_colossus.json"
+    },
+    {
+      "card_id": "sparkling",
+      "rarity": "common",
+      "element": "VOLT",
+      "file": "sparkling.json"
+    },
+    {
+      "card_id": "jolthog",
+      "rarity": "common",
+      "element": "VOLT",
+      "file": "jolthog.json"
+    },
+    {
+      "card_id": "charge_chick",
+      "rarity": "common",
+      "element": "VOLT",
+      "file": "charge_chick.json"
+    },
+    {
+      "card_id": "voltsprite",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "voltsprite.json"
+    },
+    {
+      "card_id": "thunderfox",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "thunderfox.json"
+    },
+    {
+      "card_id": "arc_serpent",
+      "rarity": "rare",
+      "element": "VOLT",
+      "file": "arc_serpent.json"
+    },
+    {
+      "card_id": "tempest_eagle",
+      "rarity": "rare",
+      "element": "VOLT",
+      "file": "tempest_eagle.json"
+    },
+    {
+      "card_id": "plasma_djinn",
+      "rarity": "epic",
+      "element": "VOLT",
+      "file": "plasma_djinn.json"
+    },
+    {
+      "card_id": "storm_celestial",
+      "rarity": "legendary",
+      "element": "VOLT",
+      "file": "storm_celestial.json"
+    },
+    {
+      "card_id": "shadepup",
+      "rarity": "common",
+      "element": "VOID",
+      "file": "shadepup.json"
+    },
+    {
+      "card_id": "nullkit",
+      "rarity": "common",
+      "element": "VOID",
+      "file": "nullkit.json"
+    },
+    {
+      "card_id": "duskmoth",
+      "rarity": "common",
+      "element": "VOID",
+      "file": "duskmoth.json"
+    },
+    {
+      "card_id": "whisperling",
+      "rarity": "common",
+      "element": "VOID",
+      "file": "whisperling.json"
+    },
+    {
+      "card_id": "voidcrawler",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "voidcrawler.json"
+    },
+    {
+      "card_id": "dread_imp",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "dread_imp.json"
+    },
+    {
+      "card_id": "spectral_owl",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "spectral_owl.json"
+    },
+    {
+      "card_id": "haunt_hare",
+      "rarity": "rare",
+      "element": "VOID",
+      "file": "haunt_hare.json"
+    },
+    {
+      "card_id": "void_serpent",
+      "rarity": "rare",
+      "element": "VOID",
+      "file": "void_serpent.json"
+    },
+    {
+      "card_id": "riftwraith",
+      "rarity": "rare",
+      "element": "VOID",
+      "file": "riftwraith.json"
+    },
+    {
+      "card_id": "abyss_warden",
+      "rarity": "epic",
+      "element": "VOID",
+      "file": "abyss_warden.json"
+    },
+    {
+      "card_id": "nullhound",
+      "rarity": "epic",
+      "element": "VOID",
+      "file": "nullhound.json"
+    },
+    {
+      "card_id": "echo_lich",
+      "rarity": "legendary",
+      "element": "VOID",
+      "file": "echo_lich.json"
+    },
+    {
+      "card_id": "voidking_morr",
+      "rarity": "legendary",
+      "element": "VOID",
+      "file": "voidking_morr.json"
+    }
   ]
 }

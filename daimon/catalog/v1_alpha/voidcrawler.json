@@ -1,0 +1,27 @@
+{
+  "card_id": "voidcrawler",
+  "species": "voidcrawler",
+  "element": "VOID",
+  "atk": 6,
+  "def": 5,
+  "hp": 20,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "DEBUFF_DEF",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Voidcrawler",
+  "flavor": "Finds the seam in the armor and unstitches it.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/voidcrawler.png",
+  "moves": [
+    {
+      "name": "Seam Bite",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

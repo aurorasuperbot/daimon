@@ -1,0 +1,15 @@
+{
+  "card_id": "shadepup",
+  "species": "shadepup",
+  "element": "VOID",
+  "atk": 5,
+  "def": 4,
+  "hp": 16,
+  "spd": 6,
+  "triggers": [],
+  "name": "Shadepup",
+  "flavor": "Casts no shadow. Is one.",
+  "rarity": "common",
+  "art": "art/common/shadepup.png",
+  "moves": []
+}

@@ -1,0 +1,15 @@
+{
+  "card_id": "mossbat",
+  "species": "mossbat",
+  "element": "NATURE",
+  "atk": 5,
+  "def": 4,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [],
+  "name": "Mossbat",
+  "flavor": "Carries a square of forest on its back.",
+  "rarity": "common",
+  "art": "art/common/mossbat.png",
+  "moves": []
+}

@@ -1,0 +1,37 @@
+{
+  "card_id": "moss_titan",
+  "species": "moss_titan",
+  "element": "NATURE",
+  "atk": 8,
+  "def": 11,
+  "hp": 34,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "ADD_SHIELD",
+      "target": "SELF",
+      "value": 5
+    },
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "BUFF_DEF",
+      "target": "SELF",
+      "value": 1
+    }
+  ],
+  "name": "Moss Titan",
+  "flavor": "Older than the trail. Older than the trail-makers.",
+  "rarity": "rare",
+  "art": "art/rare/moss_titan.png",
+  "moves": [
+    {
+      "name": "Bedrock Stance",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Patient Bark",
+      "when": "ON_TAKE_DAMAGE"
+    }
+  ]
+}

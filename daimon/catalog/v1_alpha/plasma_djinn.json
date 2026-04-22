@@ -1,0 +1,37 @@
+{
+  "card_id": "plasma_djinn",
+  "species": "plasma_djinn",
+  "element": "VOLT",
+  "atk": 12,
+  "def": 4,
+  "hp": 22,
+  "spd": 11,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 2
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 3
+    }
+  ],
+  "name": "Plasma Djinn",
+  "flavor": "Granted exactly one wish. The lightning kept it.",
+  "rarity": "epic",
+  "art": "art/epic/plasma_djinn.png",
+  "moves": [
+    {
+      "name": "Quicken the Court",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Wishlash",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

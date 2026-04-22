@@ -1,0 +1,15 @@
+{
+  "card_id": "emberpup",
+  "species": "emberpup",
+  "element": "FIRE",
+  "atk": 7,
+  "def": 3,
+  "hp": 15,
+  "spd": 6,
+  "triggers": [],
+  "name": "Emberpup",
+  "flavor": "Born from the last coal of a forgotten hearth.",
+  "rarity": "common",
+  "art": "art/common/emberpup.png",
+  "moves": []
+}

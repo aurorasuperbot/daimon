@@ -1,0 +1,27 @@
+{
+  "card_id": "glacier_kraken",
+  "species": "glacier_kraken",
+  "element": "WATER",
+  "atk": 9,
+  "def": 8,
+  "hp": 32,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_ROUND_START",
+      "op": "ADD_SHIELD",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Glacier Kraken",
+  "flavor": "Carves shelter out of the storm itself.",
+  "rarity": "rare",
+  "art": "art/rare/glacier_kraken.png",
+  "moves": [
+    {
+      "name": "Iceflow Bulwark",
+      "when": "ON_ROUND_START"
+    }
+  ]
+}

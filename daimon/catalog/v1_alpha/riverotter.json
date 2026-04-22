@@ -1,0 +1,27 @@
+{
+  "card_id": "riverotter",
+  "species": "riverotter",
+  "element": "WATER",
+  "atk": 6,
+  "def": 6,
+  "hp": 22,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_ROUND_START",
+      "op": "HEAL",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Riverotter",
+  "flavor": "A current of small, deliberate kindnesses.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/riverotter.png",
+  "moves": [
+    {
+      "name": "Eddy Pulse",
+      "when": "ON_ROUND_START"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "card_id": "thunderfox",
+  "species": "thunderfox",
+  "element": "VOLT",
+  "atk": 8,
+  "def": 4,
+  "hp": 20,
+  "spd": 10,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 3
+    }
+  ],
+  "name": "Thunderfox",
+  "flavor": "The first strike is the polite one.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/thunderfox.png",
+  "moves": [
+    {
+      "name": "Chain Spark",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

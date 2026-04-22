@@ -1,0 +1,27 @@
+{
+  "card_id": "bramblegoat",
+  "species": "bramblegoat",
+  "element": "NATURE",
+  "atk": 7,
+  "def": 8,
+  "hp": 28,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_DEF",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Bramblegoat",
+  "flavor": "Stands at the edge of the herd. Always.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/bramblegoat.png",
+  "moves": [
+    {
+      "name": "Hedgewall",
+      "when": "ON_BATTLE_START"
+    }
+  ]
+}

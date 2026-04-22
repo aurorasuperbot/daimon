@@ -1,0 +1,27 @@
+{
+  "card_id": "blazewolf",
+  "species": "blazewolf",
+  "element": "FIRE",
+  "atk": 11,
+  "def": 5,
+  "hp": 24,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Blazewolf",
+  "flavor": "The pack burns brighter when it howls together.",
+  "rarity": "rare",
+  "art": "art/rare/blazewolf.png",
+  "moves": [
+    {
+      "name": "Pack Roar",
+      "when": "ON_BATTLE_START"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "card_id": "coralcub",
+  "species": "coralcub",
+  "element": "WATER",
+  "atk": 4,
+  "def": 7,
+  "hp": 22,
+  "spd": 4,
+  "triggers": [],
+  "name": "Coralcub",
+  "flavor": "Grows armor faster than it grows up.",
+  "rarity": "common",
+  "art": "art/common/coralcub.png",
+  "moves": []
+}

@@ -1,0 +1,15 @@
+{
+  "card_id": "bubblefry",
+  "species": "bubblefry",
+  "element": "WATER",
+  "atk": 4,
+  "def": 4,
+  "hp": 16,
+  "spd": 7,
+  "triggers": [],
+  "name": "Bubblefry",
+  "flavor": "A school of one, lonely and shimmering.",
+  "rarity": "common",
+  "art": "art/common/bubblefry.png",
+  "moves": []
+}

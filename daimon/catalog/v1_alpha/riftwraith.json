@@ -1,0 +1,37 @@
+{
+  "card_id": "riftwraith",
+  "species": "riftwraith",
+  "element": "VOID",
+  "atk": 9,
+  "def": 6,
+  "hp": 22,
+  "spd": 9,
+  "triggers": [
+    {
+      "when": "ON_DEATH",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 4
+    },
+    {
+      "when": "ON_BATTLE_START",
+      "op": "DEBUFF_DEF",
+      "target": "ALL_ENEMIES",
+      "value": 1
+    }
+  ],
+  "name": "Riftwraith",
+  "flavor": "Leaves a small wound in the world wherever it stood.",
+  "rarity": "rare",
+  "art": "art/rare/riftwraith.png",
+  "moves": [
+    {
+      "name": "Parting Tear",
+      "when": "ON_DEATH"
+    },
+    {
+      "name": "Fray",
+      "when": "ON_BATTLE_START"
+    }
+  ]
+}

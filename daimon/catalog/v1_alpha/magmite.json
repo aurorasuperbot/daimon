@@ -1,0 +1,27 @@
+{
+  "card_id": "magmite",
+  "species": "magmite",
+  "element": "FIRE",
+  "atk": 8,
+  "def": 4,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Magmite",
+  "flavor": "Spits gravel and lava in equal measure.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/magmite.png",
+  "moves": [
+    {
+      "name": "Spitfire",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

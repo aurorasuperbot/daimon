@@ -1,0 +1,37 @@
+{
+  "card_id": "arc_serpent",
+  "species": "arc_serpent",
+  "element": "VOLT",
+  "atk": 9,
+  "def": 5,
+  "hp": 22,
+  "spd": 11,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 3
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 2
+    }
+  ],
+  "name": "Arc Serpent",
+  "flavor": "Coils between heartbeats.",
+  "rarity": "rare",
+  "art": "art/rare/arc_serpent.png",
+  "moves": [
+    {
+      "name": "Coil & Conduct",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Arc Lash",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

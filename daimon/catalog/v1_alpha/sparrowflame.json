@@ -1,0 +1,15 @@
+{
+  "card_id": "sparrowflame",
+  "species": "sparrowflame",
+  "element": "FIRE",
+  "atk": 8,
+  "def": 2,
+  "hp": 12,
+  "spd": 8,
+  "triggers": [],
+  "name": "Sparrowflame",
+  "flavor": "Sings only at the moment of ignition.",
+  "rarity": "common",
+  "art": "art/common/sparrowflame.png",
+  "moves": []
+}

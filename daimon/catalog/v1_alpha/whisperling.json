@@ -1,0 +1,15 @@
+{
+  "card_id": "whisperling",
+  "species": "whisperling",
+  "element": "VOID",
+  "atk": 5,
+  "def": 3,
+  "hp": 15,
+  "spd": 7,
+  "triggers": [],
+  "name": "Whisperling",
+  "flavor": "Speaks only the words you nearly said.",
+  "rarity": "common",
+  "art": "art/common/whisperling.png",
+  "moves": []
+}

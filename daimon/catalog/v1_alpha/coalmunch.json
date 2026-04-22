@@ -1,0 +1,15 @@
+{
+  "card_id": "coalmunch",
+  "species": "coalmunch",
+  "element": "FIRE",
+  "atk": 5,
+  "def": 5,
+  "hp": 20,
+  "spd": 4,
+  "triggers": [],
+  "name": "Coalmunch",
+  "flavor": "Eats the embers it cannot light.",
+  "rarity": "common",
+  "art": "art/common/coalmunch.png",
+  "moves": []
+}

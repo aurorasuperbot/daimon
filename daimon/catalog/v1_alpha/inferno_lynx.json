@@ -1,0 +1,37 @@
+{
+  "card_id": "inferno_lynx",
+  "species": "inferno_lynx",
+  "element": "FIRE",
+  "atk": 13,
+  "def": 5,
+  "hp": 24,
+  "spd": 10,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 2
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 4
+    }
+  ],
+  "name": "Inferno Lynx",
+  "flavor": "Strikes leave heat-shimmer where the body used to be.",
+  "rarity": "epic",
+  "art": "art/epic/inferno_lynx.png",
+  "moves": [
+    {
+      "name": "Quickflame",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Searing Pounce",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

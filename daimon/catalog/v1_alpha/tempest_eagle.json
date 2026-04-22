@@ -1,0 +1,27 @@
+{
+  "card_id": "tempest_eagle",
+  "species": "tempest_eagle",
+  "element": "VOLT",
+  "atk": 11,
+  "def": 5,
+  "hp": 24,
+  "spd": 10,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "HIGHEST_HP_ENEMY",
+      "value": 5
+    }
+  ],
+  "name": "Tempest Eagle",
+  "flavor": "Hunts the strongest first. Pride is dinner.",
+  "rarity": "rare",
+  "art": "art/rare/tempest_eagle.png",
+  "moves": [
+    {
+      "name": "Skyfall Talons",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

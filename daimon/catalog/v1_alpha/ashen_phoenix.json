@@ -1,0 +1,37 @@
+{
+  "card_id": "ashen_phoenix",
+  "species": "ashen_phoenix",
+  "element": "FIRE",
+  "atk": 11,
+  "def": 7,
+  "hp": 30,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_DEATH",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 6
+    },
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Ashen Phoenix",
+  "flavor": "Its last breath is a gift; its first, a promise.",
+  "rarity": "epic",
+  "art": "art/epic/ashen_phoenix.png",
+  "moves": [
+    {
+      "name": "Ember Dirge",
+      "when": "ON_DEATH"
+    },
+    {
+      "name": "Hearth Anthem",
+      "when": "ON_BATTLE_START"
+    }
+  ]
+}

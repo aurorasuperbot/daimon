@@ -1,0 +1,37 @@
+{
+  "card_id": "haunt_hare",
+  "species": "haunt_hare",
+  "element": "VOID",
+  "atk": 8,
+  "def": 5,
+  "hp": 22,
+  "spd": 10,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 2
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DEBUFF_ATK",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Haunt Hare",
+  "flavor": "Bolts between the heartbeat and the thought.",
+  "rarity": "rare",
+  "art": "art/rare/haunt_hare.png",
+  "moves": [
+    {
+      "name": "Phantom Step",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Dread Bite",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

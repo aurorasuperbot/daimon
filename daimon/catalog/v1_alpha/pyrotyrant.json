@@ -1,0 +1,47 @@
+{
+  "card_id": "pyrotyrant",
+  "species": "pyrotyrant",
+  "element": "FIRE",
+  "atk": 15,
+  "def": 4,
+  "hp": 22,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 3
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 3
+    },
+    {
+      "when": "ON_DEATH",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 8
+    }
+  ],
+  "name": "Pyrotyrant",
+  "flavor": "What it cannot rule, it renders.",
+  "rarity": "legendary",
+  "art": "art/legendary/pyrotyrant.png",
+  "moves": [
+    {
+      "name": "Ascend the Throne",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Rule by Fire",
+      "when": "ON_ATTACK"
+    },
+    {
+      "name": "Funeral of the World",
+      "when": "ON_DEATH"
+    }
+  ]
+}

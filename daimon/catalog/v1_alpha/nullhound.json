@@ -1,0 +1,37 @@
+{
+  "card_id": "nullhound",
+  "species": "nullhound",
+  "element": "VOID",
+  "atk": 12,
+  "def": 5,
+  "hp": 24,
+  "spd": 9,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "DEBUFF_DEF",
+      "target": "ALL_ENEMIES",
+      "value": 2
+    },
+    {
+      "when": "ON_DEATH",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 4
+    }
+  ],
+  "name": "Nullhound",
+  "flavor": "Whatever it bites is a little less, after.",
+  "rarity": "epic",
+  "art": "art/epic/nullhound.png",
+  "moves": [
+    {
+      "name": "Erase Edges",
+      "when": "ON_ATTACK"
+    },
+    {
+      "name": "Final Howl",
+      "when": "ON_DEATH"
+    }
+  ]
+}

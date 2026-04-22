@@ -1,0 +1,15 @@
+{
+  "card_id": "duskmoth",
+  "species": "duskmoth",
+  "element": "VOID",
+  "atk": 4,
+  "def": 4,
+  "hp": 16,
+  "spd": 8,
+  "triggers": [],
+  "name": "Duskmoth",
+  "flavor": "Drawn to the lights between worlds.",
+  "rarity": "common",
+  "art": "art/common/duskmoth.png",
+  "moves": []
+}

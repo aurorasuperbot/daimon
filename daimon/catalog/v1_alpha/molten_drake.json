@@ -1,0 +1,27 @@
+{
+  "card_id": "molten_drake",
+  "species": "molten_drake",
+  "element": "FIRE",
+  "atk": 12,
+  "def": 6,
+  "hp": 28,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 2
+    }
+  ],
+  "name": "Molten Drake",
+  "flavor": "Its breath is the slow, glassy fire of the deep earth.",
+  "rarity": "rare",
+  "art": "art/rare/molten_drake.png",
+  "moves": [
+    {
+      "name": "Sunsplit Breath",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

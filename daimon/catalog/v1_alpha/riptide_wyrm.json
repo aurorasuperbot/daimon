@@ -1,0 +1,37 @@
+{
+  "card_id": "riptide_wyrm",
+  "species": "riptide_wyrm",
+  "element": "WATER",
+  "atk": 8,
+  "def": 7,
+  "hp": 28,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "ADD_SHIELD",
+      "target": "ALL_ALLIES",
+      "value": 3
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "HEAL",
+      "target": "RANDOM_ALLY",
+      "value": 3
+    }
+  ],
+  "name": "Riptide Wyrm",
+  "flavor": "The tide gives, the tide takes — both at once.",
+  "rarity": "rare",
+  "art": "art/rare/riptide_wyrm.png",
+  "moves": [
+    {
+      "name": "Tidal Shroud",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Salve Surge",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

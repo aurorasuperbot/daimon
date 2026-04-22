@@ -1,0 +1,15 @@
+{
+  "card_id": "charge_chick",
+  "species": "charge_chick",
+  "element": "VOLT",
+  "atk": 4,
+  "def": 3,
+  "hp": 15,
+  "spd": 10,
+  "triggers": [],
+  "name": "Charge Chick",
+  "flavor": "Hatches faster than its shell.",
+  "rarity": "common",
+  "art": "art/common/charge_chick.png",
+  "moves": []
+}

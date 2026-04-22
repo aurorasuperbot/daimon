@@ -1,0 +1,47 @@
+{
+  "card_id": "worldroot_colossus",
+  "species": "worldroot_colossus",
+  "element": "NATURE",
+  "atk": 10,
+  "def": 14,
+  "hp": 42,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_DEF",
+      "target": "ALL_ALLIES",
+      "value": 4
+    },
+    {
+      "when": "ON_ROUND_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 2
+    },
+    {
+      "when": "ON_DEATH",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 8
+    }
+  ],
+  "name": "Worldroot Colossus",
+  "flavor": "Every fallen tree was a promise it kept.",
+  "rarity": "legendary",
+  "art": "art/legendary/worldroot_colossus.png",
+  "moves": [
+    {
+      "name": "Anchor of Eras",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Verdant Pulse",
+      "when": "ON_ROUND_START"
+    },
+    {
+      "name": "Last Bloom",
+      "when": "ON_DEATH"
+    }
+  ]
+}

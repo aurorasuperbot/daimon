@@ -1,0 +1,27 @@
+{
+  "card_id": "dread_imp",
+  "species": "dread_imp",
+  "element": "VOID",
+  "atk": 8,
+  "def": 3,
+  "hp": 16,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 2
+    }
+  ],
+  "name": "Dread Imp",
+  "flavor": "Doesn't fight fair, doesn't apologize.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/dread_imp.png",
+  "moves": [
+    {
+      "name": "Cower Aura",
+      "when": "ON_BATTLE_START"
+    }
+  ]
+}

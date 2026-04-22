@@ -1,0 +1,27 @@
+{
+  "card_id": "cinderhound",
+  "species": "cinderhound",
+  "element": "FIRE",
+  "atk": 7,
+  "def": 5,
+  "hp": 22,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Cinderhound",
+  "flavor": "Pain is a perfectly good reason to bite harder.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/cinderhound.png",
+  "moves": [
+    {
+      "name": "Pain Bond",
+      "when": "ON_TAKE_DAMAGE"
+    }
+  ]
+}

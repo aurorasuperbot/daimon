@@ -1,0 +1,15 @@
+{
+  "card_id": "mistling",
+  "species": "mistling",
+  "element": "WATER",
+  "atk": 4,
+  "def": 6,
+  "hp": 18,
+  "spd": 5,
+  "triggers": [],
+  "name": "Mistling",
+  "flavor": "Easier to chase than to catch.",
+  "rarity": "common",
+  "art": "art/common/mistling.png",
+  "moves": []
+}

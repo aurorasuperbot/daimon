@@ -1,0 +1,27 @@
+{
+  "card_id": "voltsprite",
+  "species": "voltsprite",
+  "element": "VOLT",
+  "atk": 7,
+  "def": 3,
+  "hp": 16,
+  "spd": 10,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Voltsprite",
+  "flavor": "Hands out the second-fastest grin in the room.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/voltsprite.png",
+  "moves": [
+    {
+      "name": "Quicken All",
+      "when": "ON_BATTLE_START"
+    }
+  ]
+}

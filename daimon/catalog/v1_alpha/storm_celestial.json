@@ -1,0 +1,47 @@
+{
+  "card_id": "storm_celestial",
+  "species": "storm_celestial",
+  "element": "VOLT",
+  "atk": 14,
+  "def": 5,
+  "hp": 24,
+  "spd": 12,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 3
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 4
+    },
+    {
+      "when": "ON_ALLY_DEATH",
+      "op": "BUFF_ATK",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Storm Celestial",
+  "flavor": "A constellation that decided to come down and watch.",
+  "rarity": "legendary",
+  "art": "art/legendary/storm_celestial.png",
+  "moves": [
+    {
+      "name": "Heaven's Tempo",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Skyfall Volley",
+      "when": "ON_ATTACK"
+    },
+    {
+      "name": "Mourner's Charge",
+      "when": "ON_ALLY_DEATH"
+    }
+  ]
+}

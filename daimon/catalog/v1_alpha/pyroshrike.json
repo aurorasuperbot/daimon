@@ -1,0 +1,27 @@
+{
+  "card_id": "pyroshrike",
+  "species": "pyroshrike",
+  "element": "FIRE",
+  "atk": 10,
+  "def": 3,
+  "hp": 16,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Pyroshrike",
+  "flavor": "Pins flames to a thorn before lighting them.",
+  "rarity": "uncommon",
+  "art": "art/uncommon/pyroshrike.png",
+  "moves": [
+    {
+      "name": "Burning Lance",
+      "when": "ON_BATTLE_START"
+    }
+  ]
+}
