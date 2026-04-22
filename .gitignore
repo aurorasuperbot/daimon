@@ -29,8 +29,9 @@ env/
 .DS_Store
 Thumbs.db
 
-# NULLPOINT runtime
-~/.config/nullpoint/
+# DAIMON runtime
+~/.config/daimon/
+~/.daimon/
 *.identity.key
 *.identity.pub
 collection.json
