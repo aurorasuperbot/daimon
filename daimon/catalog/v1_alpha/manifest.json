@@ -1,8 +1,8 @@
 {
   "pack_id": "v1_alpha",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "schema_version": 2,
-  "description": "DAIMON V1 alpha bundled creature pool. Ships with the engine package so dm_pull is functional out of the box. 67 monsters across 5 elements (Fire/Water/Nature/Volt/Void), spread across 5 rarity tiers. Will be supplemented (not replaced) by OCI cardpacks in V1.5.",
+  "description": "DAIMON V1 alpha bundled creature pool. 80 monsters across 5 elements (Fire/Water/Nature/Volt/Void) and 6 archetypes (INFERNO/BULWARK/TIDAL/STORMCHAIN/REVENANT/FLUX). Phase-3 anchors ship at 0.4.0 — 2 set legendaries (Voidking Morr + World-Eater) plus 12 archetype epic anchors. Phase 4 fills the pool to 200 and reconciles legacy scaffolded rarities.",
   "rarity_weights": {
     "common": 60,
     "uncommon": 25,
@@ -412,6 +412,84 @@
       "rarity": "legendary",
       "element": "VOID",
       "file": "voidking_morr.json"
+    },
+    {
+      "card_id": "world_eater",
+      "rarity": "legendary",
+      "element": "VOID",
+      "file": "world_eater.json"
+    },
+    {
+      "card_id": "magma_tyrant",
+      "rarity": "epic",
+      "element": "FIRE",
+      "file": "magma_tyrant.json"
+    },
+    {
+      "card_id": "solar_phoenix",
+      "rarity": "epic",
+      "element": "FIRE",
+      "file": "solar_phoenix.json"
+    },
+    {
+      "card_id": "worldroot_sentinel",
+      "rarity": "epic",
+      "element": "NATURE",
+      "file": "worldroot_sentinel.json"
+    },
+    {
+      "card_id": "bulwark_patriarch",
+      "rarity": "epic",
+      "element": "NATURE",
+      "file": "bulwark_patriarch.json"
+    },
+    {
+      "card_id": "tide_empress",
+      "rarity": "epic",
+      "element": "WATER",
+      "file": "tide_empress.json"
+    },
+    {
+      "card_id": "coral_augur",
+      "rarity": "epic",
+      "element": "WATER",
+      "file": "coral_augur.json"
+    },
+    {
+      "card_id": "tempest_apex",
+      "rarity": "epic",
+      "element": "VOLT",
+      "file": "tempest_apex.json"
+    },
+    {
+      "card_id": "arc_predator",
+      "rarity": "epic",
+      "element": "VOLT",
+      "file": "arc_predator.json"
+    },
+    {
+      "card_id": "crypt_wraith",
+      "rarity": "epic",
+      "element": "VOID",
+      "file": "crypt_wraith.json"
+    },
+    {
+      "card_id": "mourners_lich",
+      "rarity": "epic",
+      "element": "VOID",
+      "file": "mourners_lich.json"
+    },
+    {
+      "card_id": "prism_chimera",
+      "rarity": "epic",
+      "element": "NATURE",
+      "file": "prism_chimera.json"
+    },
+    {
+      "card_id": "rainbow_drake",
+      "rarity": "epic",
+      "element": "FIRE",
+      "file": "rainbow_drake.json"
     }
   ]
 }

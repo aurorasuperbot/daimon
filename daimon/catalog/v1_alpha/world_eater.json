@@ -1,0 +1,51 @@
+{
+  "card_id": "world_eater",
+  "species": "world_eater",
+  "element": "VOID",
+  "atk": 14,
+  "def": 9,
+  "hp": 42,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 4,
+      "condition": "team.distinct_elements >= 3"
+    },
+    {
+      "when": "ON_BATTLE_START",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 8,
+      "condition": "team.distinct_elements >= 4"
+    }
+  ],
+  "name": "World-Eater",
+  "flavor": "It does not hate the world. It is merely hungry, and the world is here.",
+  "rarity": "legendary",
+  "archetype": "FLUX",
+  "art": "art/legendary/world_eater.png",
+  "moves": [
+    {
+      "name": "Many-Hued Roar",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Spectral Maw",
+      "when": "ON_ATTACK"
+    },
+    {
+      "name": "World-Devouring",
+      "when": "ON_BATTLE_START"
+    }
+  ]
+}

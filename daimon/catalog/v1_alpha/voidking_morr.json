@@ -14,21 +14,22 @@
       "value": 3
     },
     {
-      "when": "ON_ATTACK",
-      "op": "DAMAGE",
-      "target": "HIGHEST_HP_ENEMY",
-      "value": 6
+      "when": "ON_ALLY_DEATH",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 4
     },
     {
       "when": "ON_DEATH",
       "op": "DAMAGE",
       "target": "ALL_ENEMIES",
-      "value": 6
+      "value": 8
     }
   ],
   "name": "Voidking Morr",
   "flavor": "Crowned by what nobody wanted. Reigns regardless.",
   "rarity": "legendary",
+  "archetype": "REVENANT",
   "art": "art/legendary/voidking_morr.png",
   "moves": [
     {
@@ -36,8 +37,8 @@
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Decree of Ruin",
-      "when": "ON_ATTACK"
+      "name": "Feast on Loss",
+      "when": "ON_ALLY_DEATH"
     },
     {
       "name": "Throne of Silence",

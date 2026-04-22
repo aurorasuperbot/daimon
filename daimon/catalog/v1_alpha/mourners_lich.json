@@ -1,0 +1,38 @@
+{
+  "card_id": "mourners_lich",
+  "species": "mourners_lich",
+  "element": "VOID",
+  "atk": 11,
+  "def": 7,
+  "hp": 26,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_ALLY_DEATH",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 4
+    },
+    {
+      "when": "ON_DEATH",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 4
+    }
+  ],
+  "name": "Mourner's Lich",
+  "flavor": "Each name in its ledger is a promise of payment, eventually.",
+  "rarity": "epic",
+  "archetype": "REVENANT",
+  "art": "art/epic/mourners_lich.png",
+  "moves": [
+    {
+      "name": "Eulogy Feast",
+      "when": "ON_ALLY_DEATH"
+    },
+    {
+      "name": "Last Reminder",
+      "when": "ON_DEATH"
+    }
+  ]
+}

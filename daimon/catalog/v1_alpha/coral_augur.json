@@ -1,0 +1,39 @@
+{
+  "card_id": "coral_augur",
+  "species": "coral_augur",
+  "element": "WATER",
+  "atk": 8,
+  "def": 8,
+  "hp": 28,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "HEAL",
+      "target": "RANDOM_ALLY",
+      "value": 4,
+      "condition": "self.hp == self.hp_max"
+    },
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "ADD_SHIELD",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Coral Augur",
+  "flavor": "Reads the fate of the reef in the pattern of held breath.",
+  "rarity": "epic",
+  "archetype": "TIDAL",
+  "art": "art/epic/coral_augur.png",
+  "moves": [
+    {
+      "name": "Pristine Tide",
+      "when": "ON_ATTACK"
+    },
+    {
+      "name": "Shellward",
+      "when": "ON_TAKE_DAMAGE"
+    }
+  ]
+}

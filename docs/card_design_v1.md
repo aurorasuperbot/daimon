@@ -252,8 +252,8 @@ Sim harness work goes into a new `daimon/sim/` module — deterministic match ru
 |---|---|---|
 | **1. Framework doc** | This file | ✅ done |
 | **2. Engine vocab expansion** | New ops/events/conditions in `engine/types.py` + `engine/conditions.py` + `engine/combat.py` + tests | ✅ done (4 new whens, 6 new ops, condition DSL — 595 tests pass) |
-| **3. Archetype skeletons** | One legendary + two epic anchors per archetype = ~14-18 cards proving each archetype plays distinctly | next |
-| **4. Pool fill-out** | 200 cards meeting distribution + species shape | after Phase 3 |
+| **3. Archetype skeletons** | One legendary + two epic anchors per archetype = ~14-18 cards proving each archetype plays distinctly | ✅ done (2 legendaries + 12 epics = 14 anchors, 31 integration tests, 626 total tests pass) |
+| **4. Pool fill-out** | 200 cards meeting distribution + species shape | next |
 | **5. Balance via simulation** | `daimon/sim/` harness + matchup matrix + tuning pass | after Phase 4 |
 
 After Phase 5: the legacy 67-card scaffolding (`scripts/author_v1_alpha_expansion.py`) is deleted and the v1_alpha catalog is the *real* base set.
@@ -287,4 +287,56 @@ Test count: 595 passing, 1 skipped (was 529 + 43 conditions + 20 combat-phase2 +
 
 ---
 
-*End of Phase 2. Phase 3 (archetype skeletons) begins next.*
+## 13. Phase 3 changelog (2026-04-22)
+
+**Deliverable**: 14 archetype anchors (2 legendaries + 12 epics — 2 per archetype) proving each of the 6 archetypes plays distinctly via the new Phase-2 vocab.
+
+### Cards shipped (14)
+
+**Legendaries (2)** — V1 set-defining icons:
+| Card | Element | Archetype | Signature mechanic |
+|---|---|---|---|
+| `voidking_morr` | VOID | REVENANT | ON_ALLY_DEATH BUFF_ATK SELF +4 (overwrote existing scaffolding to add the snowball) |
+| `world_eater` | VOID | FLUX | 3 trigger gates on `team.distinct_elements >= 2/3/4` — apex card requires rainbow team |
+
+**Epics (12)** — 2 per archetype:
+| Archetype | Cards | Defining mechanic |
+|---|---|---|
+| INFERNO | `magma_tyrant`, `solar_phoenix` | ON_ATTACK APPLY_BURN + ON_KILL snowball; ON_OPENING_ATTACK alpha + ON_DEATH legacy heal |
+| BULWARK | `worldroot_sentinel`, `bulwark_patriarch` | ON_BATTLE_START APPLY_TAUNT + ON_TAKE_DAMAGE shield; `round >= 2` gated team heal |
+| TIDAL | `tide_empress`, `coral_augur` | ON_ATTACK LIFESTEAL; `self.hp == self.hp_max` gated heal |
+| STORMCHAIN | `tempest_apex`, `arc_predator` | Team SPD buff + ON_OPENING_ATTACK AOE; ON_KILL BUFF_SPD chain |
+| REVENANT | `crypt_wraith`, `mourners_lich` | ON_ALLY_DEATH APPLY_SILENCE; ON_ALLY_DEATH BUFF_ATK + ON_DEATH lingering DEBUFF |
+| FLUX | `prism_chimera`, `rainbow_drake` | NATURE-host: `>=2` ATK buff + `>=3` AOE; FIRE-host: `>=2` heal + `>=3` shield-on-kill |
+
+### Files added
+- `scripts/author_phase3_anchors.py` — one-shot anchor authoring script (idempotent; re-running overwrites)
+- `tests/test_phase3_anchors.py` — 31 integration tests, one per anchor's signature mechanic plus 4 catalog-load smoke tests (all 80 manifest entries load, legendaries enumerated)
+- `daimon/catalog/v1_alpha/{world_eater,magma_tyrant,solar_phoenix,worldroot_sentinel,bulwark_patriarch,tide_empress,coral_augur,tempest_apex,arc_predator,crypt_wraith,mourners_lich,prism_chimera,rainbow_drake}.json` — 13 new cards
+
+### Files modified
+- `daimon/catalog/v1_alpha/voidking_morr.json` — overwrote existing legendary scaffolding with the Phase 3 REVENANT anchor (ON_ALLY_DEATH snowball replaces the prior ON_ATTACK chip; battle-start debuff + on-death AOE retained)
+- `daimon/catalog/v1_alpha/manifest.json` — added 13 entries, bumped version to 0.4.0, updated description (now 80 cards total)
+- `docs/card_design_v1.md` — Phase 3 marked done, this section added
+
+### Naming collisions resolved
+Three Phase-3 epics chose new card_ids to avoid colliding with previously scaffolded "legendaries" that ship at legendary rarity in the current manifest:
+- `tempest_apex` (epic) instead of overwriting `storm_celestial` (legendary scaffold)
+- `arc_predator` (epic) instead of overwriting `voltcat_apex` (legendary scaffold)
+- `mourners_lich` (epic) instead of overwriting `echo_lich` (legendary scaffold)
+
+The 6 legacy scaffolded "legendaries" (`storm_celestial`, `voltcat_apex`, `echo_lich`, `pyrotyrant`, `leviathan_prime`, `worldroot_colossus`) stay in the pack at their declared rarity. **Phase 4 reconciles** the catalog so only `voidking_morr` + `world_eater` remain at legendary rarity — others get redesignated as rare or epic with stat tuning to match the lower band.
+
+### Test count
+**626 passing, 1 skipped** (was 595 + 31 Phase-3 = 626). Catalog grew 67 → 80 cards.
+
+### Open follow-ups for Phase 4
+- Reconcile 6 legacy "legendaries" to rare/epic (target: exactly 2 legendary cards)
+- Fill 100 commons / 60 uncommons / 28 rares / 10 epics / 2 legendaries totals
+- Author species evolution lines per §5
+- Audit no-trigger commons cap (≤30% of commons may be vanilla)
+- Update `tests/test_phase3_anchors.py::TestCatalogLoad::test_legendary_count_locked_at_two` to assert exact 2-legendary set after Phase 4 reconciles
+
+---
+
+*End of Phase 3. Phase 4 (pool fill-out) begins next.*

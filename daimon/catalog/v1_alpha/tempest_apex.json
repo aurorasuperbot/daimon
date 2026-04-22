@@ -1,0 +1,38 @@
+{
+  "card_id": "tempest_apex",
+  "species": "tempest_apex",
+  "element": "VOLT",
+  "atk": 12,
+  "def": 5,
+  "hp": 24,
+  "spd": 12,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 3
+    },
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 5
+    }
+  ],
+  "name": "Tempest Apex",
+  "flavor": "The eye of the storm is a small, deliberate predator.",
+  "rarity": "epic",
+  "archetype": "STORMCHAIN",
+  "art": "art/epic/tempest_apex.png",
+  "moves": [
+    {
+      "name": "Galemark",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Skyfall Salvo",
+      "when": "ON_OPENING_ATTACK"
+    }
+  ]
+}

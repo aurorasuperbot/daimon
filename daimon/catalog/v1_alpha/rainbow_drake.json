@@ -1,0 +1,40 @@
+{
+  "card_id": "rainbow_drake",
+  "species": "rainbow_drake",
+  "element": "FIRE",
+  "atk": 11,
+  "def": 6,
+  "hp": 28,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 4,
+      "condition": "team.distinct_elements >= 2"
+    },
+    {
+      "when": "ON_KILL",
+      "op": "ADD_SHIELD",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 3"
+    }
+  ],
+  "name": "Rainbow Drake",
+  "flavor": "Its scales remember every weather it has ever flown through.",
+  "rarity": "epic",
+  "archetype": "FLUX",
+  "art": "art/epic/rainbow_drake.png",
+  "moves": [
+    {
+      "name": "Many-Hued Pulse",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Iridescent Ward",
+      "when": "ON_KILL"
+    }
+  ]
+}

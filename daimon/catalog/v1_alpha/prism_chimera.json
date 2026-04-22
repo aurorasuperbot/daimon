@@ -1,0 +1,40 @@
+{
+  "card_id": "prism_chimera",
+  "species": "prism_chimera",
+  "element": "NATURE",
+  "atk": 11,
+  "def": 7,
+  "hp": 28,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 3"
+    }
+  ],
+  "name": "Prism Chimera",
+  "flavor": "Every head bargains with a different season; together they win.",
+  "rarity": "epic",
+  "archetype": "FLUX",
+  "art": "art/epic/prism_chimera.png",
+  "moves": [
+    {
+      "name": "Many-Voiced Vow",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Spectral Lash",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

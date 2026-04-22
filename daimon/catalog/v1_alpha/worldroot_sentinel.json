@@ -1,0 +1,38 @@
+{
+  "card_id": "worldroot_sentinel",
+  "species": "worldroot_sentinel",
+  "element": "NATURE",
+  "atk": 8,
+  "def": 10,
+  "hp": 32,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "APPLY_TAUNT",
+      "target": "SELF",
+      "value": 3
+    },
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "ADD_SHIELD",
+      "target": "SELF",
+      "value": 4
+    }
+  ],
+  "name": "Worldroot Sentinel",
+  "flavor": "A wall is a tree that has decided not to grow leaves.",
+  "rarity": "epic",
+  "archetype": "BULWARK",
+  "art": "art/epic/worldroot_sentinel.png",
+  "moves": [
+    {
+      "name": "Stand Forth",
+      "when": "ON_BATTLE_START"
+    },
+    {
+      "name": "Bark Reinforces",
+      "when": "ON_TAKE_DAMAGE"
+    }
+  ]
+}

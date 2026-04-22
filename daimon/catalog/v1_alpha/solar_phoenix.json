@@ -1,0 +1,38 @@
+{
+  "card_id": "solar_phoenix",
+  "species": "solar_phoenix",
+  "element": "FIRE",
+  "atk": 11,
+  "def": 5,
+  "hp": 26,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 4
+    },
+    {
+      "when": "ON_DEATH",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 6
+    }
+  ],
+  "name": "Solar Phoenix",
+  "flavor": "The first cry of dawn; the last warmth of dusk.",
+  "rarity": "epic",
+  "archetype": "INFERNO",
+  "art": "art/epic/solar_phoenix.png",
+  "moves": [
+    {
+      "name": "Sunbreak Dive",
+      "when": "ON_OPENING_ATTACK"
+    },
+    {
+      "name": "Last Light",
+      "when": "ON_DEATH"
+    }
+  ]
+}

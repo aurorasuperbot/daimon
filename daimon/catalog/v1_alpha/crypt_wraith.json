@@ -1,0 +1,38 @@
+{
+  "card_id": "crypt_wraith",
+  "species": "crypt_wraith",
+  "element": "VOID",
+  "atk": 10,
+  "def": 6,
+  "hp": 24,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_ALLY_DEATH",
+      "op": "APPLY_SILENCE",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    },
+    {
+      "when": "ON_DEATH",
+      "op": "DAMAGE",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 5
+    }
+  ],
+  "name": "Crypt Wraith",
+  "flavor": "Speaks only the names of those who can no longer answer.",
+  "rarity": "epic",
+  "archetype": "REVENANT",
+  "art": "art/epic/crypt_wraith.png",
+  "moves": [
+    {
+      "name": "Hush of Mourning",
+      "when": "ON_ALLY_DEATH"
+    },
+    {
+      "name": "Parting Wail",
+      "when": "ON_DEATH"
+    }
+  ]
+}

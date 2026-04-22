@@ -1,0 +1,39 @@
+{
+  "card_id": "bulwark_patriarch",
+  "species": "bulwark_patriarch",
+  "element": "NATURE",
+  "atk": 8,
+  "def": 11,
+  "hp": 30,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_ROUND_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "round >= 2"
+    },
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "BUFF_DEF",
+      "target": "SELF",
+      "value": 1
+    }
+  ],
+  "name": "Bulwark Patriarch",
+  "flavor": "Old enough to remember when the storms were the children.",
+  "rarity": "epic",
+  "archetype": "BULWARK",
+  "art": "art/epic/bulwark_patriarch.png",
+  "moves": [
+    {
+      "name": "Patient Verdure",
+      "when": "ON_ROUND_START"
+    },
+    {
+      "name": "Set the Roots",
+      "when": "ON_TAKE_DAMAGE"
+    }
+  ]
+}

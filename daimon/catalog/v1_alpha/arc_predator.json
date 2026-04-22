@@ -1,0 +1,38 @@
+{
+  "card_id": "arc_predator",
+  "species": "arc_predator",
+  "element": "VOLT",
+  "atk": 13,
+  "def": 4,
+  "hp": 22,
+  "spd": 11,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 3
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 5
+    }
+  ],
+  "name": "Arc Predator",
+  "flavor": "Hunts the weakest spark, then leaves on a faster line.",
+  "rarity": "epic",
+  "archetype": "STORMCHAIN",
+  "art": "art/epic/arc_predator.png",
+  "moves": [
+    {
+      "name": "Bolt Hunger",
+      "when": "ON_KILL"
+    },
+    {
+      "name": "Cull Strike",
+      "when": "ON_ATTACK"
+    }
+  ]
+}

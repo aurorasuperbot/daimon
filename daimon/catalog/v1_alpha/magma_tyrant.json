@@ -1,0 +1,38 @@
+{
+  "card_id": "magma_tyrant",
+  "species": "magma_tyrant",
+  "element": "FIRE",
+  "atk": 12,
+  "def": 5,
+  "hp": 24,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "APPLY_BURN",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    },
+    {
+      "when": "ON_KILL",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Magma Tyrant",
+  "flavor": "Counts subjects by the embers they leave behind.",
+  "rarity": "epic",
+  "archetype": "INFERNO",
+  "art": "art/epic/magma_tyrant.png",
+  "moves": [
+    {
+      "name": "Cinder Bite",
+      "when": "ON_ATTACK"
+    },
+    {
+      "name": "Throne of Ash",
+      "when": "ON_KILL"
+    }
+  ]
+}
