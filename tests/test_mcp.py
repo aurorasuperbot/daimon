@@ -714,8 +714,10 @@ def test_expansions_returns_v1_alpha():
     ids = [e.get("pack_id") for e in r["expansions"]]
     assert "v1_alpha" in ids
     v1 = next(e for e in r["expansions"] if e["pack_id"] == "v1_alpha")
-    # Bundled catalog is the 13-card starter pool.
-    assert v1["card_count"] == 13
+    # Bundled catalog. Card count grows with the pack (67 at v0.3.0); we just
+    # assert it's well-populated rather than pinning a magic number that the
+    # authoring blitz has to chase.
+    assert v1["card_count"] >= 60, f"v1_alpha shrank unexpectedly: {v1['card_count']}"
     assert "legendary" in v1["rarity_counts"]
 
 
@@ -723,7 +725,7 @@ def test_catalog_list_default_catalog():
     r = _call(dm_catalog_list)
     assert "cards" in r
     assert r["pack_id"] == "v1_alpha"
-    assert r["count"] == 13
+    assert r["count"] >= 60, f"v1_alpha shrank unexpectedly: {r['count']}"
     # Every card carries the mechanical stats the agent needs.
     for c in r["cards"]:
         for k in ("card_id", "species", "element", "rarity",

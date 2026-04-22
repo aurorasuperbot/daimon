@@ -56,8 +56,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from daimon.identity import Identity, load_identity, verify
+from daimon.identity.keys import CONFIG_DIR
 
-CONFIG_DIR = Path.home() / ".config" / "daimon"
 LEDGER_PATH = CONFIG_DIR / "mining_ledger.jsonl"
 
 # How many recent entries to scan for an idempotency_key collision.

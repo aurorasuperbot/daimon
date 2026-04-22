@@ -32,9 +32,10 @@ def init(force: bool) -> None:
         click.echo(f"error: {e}", err=True)
         sys.exit(1)
 
+    from daimon.identity.keys import PRIVATE_KEY_PATH
     click.echo("Identity generated.\n")
     click.echo(f"  pubkey:  {identity.pubkey_hex}")
-    click.echo(f"  stored:  ~/.config/daimon/identity.key (mode 0600)\n")
+    click.echo(f"  stored:  {PRIVATE_KEY_PATH} (mode 0600)\n")
     click.echo("RECOVERY MNEMONIC — write this down NOW. We will never show it again:")
     click.echo()
     words = (identity.mnemonic or "").split()
@@ -68,23 +69,34 @@ def match(loadout_a: str, loadout_b: str, seed: str | None) -> None:
 
     from daimon.cards import load_card_dict
     from daimon.engine import Loadout, resolve_match
+    from daimon.play.publish import publish_match_state
 
-    def load_lo(path: str) -> Loadout:
+    def load_lo(path: str) -> tuple[Loadout, list]:
         data = json.loads(open(path).read())
-        cards = tuple(load_card_dict(d) for d in data["cards"])
-        return Loadout(cards=cards)
+        raw = data["cards"] if isinstance(data, dict) and "cards" in data else data
+        cards = tuple(load_card_dict(d) for d in raw)
+        return Loadout(cards=cards), list(raw)
 
-    a = load_lo(loadout_a)
-    b = load_lo(loadout_b)
+    a, a_raw = load_lo(loadout_a)
+    b, b_raw = load_lo(loadout_b)
     seed_bytes = bytes.fromhex(seed) if seed else os.urandom(32)
     result = resolve_match(a, b, seed_bytes)
 
-    click.echo(f"seed:    {seed_bytes.hex()}")
-    click.echo(f"winner:  {result.winner if result.winner is not None else 'draw'}")
-    click.echo(f"reason:  {result.reason}")
-    click.echo(f"hp_a:    {result.side_a_final_hp}")
-    click.echo(f"hp_b:    {result.side_b_final_hp}")
-    click.echo(f"rounds:  {len(result.rounds)}")
+    # Publish to state.json so `daimon play` (if running) animates this match.
+    # Mirrors the dm_match MCP side-effect — keeps the two surfaces in lockstep.
+    state_id = publish_match_state(
+        result=result, loadout_a=a, loadout_b=b,
+        a_raw=a_raw, b_raw=b_raw,
+    )
+
+    click.echo(f"seed:     {seed_bytes.hex()}")
+    click.echo(f"winner:   {result.winner if result.winner is not None else 'draw'}")
+    click.echo(f"reason:   {result.reason}")
+    click.echo(f"hp_a:     {result.side_a_final_hp}")
+    click.echo(f"hp_b:     {result.side_b_final_hp}")
+    click.echo(f"rounds:   {len(result.rounds)}")
+    if state_id:
+        click.echo(f"state_id: {state_id}")
 
 
 @main.command("play")
@@ -123,6 +135,27 @@ def play(state_path: str | None, no_color: bool, no_input: bool,
         no_input=no_input,
         tick_ms=tick_ms,
     )
+    sys.exit(rc)
+
+
+@main.command("play-demo")
+@click.option("--no-color", is_flag=True, help="Disable ANSI color output.")
+@click.option("--fps", default=20, type=int, help="Frames per second (default: 20).")
+@click.option("--max-seconds", default=30, type=int,
+              help="Cap on demo duration in seconds (default: 30).")
+def play_demo(no_color: bool, fps: int, max_seconds: int) -> None:
+    """Animation showcase — render a synthetic match exercising every primitive.
+
+    Synthesises a hand-crafted Match with damage / heavy-hit / buff / heal /
+    shield / KO actions plus a cascade trigger, then renders it through the
+    spectator HUD. Hits acceptance criterion #4 from animation_design.md
+    ("daimon play demo showcases every primitive in under 30 seconds").
+
+    Ctrl-C exits cleanly.
+    """
+    from daimon.play.demo import run_demo
+
+    rc = run_demo(color=not no_color, fps=fps, max_seconds=max_seconds)
     sys.exit(rc)
 
 
@@ -199,6 +232,8 @@ def match_npc(loadout_path: str, npc_id: str, seed: str | None,
     from daimon.cards import load_card_dict
     from daimon.engine import Loadout, resolve_match
     from daimon.npcs import get_npc, npc_loadout
+    from daimon.npcs.loader import npc_card_dicts
+    from daimon.play.publish import publish_match_state
 
     try:
         npc = get_npc(npc_id)
@@ -217,12 +252,21 @@ def match_npc(loadout_path: str, npc_id: str, seed: str | None,
 
     try:
         b = npc_loadout(npc)
+        b_raw = npc_card_dicts(npc)
     except ValueError as e:
         click.echo(f"error: NPC loadout invalid: {e}", err=True)
         sys.exit(2)
 
     seed_bytes = bytes.fromhex(seed) if seed else os.urandom(32)
     result = resolve_match(a, b, seed_bytes)
+
+    # Publish to state.json — same payload shape as dm_match_npc's MCP
+    # side-effect, so a `daimon play` HUD watching state.json picks it up.
+    state_id = publish_match_state(
+        result=result, loadout_a=a, loadout_b=b,
+        a_raw=list(cards_raw), b_raw=list(b_raw),
+        opponent_name=npc.name, opponent_rank=npc.tier,
+    )
 
     click.echo(f"opponent: {npc.name}  ({npc.tier}, rank {npc.rank})")
     click.echo(f"          \"{npc.flavor}\"")
@@ -232,6 +276,8 @@ def match_npc(loadout_path: str, npc_id: str, seed: str | None,
     click.echo(f"hp_a:     {result.side_a_final_hp}  (you)")
     click.echo(f"hp_b:     {result.side_b_final_hp}  ({npc.name})")
     click.echo(f"rounds:   {len(result.rounds)}")
+    if state_id:
+        click.echo(f"state_id: {state_id}")
 
     if show_rounds:
         click.echo()
@@ -444,8 +490,16 @@ def pull(seed: str | None, catalog: str | None, as_json: bool) -> None:
         click.echo(f"error: {e}", err=True)
         sys.exit(3)
 
+    # Publish to state.json — same payload shape as dm_pull's MCP side-effect,
+    # so a `daimon play` HUD picks up the gacha reveal animation.
+    from daimon.play.publish import publish_pull_state
+    state_id = publish_pull_state(receipt_dict=receipt.to_dict())
+
     if as_json:
-        click.echo(_json.dumps(receipt.to_dict(), indent=2))
+        out = receipt.to_dict()
+        if state_id:
+            out["state_id"] = state_id
+        click.echo(_json.dumps(out, indent=2))
         return
 
     payload = receipt.payload
@@ -457,6 +511,8 @@ def pull(seed: str | None, catalog: str | None, as_json: bool) -> None:
     click.echo(f"  balance now:   {receipt.balance_after}")
     click.echo(f"  seed:          {receipt.seed_hex}")
     click.echo(f"  ledger hash:   {receipt.ledger_entry_hash[:16]}…")
+    if state_id:
+        click.echo(f"  state_id:      {state_id}")
 
 
 @main.command("play-render")

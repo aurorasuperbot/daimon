@@ -92,7 +92,12 @@ from daimon.play.state import new_id, write_state
 
 mcp = FastMCP("daimon")
 
-CONFIG_DIR = Path.home() / ".config" / "daimon"
+# Import-time binding of the single shared config dir (DAIMON_HOME /
+# XDG_CONFIG_HOME-aware). Do NOT recompute on each call — tests that need a
+# different path monkeypatch CONFIG_DIR on this module (and the derived
+# constants below) in the same style as _isolate_paths in test_mcp.py.
+from daimon.identity.keys import CONFIG_DIR  # noqa: E402
+
 COLLECTION_PATH = CONFIG_DIR / "collection.json"
 # Note: ledger lives at mining_ledger.jsonl (one entry per line). The legacy
 # .json path is still recognized as a "no ledger" sentinel by older callers.

@@ -39,7 +39,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-CONFIG_DIR = Path.home() / ".config" / "daimon"
+# Single shared config dir (DAIMON_HOME / XDG_CONFIG_HOME-aware), resolved at
+# import time in identity.keys — see _resolve_config_dir there.
+from daimon.identity.keys import CONFIG_DIR  # noqa: E402
+
 COLLECTION_PATH = CONFIG_DIR / "collection.json"
 
 

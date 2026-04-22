@@ -24,12 +24,35 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 
 
-CONFIG_DIR = Path.home() / ".config" / "daimon"
-_LEGACY_CONFIG_DIR = Path.home() / ".config" / "nullpoint"
+def _resolve_config_dir() -> Path:
+    """Resolve the DAIMON config directory.
+
+    Precedence (first match wins):
+      1. ``DAIMON_HOME`` env var — DAIMON-specific override (used for sandbox
+         testing, CI, alternate-identity isolation).
+      2. ``XDG_CONFIG_HOME/daimon`` — standard XDG basedir spec.
+      3. ``~/.config/daimon`` — XDG default fallback.
+
+    The override is read at import time, NOT each call — once daimon is
+    imported, the path is fixed for the process. Tests that need a different
+    path should monkeypatch ``CONFIG_DIR`` (and the derived path constants)
+    on this module the same way ``test_mcp.py::_isolate_paths`` does.
+    """
+    env = os.environ.get("DAIMON_HOME")
+    if env:
+        return Path(env).expanduser()
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    if xdg:
+        return Path(xdg).expanduser() / "daimon"
+    return Path.home() / ".config" / "daimon"
+
+
+CONFIG_DIR = _resolve_config_dir()
+_LEGACY_CONFIG_DIR = CONFIG_DIR.parent / "nullpoint"
 
 
 def _migrate_legacy_config_dir() -> None:
-    """One-shot migration: ~/.config/nullpoint → ~/.config/daimon.
+    """One-shot migration: <basedir>/nullpoint → <basedir>/daimon.
 
     Runs at import time. No-op if the new dir already exists or the legacy
     dir doesn't. Best-effort: never raises (a stale config is recoverable;

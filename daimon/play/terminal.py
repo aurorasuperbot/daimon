@@ -75,7 +75,11 @@ logger = logging.getLogger(__name__)
 # Paths
 # ---------------------------------------------------------------------------
 
-DEFAULT_RENDERS_DIR = Path.home() / ".config" / "daimon" / "renders"
+# Renders dir lives under the shared CONFIG_DIR — env-overridable via
+# DAIMON_HOME / XDG_CONFIG_HOME (resolved in identity.keys at import time).
+from daimon.identity.keys import CONFIG_DIR as _CONFIG_DIR  # noqa: E402
+
+DEFAULT_RENDERS_DIR = _CONFIG_DIR / "renders"
 LAST_ID_SIDECAR_NAME = ".last_rendered_id"
 
 # ---------------------------------------------------------------------------

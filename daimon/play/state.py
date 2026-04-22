@@ -84,7 +84,12 @@ from typing import Any, Optional
 # Paths
 # ---------------------------------------------------------------------------
 
-DEFAULT_STATE_PATH = Path.home() / ".config" / "daimon" / "state.json"
+# State path lives under the shared CONFIG_DIR (DAIMON_HOME /
+# XDG_CONFIG_HOME-aware). DAIMON_STATE env var still overrides this directly
+# in resolve_state_path() — kept for back-compat + per-call routing.
+from daimon.identity.keys import CONFIG_DIR as _CONFIG_DIR  # noqa: E402
+
+DEFAULT_STATE_PATH = _CONFIG_DIR / "state.json"
 TMP_SUFFIX = ".tmp"
 SCHEMA_VERSION = 1
 
