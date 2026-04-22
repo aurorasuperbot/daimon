@@ -257,8 +257,8 @@ Sim harness work goes into a new `daimon/sim/` module — deterministic match ru
 | **1. Framework doc** | This file | ✅ done |
 | **2. Engine vocab expansion** | New ops/events/conditions in `engine/types.py` + `engine/conditions.py` + `engine/combat.py` + tests | ✅ done (4 new whens, 6 new ops, condition DSL — 595 tests pass) |
 | **3. Archetype skeletons** | One legendary + two epic anchors per archetype = ~14-18 cards proving each archetype plays distinctly | ✅ done (2 legendaries + 12 epics = 14 anchors, 31 integration tests, 626 total tests pass) |
-| **4. Pool fill-out** | 200 cards meeting distribution + species shape | next |
-| **5. Balance via simulation** | `daimon/sim/` harness + matchup matrix + tuning pass | after Phase 4 |
+| **4. Pool fill-out** | 200 cards meeting distribution + species shape | ✅ done (4a reconciled, 4b +75 commons, 4c +45 uncommons, 4d locked via distribution gates; 200/98/60/28/12/2 lock) |
+| **5. Balance via simulation** | `daimon/sim/` harness + matchup matrix + tuning pass | next |
 
 After Phase 5: the legacy 67-card scaffolding (`scripts/author_v1_alpha_expansion.py`) is deleted and the v1_alpha catalog is the *real* base set.
 
@@ -389,3 +389,125 @@ Phase 4b+c authors the remaining 120 cards (75 commons + 45 uncommons) to hit th
 ---
 
 *End of Phase 4a. Phase 4b (author 75 new commons) begins next.*
+
+---
+
+## 15. Phase 4b changelog — author 75 new commons (2026-04-22)
+
+**Deliverable**: bring the common tier from 23 → 98 cards (the V1 lock from §3) by authoring 75 new commons across 5 elements with archetype-aligned design.
+
+### Per-element shape (15 each, 75 total)
+| Element | Existing C | + new C | After 4b |
+|---|---|---|---|
+| FIRE   | 5 | +15 | 20 |
+| WATER  | 5 | +15 | 20 |
+| NATURE | 5 | +15 | 20 |
+| VOLT   | 4 | +15 | 19 |
+| VOID   | 4 | +15 | 19 |
+| **Total** | **23** | **+75** | **98 ✅** |
+
+Each element's 15 = **13 archetype-pure + 2 FLUX** (host element matches the card's element; FLUX trigger gated on `team.distinct_elements >= 2`). This mirrors the Phase-3 archetype-anchor shape but at the lowest power tier.
+
+### Design rules enforced in-script
+The author script (`scripts/author_phase4b_commons.py`) carries an internal `_validate()` that fails BEFORE writing disk if any of these break:
+- Stat budget: `atk + def + hp/3 + spd ∈ [18, 22]` (§4 commons envelope)
+- Trigger count: exactly 1 (every new common; keeps total vanilla count at 23/98 = 23.5%, well under the §4 30% cap)
+- Trigger value: exactly 2-3 (§4 common range; STUN/SILENCE excluded entirely as their canonical value=1 violates the band, AND they're disable mechanics that don't belong on commons)
+- Per-element count: exactly 15 each
+- Per-archetype count: 13 INFERNO+BULWARK+TIDAL+STORMCHAIN+REVENANT each, 10 FLUX
+
+### Files added
+- `scripts/author_phase4b_commons.py` — one-shot idempotent authoring script
+- 75 new card JSONs: see the script's `FIRE_COMMONS`, `WATER_COMMONS`, `NATURE_COMMONS`, `VOLT_COMMONS`, `VOID_COMMONS` lists for the full roster
+
+### Files modified
+- `daimon/catalog/v1_alpha/manifest.json` — version bumped 0.4.1 → 0.4.2; +75 entries; description regenerated
+
+### Test count
+**628 passing, 1 skipped** (no new tests in this phase; 4d adds the distribution gates).
+
+---
+
+## 16. Phase 4c changelog — author 45 new uncommons (2026-04-22)
+
+**Deliverable**: bring the uncommon tier from 15 → 60 cards (the V1 lock from §3), reaching the **200-card V1 total**.
+
+### Per-element shape (9 each, 45 total)
+| Element | Existing U | + new U | After 4c |
+|---|---|---|---|
+| FIRE   | 3 | +9 | 12 |
+| WATER  | 3 | +9 | 12 |
+| NATURE | 3 | +9 | 12 |
+| VOLT   | 3 | +9 | 12 |
+| VOID   | 3 | +9 | 12 |
+| **Total** | **15** | **+45** | **60 ✅** |
+
+Each element's 9 = **7 archetype-pure + 2 FLUX**. Mirrors Phase-4b shape at the next power tier.
+
+### Species evolution lines seeded
+14 of the 45 uncommons intentionally extend a Phase-4b common into a 2-tier (C → U) species line via the `species` field, satisfying §5's "most species span 2-3 rarity tiers":
+
+| Element | C → U evolution lines (species root) |
+|---|---|
+| FIRE   | ashpup→ash_strider, magmaling→magma_warden, coalwhelp→coalbreaker, emberhawk→ember_raptor, flame_chimerlet→flame_chimera_adept, sunscale_drake→sunscale_serpent |
+| WATER  | brineling→brineprince, tidefry→tidewatcher, shellfin→shellguard, mistchimera→mistchimera_adept, tidemerger→tide_synth |
+| NATURE | mossling→mossbear, barkpup→barkguard, thornling→thornserpent, verdant_chimerlet→verdant_chimera, prism_seedling→prism_grove |
+| VOLT   | zapling→zapdrake, boltkit→boltrunner, prismbolt→prism_strider, spectral_volt→spectral_charge |
+| VOID   | shadeling→shadebishop, wraithling→wraith_prince, void_chimerlet→void_chimera, shadeprism→shade_prismatic |
+
+The remaining uncommons are **singletons** (their own species). Phase 4c intentionally does NOT exhaust species line opportunities — singletons leave room for Phase 5 balance tuning to invent or merge species without rewriting Phase-4 art conventions.
+
+### Design rules enforced in-script
+`scripts/author_phase4c_uncommons.py::_validate()` enforces (fail-before-write):
+- Stat budget: `atk + def + hp/3 + spd ∈ [22, 26]` (§4 uncommon envelope)
+- Trigger count: exactly 1 (uncommons differ from commons by *value*, not count)
+- Trigger value: exactly 3-4 (§4 uncommon range)
+- Per-element count: exactly 9 each
+- Per-archetype count: 7 INFERNO+BULWARK+TIDAL+STORMCHAIN+REVENANT each, 10 FLUX
+
+### Files added
+- `scripts/author_phase4c_uncommons.py` — one-shot idempotent authoring script
+- 45 new card JSONs across the 5 elements
+
+### Files modified
+- `daimon/catalog/v1_alpha/manifest.json` — version 0.4.2 → 0.4.3; +45 entries; description rewritten to reflect the 200-card lock
+
+### Test count
+**628 passing, 1 skipped** (carrying through; 4d adds 11 new gates).
+
+---
+
+## 17. Phase 4d changelog — distribution lock tests (2026-04-22)
+
+**Deliverable**: prevent silent drift away from the V1 200-card composition by adding structural gates that fail loudly if the manifest, JSONs, or rarity histogram diverge from the locked spec.
+
+### New file
+- `tests/test_phase4_distribution.py` — 11 structural tests across 5 classes:
+  - `TestPoolShape` — total = 200, rarity histogram = {98C, 60U, 28R, 12E, 2L}, no unknown rarity tiers leak in
+  - `TestVanillaCap` — vanilla commons ≤30% of common pool (currently 23/98 = 23%)
+  - `TestElementCoverage` — each element ≥6 cards (mono-element loadout buildable); each bulk tier (C/U/R) covers all 5 elements; common tier element distribution within ±25% of the 19.6 mean
+  - `TestTriggerBudget` — no card exceeds its tier's trigger cap (1/1/2/2/3 for C/U/R/E/L), with an explicit `PHASE5_TRIGGER_DEBT` allowlist for the 5 Phase-4a-demoted rares (pyrotyrant, leviathan_prime, worldroot_colossus, storm_celestial, echo_lich) that still carry their original 3-trigger legendary scaffolding. Phase 5 must collapse this allowlist to empty as part of the balance pass; a self-check test (`test_phase5_debt_set_is_real`) prevents the allowlist from going stale and silently masking new violators.
+  - `TestUniqueness` — manifest card_ids unique; every manifest entry has a disk file; no orphan JSONs (every card on disk is referenced by manifest)
+
+### Files modified
+- `docs/card_design_v1.md` — Phase 4 row in §10 plan table marked done; this section + §15 (4b) + §16 (4c) added
+
+### Test count
+**639 passing, 1 skipped** (was 628 + 11 new Phase-4d gates).
+
+### Phase 4 complete
+The full Phase-4 arc (a/b/c/d) ships:
+- **15 demotions** to clean the rarity histogram
+- **120 new cards** authored against §4 stat-budget + §3 distribution + §5 species line shape
+- **11 new structural gates** locking the result against drift
+- **Final state**: 200 cards / 98C / 60U / 28R / 12E / 2L, with each element supporting mono-element 6-card loadouts at every bulk tier
+
+### Open follow-ups for Phase 5
+- Build `daimon/sim/` deterministic match runner (§8: 6 archetype loadouts × 1000 matches per pair = 6×6 win-rate matrix; target 45-55%)
+- Tune outlier cards based on matchup-matrix failures
+- Collapse `PHASE5_TRIGGER_DEBT` (the 5 demoted-legacy-rares carrying 3 triggers each) — either rebalance to 1-2 triggers each at appropriate rare-tier values, or promote individual cards back to epic with explicit doc rationale
+- Trigger frequency audit (§8: no trigger op > 25% of pool — currently DAMAGE/HEAL/BUFF_ATK are the heavy hitters; verify they don't tip past 25%)
+
+---
+
+*End of Phase 4. Phase 5 (balance via simulation) begins next.*
