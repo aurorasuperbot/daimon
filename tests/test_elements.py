@@ -14,8 +14,8 @@ import math
 
 import pytest
 
-from nullpoint.engine import Loadout, TEAM_SIZE, resolve_match
-from nullpoint.engine.elements import (
+from daimon.engine import Loadout, TEAM_SIZE, resolve_match
+from daimon.engine.elements import (
     NEUTRAL_MULT,
     STRONG_MULT,
     WEAK_MULT,
@@ -23,7 +23,7 @@ from nullpoint.engine.elements import (
     strong_against,
     weak_against,
 )
-from nullpoint.engine.types import Card, Element
+from daimon.engine.types import Card, Element
 
 from tests.conftest import SEED_ZERO, make_filler
 

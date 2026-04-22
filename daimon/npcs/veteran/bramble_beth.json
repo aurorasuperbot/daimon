@@ -1,0 +1,9 @@
+{
+  "npc_id": "bramble_beth",
+  "name": "Bramble Beth",
+  "tier": "veteran",
+  "rank": 3,
+  "flavor": "Roots that fight back.",
+  "bio": "Pure-nature partisan. Iron Boar holds, Anvilram retaliates, Tidewyrm heals the whole hedge between rounds.",
+  "loadout": ["iron_boar", "anvilram", "geodeling", "tidewyrm", "glimmerowl", "scoutling"]
+}

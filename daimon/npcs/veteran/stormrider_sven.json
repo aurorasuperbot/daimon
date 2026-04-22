@@ -1,0 +1,9 @@
+{
+  "npc_id": "stormrider_sven",
+  "name": "Stormrider Sven",
+  "tier": "veteran",
+  "rank": 3,
+  "flavor": "Carries the squad on lightning.",
+  "bio": "Speed-stack specialist. Stormhare BUFF_SPD-all + Glimmerowl self-SPD = his whole team moves before yours does. If the round cap doesn't save you, nothing will.",
+  "loadout": ["stormhare", "glimmerowl", "dashmouse", "blade_foxling", "scoutling", "iron_boar"]
+}

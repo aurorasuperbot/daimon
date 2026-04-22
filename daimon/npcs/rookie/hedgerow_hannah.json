@@ -1,0 +1,9 @@
+{
+  "npc_id": "hedgerow_hannah",
+  "name": "Hedgerow Hannah",
+  "tier": "rookie",
+  "rank": 1,
+  "flavor": "Walks the long path.",
+  "bio": "Patient gardener-turned-trainer. Her team is built like a hedge: thick, low, and refuses to move. The Anvilram on the bench is the only trigger you'll see.",
+  "loadout": ["iron_boar", "geodeling", "anvilram", "shellpup", "scoutling", "blade_foxling"]
+}

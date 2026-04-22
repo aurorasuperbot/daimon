@@ -1,0 +1,9 @@
+{
+  "npc_id": "forge_hand_fran",
+  "name": "Forge-hand Fran",
+  "tier": "novice",
+  "rank": 2,
+  "flavor": "Hammered every plate herself.",
+  "bio": "Smith. Builds tanks the way she builds armor: layer, rivet, repeat. Loadout reads like a wall with a couple of spotters.",
+  "loadout": ["anvilram", "iron_boar", "glimmerowl", "geodeling", "shellpup", "scoutling"]
+}

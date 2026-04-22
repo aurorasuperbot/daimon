@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from nullpoint.cards import load_card
-from nullpoint.engine import Loadout, TEAM_SIZE
-from nullpoint.engine.types import Card, Element
+from daimon.cards import load_card
+from daimon.engine import Loadout, TEAM_SIZE
+from daimon.engine.types import Card, Element
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 

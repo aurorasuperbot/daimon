@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-from nullpoint.engine.types import Card, EffectOp, Element, TargetFilter, Trigger, TriggerWhen
-from nullpoint.render import (
+from daimon.engine.types import Card, EffectOp, Element, TargetFilter, Trigger, TriggerWhen
+from daimon.render import (
     CardRenderInfo,
     compose_card,
     compose_card_from_pack_dict,
@@ -140,7 +140,7 @@ def test_compose_card_from_pack_dict(tmp_path):
 def test_compose_card_from_pack_dict_real_starter(tmp_path):
     """Render a real starter card from the cards repo to verify integration."""
     cards_root = Path(
-        "/opt/agents/projects/nullpoint-workspace/nullpoint-cards/packs/starter"
+        "/opt/agents/projects/daimon-workspace/daimon-cards/packs/starter"
     )
     card_file = cards_root / "starter_scout_head.json"
     if not card_file.exists():
@@ -157,7 +157,7 @@ def test_compose_card_from_pack_dict_real_starter(tmp_path):
 
 def test_render_info_accepts_top_level_fields():
     """Cards-repo format puts render fields at top level (not under _render_only)."""
-    from nullpoint.render import render_info_from_pack_dict
+    from daimon.render import render_info_from_pack_dict
     pack_card = {
         "card_id": "x", "species": "x_species", "element": "FIRE",
         "atk": 5, "def": 5, "hp": 20, "spd": 5, "triggers": [],
@@ -171,7 +171,7 @@ def test_render_info_accepts_top_level_fields():
 
 def test_render_info_accepts_nested_render_only():
     """Test fixtures format nests render fields under _render_only."""
-    from nullpoint.render import render_info_from_pack_dict
+    from daimon.render import render_info_from_pack_dict
     pack_card = {
         "card_id": "x", "species": "x_species", "element": "FIRE",
         "atk": 5, "def": 5, "hp": 20, "spd": 5, "triggers": [],
@@ -262,7 +262,7 @@ def test_render_info_changes_dont_affect_engine(sample_card):
     This is the prompt-injection invariant: an adversarial card author who
     modifies name/flavor/rarity cannot affect combat math.
     """
-    from nullpoint.engine import Loadout, resolve_match
+    from daimon.engine import Loadout, resolve_match
     from tests.conftest import make_filler
 
     # Build two loadouts with the same card but DIFFERENT render info

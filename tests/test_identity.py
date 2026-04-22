@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from nullpoint.identity import (
+from daimon.identity import (
     generate_identity,
     load_identity,
     mnemonic_from_seed,
@@ -13,7 +13,7 @@ from nullpoint.identity import (
     sign,
     verify,
 )
-from nullpoint.identity.keys import (
+from daimon.identity.keys import (
     PRIVATE_KEY_PATH,
     PUBLIC_KEY_PATH,
     METADATA_PATH,
@@ -24,14 +24,14 @@ from nullpoint.identity.keys import (
 
 @pytest.fixture
 def isolated_config(tmp_path, monkeypatch):
-    """Redirect ~/.config/nullpoint to a tmp dir for test isolation."""
+    """Redirect ~/.config/daimon to a tmp dir for test isolation."""
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     monkeypatch.setenv("HOME", str(fake_home))
 
     # Re-import to pick up new HOME
     import importlib
-    import nullpoint.identity.keys as kmod
+    import daimon.identity.keys as kmod
     importlib.reload(kmod)
 
     yield kmod
@@ -48,7 +48,7 @@ def test_seed_to_identity_deterministic():
 def test_sign_and_verify_round_trip():
     seed = os.urandom(32)
     identity = _seed_to_identity(seed)
-    data = b"hello, nullpoint"
+    data = b"hello, daimon"
     sig = sign(identity, data)
     assert verify(identity.pubkey_hex, data, sig) is True
 

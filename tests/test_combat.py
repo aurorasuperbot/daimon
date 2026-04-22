@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from nullpoint.cards import load_card
-from nullpoint.engine import Loadout, TEAM_SIZE, resolve_match
-from nullpoint.engine.types import Card, EffectOp, Element, TargetFilter, Trigger, TriggerWhen
+from daimon.cards import load_card
+from daimon.engine import Loadout, TEAM_SIZE, resolve_match
+from daimon.engine.types import Card, EffectOp, Element, TargetFilter, Trigger, TriggerWhen
 
 from tests.conftest import FIXTURE_DIR, SEED_ZERO, SEED_ONE, make_filler
 
@@ -225,3 +225,148 @@ def test_engine_ignores_malicious_card_id_text():
     assert r_evil.side_a_final_hp == r_safe.side_a_final_hp
     assert r_evil.side_b_final_hp == r_safe.side_b_final_hp
     assert r_evil.reason == r_safe.reason
+
+
+# -- Round-alternating first-player (locked rule #30) -----------------------
+
+def test_round_alternating_first_player():
+    """Round 1 -> side A acts first, round 2 -> side B acts first, alternating.
+
+    Equal-speed, same-element loadouts with distinct card ids so the first
+    attacker in each round's action log is observable. This verifies both:
+      (1) RoundLog.first_player alternates 0,1,0,1,...
+      (2) Action-queue tie-breaking flips, so the first "hits" line in each
+          round originates from the expected side.
+    """
+    a_cards = tuple(
+        mk(f"a_{i}", atk=5, defense=0, hp=30, spd=5, element=Element.NATURE)
+        for i in range(TEAM_SIZE)
+    )
+    b_cards = tuple(
+        mk(f"b_{i}", atk=5, defense=0, hp=30, spd=5, element=Element.NATURE)
+        for i in range(TEAM_SIZE)
+    )
+    la = Loadout(cards=a_cards)
+    lb = Loadout(cards=b_cards)
+
+    r = resolve_match(la, lb, SEED_ZERO)
+
+    # We need at least 2 rounds to observe alternation.
+    assert len(r.rounds) >= 2, f"need >=2 rounds, got {len(r.rounds)}"
+
+    # (1) first_player field alternates.
+    for rd in r.rounds:
+        expected = 0 if rd.round_number % 2 == 1 else 1
+        assert rd.first_player == expected, (
+            f"round {rd.round_number} first_player={rd.first_player}, expected {expected}"
+        )
+
+    def first_hitter(actions: list[str]) -> str:
+        for line in actions:
+            if " hits " in line:
+                return line.split(" hits ", 1)[0]
+        raise AssertionError(f"no 'hits' line in {actions!r}")
+
+    # (2) Round 1: first hitter is a side-A unit (id prefix "a_").
+    r1_first = first_hitter(r.rounds[0].actions)
+    assert r1_first.startswith("a_"), f"round 1 first hitter was {r1_first!r}"
+
+    # Round 2: first hitter is a side-B unit (id prefix "b_").
+    r2_first = first_hitter(r.rounds[1].actions)
+    assert r2_first.startswith("b_"), f"round 2 first hitter was {r2_first!r}"
+
+
+def test_round_alternating_is_deterministic():
+    """The first_player schedule is now (start_player + round - 1) % 2, where
+    start_player = seed[0] & 1.
+
+    SEED_ZERO and SEED_ONE both have seed[0] == 0 (SEED_ONE puts the 1 in the
+    LAST byte) → start_player == 0 in both cases → schedules match the legacy
+    "round-indexed" behavior. Coverage of seed-driven first-player flipping
+    lives in test_seed_derived_first_player_removes_side_bias below.
+    """
+    fl_a = Loadout(cards=tuple(make_filler(i, "A") for i in range(TEAM_SIZE)))
+    fl_b = Loadout(cards=tuple(make_filler(i, "B") for i in range(TEAM_SIZE)))
+    r0 = resolve_match(fl_a, fl_b, SEED_ZERO)
+    r1 = resolve_match(fl_a, fl_b, SEED_ONE)
+    schedule_0 = [rd.first_player for rd in r0.rounds]
+    schedule_1 = [rd.first_player for rd in r1.rounds]
+    assert schedule_0 == schedule_1
+    assert schedule_0 == [0 if rd.round_number % 2 == 1 else 1 for rd in r0.rounds]
+
+
+def test_seed_derived_first_player_removes_side_bias():
+    """Loadout-asymmetry regression: opening tempo (start_player) must be
+    derived from the seed, NOT hard-coded to side A.
+
+    A seed whose first byte is odd should hand the opener to side B; even
+    first byte (incl. all-zero) keeps the legacy side-A opener so existing
+    test seeds stay valid.
+    """
+    fl_a = Loadout(cards=tuple(make_filler(i, "A") for i in range(TEAM_SIZE)))
+    fl_b = Loadout(cards=tuple(make_filler(i, "B") for i in range(TEAM_SIZE)))
+
+    seed_even = b"\x02" + b"\x00" * 31  # start_player = 0
+    seed_odd  = b"\x01" + b"\x00" * 31  # start_player = 1
+
+    r_even = resolve_match(fl_a, fl_b, seed_even)
+    r_odd  = resolve_match(fl_a, fl_b, seed_odd)
+
+    # Round 1 first_player must reflect start_player.
+    assert r_even.rounds[0].first_player == 0
+    assert r_odd.rounds[0].first_player == 1
+
+    # Round 2 must flip from there (alternation rule still holds).
+    if len(r_even.rounds) >= 2:
+        assert r_even.rounds[1].first_player == 1
+    if len(r_odd.rounds) >= 2:
+        assert r_odd.rounds[1].first_player == 0
+
+
+def test_loadout_asymmetry_swap_balances_hp_outcomes():
+    """Two distinct loadouts, played at BOTH placements (la-vs-lb and lb-vs-la)
+    with the same seed pool, must produce HP totals that mirror across the
+    swap when averaged over many seeds.
+
+    Pre-fix: side-A always fired ON_BATTLE_START + acted first in round 1 →
+    the loadout placed on side A finished with a consistent extra ~5-15 HP
+    on every match, so swap-averaged HP would still differ by that amount.
+    Post-fix: seed-derived opening tempo flips ~50/50 across random seeds →
+    swap-averaged HP totals collapse to within noise.
+    """
+    import os
+
+    # Two distinct stat profiles so trigger order can affect HP totals.
+    a_cards = tuple(
+        mk(f"a_{i}", atk=5, defense=2, hp=25, spd=5, element=Element.NATURE)
+        for i in range(TEAM_SIZE)
+    )
+    b_cards = tuple(
+        mk(f"b_{i}", atk=5, defense=2, hp=25, spd=5, element=Element.WATER)
+        for i in range(TEAM_SIZE)
+    )
+    la = Loadout(cards=a_cards)
+    lb = Loadout(cards=b_cards)
+
+    la_hp_when_on_left  = 0  # la placed at side 0
+    la_hp_when_on_right = 0  # la placed at side 1
+    N = 80
+    for _ in range(N):
+        seed = os.urandom(32)
+        r1 = resolve_match(la, lb, seed)  # la at side 0
+        r2 = resolve_match(lb, la, seed)  # la at side 1
+        la_hp_when_on_left  += r1.side_a_final_hp
+        la_hp_when_on_right += r2.side_b_final_hp
+
+    avg_left  = la_hp_when_on_left  / N
+    avg_right = la_hp_when_on_right / N
+    side_advantage = abs(avg_left - avg_right)
+
+    # Pre-fix saw ~10+ HP fixed advantage to whichever side la was on.
+    # Post-fix the average HP must be within a small noise band (well under
+    # 10 HP across N=80 matches with ~150-HP loadouts).
+    assert side_advantage < 5.0, (
+        f"loadout asymmetry persists: la's avg HP differs by {side_advantage:.1f} "
+        f"HP between sides (left={avg_left:.1f}, right={avg_right:.1f}) — "
+        "indicates a permanent first-strike bias to one side"
+    )

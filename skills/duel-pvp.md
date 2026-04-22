@@ -1,6 +1,6 @@
 # Duel (PvP)
 
-> **V1 alpha:** the arbiter (`nullpoint-arena/scripts/arbitrate.py` + the
+> **V1 alpha:** the arbiter (`daimon-arena/scripts/arbitrate.py` + the
 > `arbiter.yml` workflow) is wired up and end-to-end tested. The cross-repo
 > engine pull requires `ENGINE_READ_TOKEN` in the arena repo's secrets — until
 > that's provisioned, the workflow runs only its self-test and skips real
@@ -52,7 +52,7 @@ signature: <ed25519 hex>
 Signature is over the canonical bytes:
 
 ```
-b"nullpoint-pvp-v1\n" + str(issue).encode() + b"\n"
+b"daimon-pvp-v1\n" + str(issue).encode() + b"\n"
 + canonical_json(loadout) + b"\n" + bytes.fromhex(nonce)
 ```
 
@@ -62,7 +62,7 @@ The arbiter rejects the reveal if either:
 
 ### Phase 4 — Arbitration (automatic)
 
-Joint seed = `sha256("nullpoint-pvp-seed-v1\n" + issue + commit_a + commit_b + nonce_a + nonce_b)`.
+Joint seed = `sha256("daimon-pvp-seed-v1\n" + issue + commit_a + commit_b + nonce_a + nonce_b)`.
 
 The arbiter runs `resolve_match(loadout_a, loadout_b, seed)`, writes `matches/<issue>.json`, updates `leaderboard.json`, posts a comment with the outcome, locks the Issue (audit trail), and closes it.
 
@@ -77,9 +77,9 @@ The arbiter runs `resolve_match(loadout_a, loadout_b, seed)`, writes `matches/<i
 ## Local testing
 
 ```bash
-cd nullpoint-arena
-PYTHONPATH=../nullpoint python scripts/arbitrate.py --self-test
-PYTHONPATH=../nullpoint python scripts/test_arbitrate.py
+cd daimon-arena
+PYTHONPATH=../daimon python scripts/arbitrate.py --self-test
+PYTHONPATH=../daimon python scripts/test_arbitrate.py
 ```
 
 Self-test runs a synthetic full protocol round-trip with two ed25519 identities

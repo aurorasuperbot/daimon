@@ -1,17 +1,17 @@
 # Identity
 
-NULLPOINT identity = ed25519 keypair. Your pubkey is your canonical handle. GitHub OAuth binding (separate, optional) is added by signing an assertion at `nullpoint-arena/identities/<github-handle>.json`.
+DAIMON identity = ed25519 keypair. Your pubkey is your canonical handle. GitHub OAuth binding (separate, optional) is added by signing an assertion at `daimon-arena/identities/<github-handle>.json`.
 
 ## Generate a new identity
 
 ```bash
-np init
+daimon init
 ```
 
 This:
 - Generates a fresh ed25519 keypair
-- Writes private key to `~/.config/nullpoint/identity.key` (mode 0600)
-- Writes public key to `~/.config/nullpoint/identity.pub`
+- Writes private key to `~/.config/daimon/identity.key` (mode 0600)
+- Writes public key to `~/.config/daimon/identity.pub`
 - **Prints a 24-word BIP39 mnemonic ONCE.** Save it.
 
 If you lose both your key file AND your mnemonic, your collection is unrecoverable. There is no central reset.
@@ -19,7 +19,7 @@ If you lose both your key file AND your mnemonic, your collection is unrecoverab
 ## Recover from mnemonic
 
 ```python
-from nullpoint.identity import restore_from_mnemonic
+from daimon.identity import restore_from_mnemonic
 restore_from_mnemonic("twelve words ... here")
 ```
 
@@ -27,7 +27,7 @@ CLI command coming in V1.1.
 
 ## Bind to a GitHub account (optional, V1.1)
 
-You sign a JSON assertion linking your pubkey to your GitHub handle, then PR it into `nullpoint-arena/identities/<handle>.json`. The arbiter verifies the signature on merge. Multiple pubkeys per handle are allowed (one per machine).
+You sign a JSON assertion linking your pubkey to your GitHub handle, then PR it into `daimon-arena/identities/<handle>.json`. The arbiter verifies the signature on merge. Multiple pubkeys per handle are allowed (one per machine).
 
 ## Why both?
 

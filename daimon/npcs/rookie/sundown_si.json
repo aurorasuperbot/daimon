@@ -1,0 +1,9 @@
+{
+  "npc_id": "sundown_si",
+  "name": "Sundown Si",
+  "tier": "rookie",
+  "rank": 1,
+  "flavor": "Burn brighter, end sooner.",
+  "bio": "Aggressive opener; if she doesn't kill you in three rounds she folds. Blade Foxling first, no apologies.",
+  "loadout": ["blade_foxling", "dashmouse", "scoutling", "glimmerowl", "shellpup", "geodeling"]
+}

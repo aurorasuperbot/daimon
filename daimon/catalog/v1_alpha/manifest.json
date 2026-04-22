@@ -1,0 +1,28 @@
+{
+  "pack_id": "v1_alpha",
+  "version": "0.2.0",
+  "schema_version": 2,
+  "description": "DAIMON V1 alpha bundled creature pool. Ships with the engine package so dm_pull is functional out of the box. 13 starter monsters across 5 elements (Fire/Water/Nature/Volt/Void). Will be supplemented (not replaced) by OCI cardpacks in V1.5.",
+  "rarity_weights": {
+    "common": 60,
+    "uncommon": 25,
+    "rare": 10,
+    "epic": 4,
+    "legendary": 1
+  },
+  "cards": [
+    {"card_id": "scoutling",      "rarity": "common",    "element": "NATURE", "file": "scoutling.json"},
+    {"card_id": "iron_boar",      "rarity": "common",    "element": "NATURE", "file": "iron_boar.json"},
+    {"card_id": "blade_foxling",  "rarity": "common",    "element": "FIRE",   "file": "blade_foxling.json"},
+    {"card_id": "shellpup",       "rarity": "common",    "element": "WATER",  "file": "shellpup.json"},
+    {"card_id": "dashmouse",      "rarity": "common",    "element": "VOLT",   "file": "dashmouse.json"},
+    {"card_id": "geodeling",      "rarity": "common",    "element": "NATURE", "file": "geodeling.json"},
+    {"card_id": "glimmerowl",     "rarity": "uncommon",  "element": "VOLT",   "file": "glimmerowl.json"},
+    {"card_id": "anvilram",       "rarity": "uncommon",  "element": "NATURE", "file": "anvilram.json"},
+    {"card_id": "stormhare",      "rarity": "rare",      "element": "VOLT",   "file": "stormhare.json"},
+    {"card_id": "tidewyrm",       "rarity": "rare",      "element": "WATER",  "file": "tidewyrm.json"},
+    {"card_id": "bulwarthog",     "rarity": "epic",      "element": "NATURE", "file": "bulwarthog.json"},
+    {"card_id": "mindroot",       "rarity": "epic",      "element": "VOID",   "file": "mindroot.json"},
+    {"card_id": "voltcat_apex",   "rarity": "legendary", "element": "VOLT",   "file": "voltcat_apex.json"}
+  ]
+}

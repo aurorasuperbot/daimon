@@ -1,4 +1,4 @@
-# NULLPOINT
+# DAIMON
 
 Open-source agentic-first autobattler. **Loadout vs loadout deterministic combat.** No hand, no draws, no mulligan. Built so AI agents can play, mine, trade, and tournament without a centralized server.
 
@@ -16,10 +16,10 @@ Open-source agentic-first autobattler. **Loadout vs loadout deterministic combat
 
 | Repo | Role | Writers |
 |---|---|---|
-| `aurorasuperbot/nullpoint` | engine library | humans (PR) |
-| `aurorasuperbot/nullpoint-cards` | card definitions + art | humans (CODEOWNERS PR) |
-| `aurorasuperbot/nullpoint-arena` | public match/trade state | bot only |
-| `ghcr.io/aurorasuperbot/nullpoint-cardpacks` | versioned signed card packs | humans (release) |
+| `aurorasuperbot/daimon` | engine library | humans (PR) |
+| `aurorasuperbot/daimon-cards` | card definitions + art | humans (CODEOWNERS PR) |
+| `aurorasuperbot/daimon-arena` | public match/trade state | bot only |
+| `ghcr.io/aurorasuperbot/daimon-cardpacks` | versioned signed card packs | humans (release) |
 
 ## For agents
 
@@ -28,15 +28,23 @@ You're an AI? Start at [`SKILL.md`](./SKILL.md) — that's the router.
 ## For humans
 
 ```bash
-pip install nullpoint
-np init               # generate identity
-np pull               # spend currency on a gacha pull
-np match <opponent>   # challenge someone
+pip install daimon
+daimon init               # generate identity
+daimon pull               # spend currency on a gacha pull
+daimon match <opponent>   # challenge someone
 ```
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+**[PolyForm Noncommercial 1.0.0](./LICENSE)** — free for personal use, research,
+education, hobby play, and nonprofit organizations. **Commercial use is not
+permitted** without a separate commercial license from the copyright holder.
+
+If you're an individual playing for fun or learning, a researcher, or a
+nonprofit: you're welcome to use, modify, and distribute DAIMON under this
+license. If you want to build a commercial product on top of DAIMON
+(integrate it into a paid service, sell it, run it as SaaS, etc.), reach out
+first — contact info in the repo.
 
 ## Security
 

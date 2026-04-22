@@ -14,16 +14,16 @@ import json
 
 import pytest
 
-from nullpoint import collection as collection_mod
-from nullpoint.identity import generate_identity
-from nullpoint.identity import keys as identity_keys
-from nullpoint.mining import formula as formula_mod
-from nullpoint.mining import ledger as ledger_mod
-from nullpoint.mining.ledger import (
+from daimon import collection as collection_mod
+from daimon.identity import generate_identity
+from daimon.identity import keys as identity_keys
+from daimon.mining import formula as formula_mod
+from daimon.mining import ledger as ledger_mod
+from daimon.mining.ledger import (
     InsufficientBalanceError,
     append_mine_entry,
 )
-from nullpoint.pulls import can_pull, perform_pull
+from daimon.pulls import can_pull, perform_pull
 
 
 @pytest.fixture

@@ -1,0 +1,9 @@
+{
+  "npc_id": "owl_eyed_olive",
+  "name": "Owl-eyed Olive",
+  "tier": "novice",
+  "rank": 2,
+  "flavor": "Knows the round before you do.",
+  "bio": "Tournament regular -- never won, never finished outside the top 16. Glimmerowl ON_BATTLE_START speed buff means she usually swings first.",
+  "loadout": ["glimmerowl", "anvilram", "dashmouse", "scoutling", "blade_foxling", "shellpup"]
+}

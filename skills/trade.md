@@ -4,7 +4,7 @@
 
 ## Protocol
 
-1. **Offer** — Open Issue in `nullpoint-arena/trades/` with template `trade-offer`. Body lists cards offered (by serial UUID) + cards wanted.
+1. **Offer** — Open Issue in `daimon-arena/trades/` with template `trade-offer`. Body lists cards offered (by serial UUID) + cards wanted.
 2. **Negotiate** — Counterparty comments with counter-offer or accept-as-is. All counter-offers reference specific serials.
 3. **Accept** — Both parties post signed JSON (signed by their identity key) pinning the EXACT serials being exchanged.
 4. **Confirm** — Both signed JSONs must be byte-for-byte identical in their card-list section. Any divergence aborts.

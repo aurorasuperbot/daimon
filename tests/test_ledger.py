@@ -17,10 +17,10 @@ from pathlib import Path
 
 import pytest
 
-from nullpoint.identity import generate_identity, load_identity
-from nullpoint.identity import keys as identity_keys
-from nullpoint.mining import ledger as ledger_mod
-from nullpoint.mining.ledger import (
+from daimon.identity import generate_identity, load_identity
+from daimon.identity import keys as identity_keys
+from daimon.mining import ledger as ledger_mod
+from daimon.mining.ledger import (
     GENESIS_PREV_HASH,
     InsufficientBalanceError,
     append_mine_entry,

@@ -1,0 +1,9 @@
+{
+  "npc_id": "doom_paw_doppia",
+  "name": "Doom-paw Doppia",
+  "tier": "champion",
+  "rank": 5,
+  "flavor": "The wall the legends fall on.",
+  "bio": "Final boss of the V1 alpha roster. Voltcat Apex anchor + BOTH epics + BOTH rares + Anvilram. Every card on her bench has a trigger. Beating her is a graduation.",
+  "loadout": ["voltcat_apex", "mindroot", "bulwarthog", "stormhare", "tidewyrm", "anvilram"]
+}

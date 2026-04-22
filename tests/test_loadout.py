@@ -9,8 +9,8 @@ Rules:
 
 import pytest
 
-from nullpoint.engine import Loadout, TEAM_SIZE
-from nullpoint.engine.types import Card, Element
+from daimon.engine import Loadout, TEAM_SIZE
+from daimon.engine.types import Card, Element
 
 
 def _c(pos: int, species: str | None = None, element: Element = Element.NATURE) -> Card:

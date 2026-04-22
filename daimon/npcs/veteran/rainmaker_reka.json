@@ -1,0 +1,9 @@
+{
+  "npc_id": "rainmaker_reka",
+  "name": "Rainmaker Reka",
+  "tier": "veteran",
+  "rank": 3,
+  "flavor": "Tide and wall.",
+  "bio": "Built her career on attrition. Tidewyrm heals every round, Anvilram refunds the damage, the rest of the team eats your clock.",
+  "loadout": ["tidewyrm", "anvilram", "shellpup", "iron_boar", "glimmerowl", "geodeling"]
+}

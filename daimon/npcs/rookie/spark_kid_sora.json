@@ -1,0 +1,9 @@
+{
+  "npc_id": "spark_kid_sora",
+  "name": "Spark-kid Sora",
+  "tier": "rookie",
+  "rank": 1,
+  "flavor": "Tag, you're hit.",
+  "bio": "Twelve years old, never lost to another rookie, will not stop talking about it. Leads with Dashmouse, hides Glimmerowl in the back to swing speed once the fight gets real.",
+  "loadout": ["dashmouse", "blade_foxling", "scoutling", "glimmerowl", "geodeling", "shellpup"]
+}

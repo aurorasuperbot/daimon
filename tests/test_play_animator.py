@@ -1,4 +1,4 @@
-"""Tests for nullpoint.play.animator + primitives.
+"""Tests for daimon.play.animator + primitives.
 
 Coverage matrix:
   - Default registry has exactly the 4 V1 ship primitives
@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from nullpoint.play.animator import Animator, AnimationSnapshot
-from nullpoint.play.primitives import (
+from daimon.play.animator import Animator, AnimationSnapshot
+from daimon.play.primitives import (
     CardEmission,
     ColorFlashPrimitive,
     ConnectionEmission,
@@ -29,7 +29,7 @@ from nullpoint.play.primitives import (
     PulsePrimitive,
     ShakePrimitive,
 )
-from nullpoint.play.schema import (
+from daimon.play.schema import (
     Action,
     ActionKind,
     CardRef,
@@ -39,7 +39,7 @@ from nullpoint.play.schema import (
 )
 
 
-FIXTURE_PATH = Path(__file__).parent.parent / "nullpoint" / "play" / "fixtures" / "match_sample.json"
+FIXTURE_PATH = Path(__file__).parent.parent / "daimon" / "play" / "fixtures" / "match_sample.json"
 
 
 # ---------------------------------------------------------------------------

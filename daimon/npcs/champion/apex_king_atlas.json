@@ -1,0 +1,9 @@
+{
+  "npc_id": "apex_king_atlas",
+  "name": "Apex-king Atlas",
+  "tier": "champion",
+  "rank": 5,
+  "flavor": "Speed and shield. Pick one.",
+  "bio": "Voltcat in front behind a Bulwarthog tank-all opening. By round 2 he's faster than you AND he's shielded. Anvilram refunds anything you sneak through.",
+  "loadout": ["voltcat_apex", "bulwarthog", "anvilram", "stormhare", "glimmerowl", "iron_boar"]
+}

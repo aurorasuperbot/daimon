@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from nullpoint.cards import load_card_dict
-from nullpoint.catalog import (
+from daimon.cards import load_card_dict
+from daimon.catalog import (
     DEFAULT_CATALOG_ID,
     list_catalogs,
     load_catalog,
@@ -102,7 +102,7 @@ def test_load_catalog_from_arbitrary_root(tmp_path):
     # Copy bundled catalog to tmp
     from importlib import resources
     import shutil
-    src = Path(str(resources.files("nullpoint.catalog") / DEFAULT_CATALOG_ID))
+    src = Path(str(resources.files("daimon.catalog") / DEFAULT_CATALOG_ID))
     dst = tmp_path / "v1_alpha"
     shutil.copytree(src, dst)
     cat = load_catalog("v1_alpha", root=dst)

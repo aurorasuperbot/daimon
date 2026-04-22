@@ -1,0 +1,9 @@
+{
+  "npc_id": "volt_priest_vex",
+  "name": "Volt-priest Vex",
+  "tier": "elite",
+  "rank": 4,
+  "flavor": "Discharge cathedral.",
+  "bio": "Hybrid void-volt build. Mindroot debuffs your ATK on opening, Stormhare BUFF_SPD-all guarantees they swing first, Glimmerowl pads it further. Anvilram backstops.",
+  "loadout": ["mindroot", "stormhare", "glimmerowl", "dashmouse", "anvilram", "blade_foxling"]
+}

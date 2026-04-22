@@ -1,8 +1,8 @@
 # Legacy Render Scripts
 
-Migrated from `/opt/agents/projects/agent-tcg/scripts/` (the pre-NULLPOINT design dir, archived 2026-04-21).
+Migrated from `/opt/agents/projects/agent-tcg/scripts/` (the pre-DAIMON design dir, archived 2026-04-21).
 
-These scripts produced the V0 hybrid-render proof (terminal-cell frame + chafa-cascade art panel) that locked the design language for the render layer. They run standalone — no `nullpoint` package import needed.
+These scripts produced the V0 hybrid-render proof (terminal-cell frame + chafa-cascade art panel) that locked the design language for the render layer. They run standalone — no `daimon` package import needed.
 
 ## Files
 
@@ -13,12 +13,12 @@ These scripts produced the V0 hybrid-render proof (terminal-cell frame + chafa-c
 | `hybrid_render.py` | Reference implementation of HYBRID render: frame as terminal cells, only art panel through chafa. |
 | `simulate_tiers.py` | Iterates through all 7 chafa tiers and saves each as a PNG, useful for screenshots of the cascade. |
 
-## Migration plan to `nullpoint/render/`
+## Migration plan to `daimon/render/`
 
-V1.1 will refactor these into the `nullpoint/render/` module:
-- `compose_legendary.py` → `nullpoint/render/compose.py` (parameterized over card data, not hardcoded)
-- `hybrid_render.py` → `nullpoint/render/hybrid.py` (reads Card object + art path, produces tier-appropriate output)
-- `cascade_legendary.py` → folded into `nullpoint/render/cascade.py` capability detection + dispatch
+V1.1 will refactor these into the `daimon/render/` module:
+- `compose_legendary.py` → `daimon/render/compose.py` (parameterized over card data, not hardcoded)
+- `hybrid_render.py` → `daimon/render/hybrid.py` (reads Card object + art path, produces tier-appropriate output)
+- `cascade_legendary.py` → folded into `daimon/render/cascade.py` capability detection + dispatch
 - `simulate_tiers.py` → `tests/visual/` debug utility, not shipped
 
 Until V1.1 lands, these stay as-is in `scripts/render_legacy/` so the proven setup isn't lost.

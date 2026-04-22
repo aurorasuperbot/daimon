@@ -2,7 +2,7 @@
 
 import pytest
 
-from nullpoint.mining.formula import (
+from daimon.mining.formula import (
     BASE_VALUES,
     DROP_RATE,
     MAX_PER_INVOCATION,

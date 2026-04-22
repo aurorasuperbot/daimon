@@ -1,0 +1,9 @@
+{
+  "npc_id": "static_sky",
+  "name": "Static Sky",
+  "tier": "novice",
+  "rank": 2,
+  "flavor": "Lightning never asks.",
+  "bio": "Storm-chaser turned trainer. Stormhare's BUFF_SPD-all crashes the speed math; Glimmerowl piles on. First Novice with a rare on the bench.",
+  "loadout": ["stormhare", "dashmouse", "glimmerowl", "blade_foxling", "scoutling", "shellpup"]
+}

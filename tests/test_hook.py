@@ -3,7 +3,7 @@
 Covers:
   - process_event mints currency for an Edit success
   - process_event skips Reply / TodoWrite (in SKIP_TOOLS)
-  - process_event skips self-mining (mcp__*nullpoint*)
+  - process_event skips self-mining (mcp__*daimon*)
   - process_event dedups via session_id+novelty key
   - process_event treats failed tools (success=False) more conservatively
   - main() never raises on bad input (returns 0)
@@ -17,12 +17,12 @@ import json
 
 import pytest
 
-from nullpoint.identity import generate_identity
-from nullpoint.identity import keys as identity_keys
-from nullpoint.mining import formula as formula_mod
-from nullpoint.mining import ledger as ledger_mod
-from nullpoint.mining import hook as hook_mod
-from nullpoint.mining.hook import main as hook_main, process_event
+from daimon.identity import generate_identity
+from daimon.identity import keys as identity_keys
+from daimon.mining import formula as formula_mod
+from daimon.mining import ledger as ledger_mod
+from daimon.mining import hook as hook_mod
+from daimon.mining.hook import main as hook_main, process_event
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ def test_todowrite_is_skipped(isolated):
 
 
 def test_self_mining_blocked(isolated):
-    status = process_event(_event("mcp__nullpoint__np_match"))
+    status = process_event(_event("mcp__daimon__np_match"))
     assert status["action"] == "skipped"
     assert "self-mining" in status["reason"]
 

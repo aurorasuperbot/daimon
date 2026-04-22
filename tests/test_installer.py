@@ -4,7 +4,7 @@ Covers:
   - install creates the file + adds the entry
   - install is idempotent (rerun → "already_present", no duplicates)
   - install preserves user-added hooks
-  - uninstall removes the nullpoint-owned entry only
+  - uninstall removes the daimon-owned entry only
   - dry_run never writes
   - hook_status reports correctly
 """
@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from nullpoint.mining.installer import (
+from daimon.mining.installer import (
     HOOK_OWNER,
     hook_status,
     install_hook,
@@ -67,7 +67,7 @@ def test_install_dry_run(tmp_path):
     assert not settings.exists()
 
 
-def test_uninstall_removes_only_nullpoint_entry(tmp_path):
+def test_uninstall_removes_only_daimon_entry(tmp_path):
     settings = tmp_path / "settings.json"
     settings.write_text(json.dumps({
         "hooks": {"PostToolUse": [

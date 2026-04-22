@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "roster_version": "v1_alpha",
+  "description": "DAIMON V1 alpha NPC tier roster. 25 named opponents across 5 tiers (Rookie -> Champion). Each NPC has a fixed loadout drawn from the v1_alpha catalog. Difficulty climbs by trigger-density and synergy, not by stat inflation. Used by dm_match_npc + `daimon match-npc`.",
+  "tiers": [
+    {
+      "tier_id": "rookie",
+      "rank": 1,
+      "label": "Rookie",
+      "rule": "All-commons or 5 commons + 1 uncommon. No deep synergy. Beginner-safe.",
+      "npcs": ["sparring_sam", "hedgerow_hannah", "spark_kid_sora", "tidepool_tom", "sundown_si"]
+    },
+    {
+      "tier_id": "novice",
+      "rank": 2,
+      "label": "Novice",
+      "rule": "Commons + 2 uncommons, occasional rare. Light single-trigger setups.",
+      "npcs": ["watchman_wren", "owl_eyed_olive", "forge_hand_fran", "static_sky", "gentle_goro"]
+    },
+    {
+      "tier_id": "veteran",
+      "rank": 3,
+      "label": "Veteran",
+      "rule": "Rares anchor; 2-3 trigger cards in concert.",
+      "npcs": ["rainmaker_reka", "stormrider_sven", "bramble_beth", "rust_priest_rhea", "quickfoot_quinn"]
+    },
+    {
+      "tier_id": "elite",
+      "rank": 4,
+      "label": "Elite",
+      "rule": "Epic anchor + rares; 3-4 triggers fire per round.",
+      "npcs": ["iron_shield_ira", "mind_eater_mox", "tide_priest_telos", "volt_priest_vex", "storm_warden_wynn"]
+    },
+    {
+      "tier_id": "champion",
+      "rank": 5,
+      "label": "Champion",
+      "rule": "Legendary anchor + epics + tight synergy. Endgame fight.",
+      "npcs": ["mythbreaker_marn", "apex_king_atlas", "stormcrown_sienna", "voidwalker_vance", "doom_paw_doppia"]
+    }
+  ]
+}

@@ -8,7 +8,7 @@
 
 ## Drop table
 
-Determined per card pack. Card packs are versioned OCI artifacts at `ghcr.io/aurorasuperbot/nullpoint-cardpacks:<tag>`. Each pack manifest includes its drop table (rarity weights, card pool).
+Determined per card pack. Card packs are versioned OCI artifacts at `ghcr.io/aurorasuperbot/daimon-cardpacks:<tag>`. Each pack manifest includes its drop table (rarity weights, card pool).
 
 ## Reproducibility
 

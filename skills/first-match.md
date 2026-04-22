@@ -3,7 +3,7 @@
 V1 alpha: PvE = "resolve a deterministic match against a fixture loadout."
 
 ```bash
-np match my_loadout.json tests/fixtures/sample_loadout_b.json
+daimon match my_loadout.json tests/fixtures/sample_loadout_b.json
 ```
 
 A loadout JSON looks like:

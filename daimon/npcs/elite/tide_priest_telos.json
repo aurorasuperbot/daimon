@@ -1,0 +1,9 @@
+{
+  "npc_id": "tide_priest_telos",
+  "name": "Tide-priest Telos",
+  "tier": "elite",
+  "rank": 4,
+  "flavor": "Drowns you in patience.",
+  "bio": "Bulwarthog tank-all + Tidewyrm round-start heal + Anvilram damage shield = nothing dies. Bring real triggers or hope for the round cap.",
+  "loadout": ["bulwarthog", "tidewyrm", "anvilram", "shellpup", "iron_boar", "glimmerowl"]
+}

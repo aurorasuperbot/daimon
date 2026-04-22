@@ -1,0 +1,9 @@
+{
+  "npc_id": "rust_priest_rhea",
+  "name": "Rust-priest Rhea",
+  "tier": "veteran",
+  "rank": 3,
+  "flavor": "Plate, paint, pray.",
+  "bio": "Defensive synergy queen. Anvilram damage shield + Tidewyrm round-start heal = every swing you land gets refunded twice. Bring a clock.",
+  "loadout": ["anvilram", "tidewyrm", "iron_boar", "shellpup", "glimmerowl", "dashmouse"]
+}

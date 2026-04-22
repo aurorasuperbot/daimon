@@ -1,0 +1,9 @@
+{
+  "npc_id": "quickfoot_quinn",
+  "name": "Quickfoot Quinn",
+  "tier": "veteran",
+  "rank": 3,
+  "flavor": "First step's the only one that matters.",
+  "bio": "Glass cannon enthusiast. Stacked his bench for one purpose: every monster moves first. If they survive the opening exchange, he loses; they usually don't.",
+  "loadout": ["stormhare", "dashmouse", "glimmerowl", "scoutling", "blade_foxling", "shellpup"]
+}

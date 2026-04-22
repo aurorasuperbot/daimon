@@ -2,7 +2,7 @@
 
 import pytest
 
-from nullpoint.engine.rng import SeededRng
+from daimon.engine.rng import SeededRng
 
 
 def test_same_seed_same_sequence():

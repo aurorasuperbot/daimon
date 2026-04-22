@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One-shot migration: V1 test card fixtures (with `slot`) → V2 (element/species).
 
-Rewrites every `tests/fixtures/*.json` and `nullpoint/play/fixtures/*.json`
+Rewrites every `tests/fixtures/*.json` and `daimon/play/fixtures/*.json`
 that has a `slot` field, dropping `slot` and adding `element` + `species`.
 
 Defaults all test fixtures to NATURE element (neutral against nobody) so
@@ -60,7 +60,7 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     targets = [
         repo_root / "tests" / "fixtures",
-        repo_root / "nullpoint" / "play" / "fixtures",
+        repo_root / "daimon" / "play" / "fixtures",
     ]
     migrated_count = 0
     for target in targets:
