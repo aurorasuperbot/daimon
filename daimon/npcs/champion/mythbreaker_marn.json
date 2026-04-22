@@ -5,5 +5,12 @@
   "rank": 5,
   "flavor": "Cracked one before, crack one again.",
   "bio": "First Champion. Voltcat Apex hits a random enemy on top of every attack; Mindroot debuffs your ATK on opening; Stormhare guarantees turn order. Three-trigger pressure cooker.",
-  "loadout": ["voltcat_apex", "mindroot", "stormhare", "glimmerowl", "dashmouse", "anvilram"]
+  "loadout": [
+    "voltcat_apex",
+    "mindroot",
+    "stormhare",
+    "glimmerowl",
+    "dashmouse",
+    "thornpup"
+  ]
 }

@@ -309,8 +309,10 @@ def test_load_roster_from_alternate_root(tmp_path: Path):
     (tmp_path / "rookie" / "test_dummy.json").write_text(json.dumps({
         "npc_id": "test_dummy", "name": "Test Dummy", "tier": "rookie",
         "rank": 1, "flavor": "test", "bio": "test",
-        "loadout": ["scoutling", "iron_boar", "blade_foxling",
-                    "shellpup", "dashmouse", "geodeling"],
+        # All 6 IDs must exist in the v1_alpha catalog post-Phase-4e —
+        # `npc_loadout` below resolves through the real catalog.
+        "loadout": ["sproutling", "iron_boar", "emberpup",
+                    "mistling", "dashmouse", "geodeling"],
     }))
     r = load_roster(root=tmp_path)
     assert r.roster_version == "test_alpha"
@@ -332,8 +334,8 @@ def test_load_roster_rejects_mismatched_npc_id(tmp_path: Path):
         "npc_id": "bob",  # WRONG -- doesn't match manifest reference
         "name": "Bob", "tier": "rookie", "rank": 1,
         "flavor": "", "bio": "",
-        "loadout": ["scoutling", "iron_boar", "blade_foxling",
-                    "shellpup", "dashmouse", "geodeling"],
+        "loadout": ["sproutling", "iron_boar", "emberpup",
+                    "mistling", "dashmouse", "geodeling"],
     }))
     with pytest.raises(ValueError, match="does not match manifest"):
         load_roster(root=tmp_path)
@@ -349,7 +351,7 @@ def test_load_roster_rejects_wrong_loadout_size(tmp_path: Path):
     (tmp_path / "rookie" / "short.json").write_text(json.dumps({
         "npc_id": "short", "name": "Short", "tier": "rookie", "rank": 1,
         "flavor": "", "bio": "",
-        "loadout": ["scoutling", "iron_boar", "blade_foxling"],  # only 3
+        "loadout": ["sproutling", "iron_boar", "emberpup"],  # only 3
     }))
     with pytest.raises(ValueError, match="loadout must be list of 6"):
         load_roster(root=tmp_path)

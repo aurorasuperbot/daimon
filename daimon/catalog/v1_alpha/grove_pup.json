@@ -1,0 +1,23 @@
+{
+  "card_id": "grove_pup",
+  "species": "grove_pup",
+  "element": "NORMAL",
+  "atk": 4,
+  "def": 4,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_TURN_END",
+      "op": "BUFF_DEF",
+      "target": "RANDOM_ALLY",
+      "value": 2
+    }
+  ],
+  "name": "Grove Pup",
+  "flavor": "Trots between teammates; nudges their guard back up.",
+  "rarity": "common",
+  "archetype": null,
+  "art": "art/common/grove_pup.png",
+  "moves": []
+}

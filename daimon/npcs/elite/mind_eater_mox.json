@@ -5,5 +5,12 @@
   "rank": 4,
   "flavor": "You forgot what you came to do.",
   "bio": "Void-aligned. Mindroot ON_BATTLE_START debuffs ATK on your whole team and ON_ATTACK pings your lowest-HP card for free. Stormhare layers speed on top. Surgical pressure.",
-  "loadout": ["mindroot", "stormhare", "glimmerowl", "dashmouse", "blade_foxling", "scoutling"]
+  "loadout": [
+    "mindroot",
+    "stormhare",
+    "glimmerowl",
+    "dashmouse",
+    "emberpup",
+    "iron_boar"
+  ]
 }

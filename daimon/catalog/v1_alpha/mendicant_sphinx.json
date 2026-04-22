@@ -1,0 +1,23 @@
+{
+  "card_id": "mendicant_sphinx",
+  "species": "mendicant_sphinx",
+  "element": "NORMAL",
+  "atk": 4,
+  "def": 5,
+  "hp": 27,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_TURN_END",
+      "op": "HEAL",
+      "target": "RANDOM_ALLY",
+      "value": 3
+    }
+  ],
+  "name": "Mendicant Sphinx",
+  "flavor": "Asks no riddle; gives only the answer the wounded needed.",
+  "rarity": "uncommon",
+  "archetype": null,
+  "art": "art/uncommon/mendicant_sphinx.png",
+  "moves": []
+}

@@ -5,5 +5,12 @@
   "rank": 4,
   "flavor": "Stand. Then stand more.",
   "bio": "First Elite. Bulwarthog opens with shield-all + gains DEF every time an ally dies. Anvilram refunds your damage. Tidewyrm heals. You will run out of swings before they run out of HP.",
-  "loadout": ["bulwarthog", "anvilram", "iron_boar", "tidewyrm", "geodeling", "shellpup"]
+  "loadout": [
+    "bulwarthog",
+    "thornpup",
+    "iron_boar",
+    "tidewyrm",
+    "geodeling",
+    "mistling"
+  ]
 }

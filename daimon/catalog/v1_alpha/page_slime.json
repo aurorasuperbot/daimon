@@ -1,0 +1,23 @@
+{
+  "card_id": "page_slime",
+  "species": "page_slime",
+  "element": "NORMAL",
+  "atk": 3,
+  "def": 4,
+  "hp": 24,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "HEAL",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Page Slime",
+  "flavor": "Reads the cuts as marginalia and erases them at leisure.",
+  "rarity": "common",
+  "archetype": null,
+  "art": "art/common/page_slime.png",
+  "moves": []
+}

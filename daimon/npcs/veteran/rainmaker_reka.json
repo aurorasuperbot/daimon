@@ -5,5 +5,12 @@
   "rank": 3,
   "flavor": "Tide and wall.",
   "bio": "Built her career on attrition. Tidewyrm heals every round, Anvilram refunds the damage, the rest of the team eats your clock.",
-  "loadout": ["tidewyrm", "anvilram", "shellpup", "iron_boar", "glimmerowl", "geodeling"]
+  "loadout": [
+    "tidewyrm",
+    "thornpup",
+    "mistling",
+    "iron_boar",
+    "glimmerowl",
+    "geodeling"
+  ]
 }

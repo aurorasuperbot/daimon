@@ -1,0 +1,23 @@
+{
+  "card_id": "brass_mole",
+  "species": "brass_mole",
+  "element": "NORMAL",
+  "atk": 4,
+  "def": 5,
+  "hp": 18,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "RANDOM_ALLY",
+      "value": 2
+    }
+  ],
+  "name": "Brass Mole",
+  "flavor": "Burrows up under an ally's footing and gives a quiet shove.",
+  "rarity": "common",
+  "archetype": null,
+  "art": "art/common/brass_mole.png",
+  "moves": []
+}

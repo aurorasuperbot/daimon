@@ -5,5 +5,12 @@
   "rank": 5,
   "flavor": "Knows what you'll do, ruins it.",
   "bio": "Mindroot leads -- ATK debuff your team on opening, free pings on lowest-HP every round. Voltcat hammers behind. Bulwarthog tanks the front. Six triggers fire on opening alone.",
-  "loadout": ["mindroot", "voltcat_apex", "bulwarthog", "stormhare", "anvilram", "tidewyrm"]
+  "loadout": [
+    "mindroot",
+    "voltcat_apex",
+    "bulwarthog",
+    "stormhare",
+    "thornpup",
+    "tidewyrm"
+  ]
 }

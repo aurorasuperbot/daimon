@@ -5,5 +5,12 @@
   "rank": 4,
   "flavor": "Two epics, no apology.",
   "bio": "Bridge fight to Champion tier. Bulwarthog AND Mindroot on the same bench: tank-all on opening, ATK debuff on your team, ally-death buffs Bulwarthog, speed support behind. Pick one to kill first; you'll be wrong.",
-  "loadout": ["bulwarthog", "mindroot", "stormhare", "anvilram", "glimmerowl", "dashmouse"]
+  "loadout": [
+    "bulwarthog",
+    "mindroot",
+    "stormhare",
+    "thornpup",
+    "glimmerowl",
+    "dashmouse"
+  ]
 }

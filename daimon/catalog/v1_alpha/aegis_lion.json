@@ -1,0 +1,29 @@
+{
+  "card_id": "aegis_lion",
+  "species": "aegis_lion",
+  "element": "NORMAL",
+  "atk": 6,
+  "def": 8,
+  "hp": 30,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "ADD_SHIELD",
+      "target": "ALL_ALLIES",
+      "value": 4
+    },
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "BUFF_DEF",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Aegis Lion",
+  "flavor": "A king of nothing but the line behind him.",
+  "rarity": "rare",
+  "archetype": null,
+  "art": "art/rare/aegis_lion.png",
+  "moves": []
+}

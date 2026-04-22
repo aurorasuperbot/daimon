@@ -5,5 +5,12 @@
   "rank": 2,
   "flavor": "Defends what doesn't move.",
   "bio": "Border-town guard. Anvilram up front means damage shields stack every time you swing. Glimmerowl's BUFF_SPD makes her counter-strikes land first.",
-  "loadout": ["anvilram", "iron_boar", "shellpup", "glimmerowl", "geodeling", "dashmouse"]
+  "loadout": [
+    "thornpup",
+    "iron_boar",
+    "mistling",
+    "glimmerowl",
+    "geodeling",
+    "dashmouse"
+  ]
 }

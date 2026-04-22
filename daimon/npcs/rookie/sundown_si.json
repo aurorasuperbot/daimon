@@ -5,5 +5,12 @@
   "rank": 1,
   "flavor": "Burn brighter, end sooner.",
   "bio": "Aggressive opener; if she doesn't kill you in three rounds she folds. Blade Foxling first, no apologies.",
-  "loadout": ["blade_foxling", "dashmouse", "scoutling", "glimmerowl", "shellpup", "geodeling"]
+  "loadout": [
+    "emberpup",
+    "dashmouse",
+    "iron_boar",
+    "glimmerowl",
+    "mistling",
+    "geodeling"
+  ]
 }

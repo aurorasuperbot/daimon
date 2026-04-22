@@ -38,7 +38,12 @@ import pytest
 PACK_DIR = Path(__file__).resolve().parent.parent / "daimon" / "catalog" / "v1_alpha"
 MANIFEST_PATH = PACK_DIR / "manifest.json"
 
-ELEMENTS = ("FIRE", "WATER", "NATURE", "VOLT", "VOID")
+# All 6 elements in the V1 pool. The first five form a closed
+# rock-paper-scissors-plus-void ring; NORMAL stands deliberately outside
+# the ring (see daimon/engine/elements.py + docs/card_design_v1.md §18).
+# Tests that care about the affinity ring iterate `RING_ELEMENTS` instead.
+ELEMENTS = ("FIRE", "WATER", "NATURE", "VOLT", "VOID", "NORMAL")
+RING_ELEMENTS = ("FIRE", "WATER", "NATURE", "VOLT", "VOID")
 TIERS = ("common", "uncommon", "rare", "epic", "legendary")
 
 # V1 lock — these are THE numbers. Changing them requires a doc update.
@@ -52,6 +57,16 @@ V1_RARITY = {
 }
 # Per-rarity vanilla cap (commons only — see card_design_v1.md §4)
 VANILLA_COMMON_CAP_PCT = 30
+# NORMAL element pool minimum — see §18. Locks the design intent that
+# NORMAL is a non-trivial splash-support element, not a token presence.
+# Currently 15 NORMAL cards (8C/4U/2R/1E); floor allows minor future
+# trimming without breaking the gate.
+NORMAL_MIN_TOTAL = 10
+NORMAL_MIN_PER_BULK_TIER = {
+    "common":   6,   # NORMAL must be a real splash option in pulls
+    "uncommon": 3,
+    "rare":     2,
+}
 
 
 @pytest.fixture(scope="module")
@@ -125,6 +140,11 @@ class TestElementCoverage:
     Concretely: every element needs enough cards that a mono-element 6-card
     loadout is buildable, AND each bulk tier (common/uncommon/rare) carries
     each element at least once so element-pure pulls aren't impossible.
+
+    NORMAL gets bespoke gates (it's intentionally smaller than the ring
+    elements — splashable support, not a primary archetype home). The
+    common-tier balance check explicitly excludes NORMAL since NORMAL is
+    *meant* to be ~half the size of any ring element at common.
     """
 
     def test_each_element_has_at_least_six_cards(self, manifest):
@@ -137,8 +157,8 @@ class TestElementCoverage:
             )
 
     def test_every_bulk_tier_covers_every_element(self, manifest):
-        """common/uncommon/rare must each include all 5 elements (so pulls
-        at any of these tiers can return any element)."""
+        """common/uncommon/rare must each include all 6 elements (so pulls
+        at any of these tiers can return any element, including NORMAL)."""
         by_tier: dict[str, set[str]] = defaultdict(set)
         for e in manifest["cards"]:
             by_tier[e["rarity"]].add(e["element"])
@@ -150,20 +170,94 @@ class TestElementCoverage:
             )
 
     def test_element_balance_within_common_tier(self, manifest):
-        """Common pool of 98 should distribute roughly evenly across elements
-        (we expect 19-20 each). Allow ±25% from the mean before flagging.
-        Catches 'half the commons ended up FIRE' authoring bugs."""
+        """The 5 RING elements at common tier should be roughly even (we
+        expect 18 each). Allow ±25% from the ring-mean before flagging.
+        Catches 'half the commons ended up FIRE' authoring bugs.
+
+        NORMAL is excluded — its intentional under-allocation (8 commons,
+        ~half of a ring element) would falsely fail a 6-element mean
+        comparison. NORMAL has its own minimum gate in
+        `TestNormalElementPool::test_normal_meets_minimum_per_bulk_tier`."""
         commons = [e for e in manifest["cards"] if e["rarity"] == "common"]
-        per_elem = Counter(e["element"] for e in commons)
-        mean = len(commons) / len(ELEMENTS)
+        ring_commons = [e for e in commons if e["element"] in RING_ELEMENTS]
+        per_elem = Counter(e["element"] for e in ring_commons)
+        mean = len(ring_commons) / len(RING_ELEMENTS)
         lower, upper = mean * 0.75, mean * 1.25
-        for elem in ELEMENTS:
+        for elem in RING_ELEMENTS:
             n = per_elem[elem]
             assert lower <= n <= upper, (
-                f"Common tier element {elem} has {n} cards; expected within "
-                f"[{lower:.1f}, {upper:.1f}] (mean {mean:.1f}). "
-                f"Distribution: {dict(per_elem)}"
+                f"Common tier ring element {elem} has {n} cards; expected "
+                f"within [{lower:.1f}, {upper:.1f}] (ring-mean {mean:.1f}). "
+                f"Ring distribution: {dict(per_elem)}"
             )
+
+
+# ---------------------------------------------------------------------------
+# 3b. NORMAL element gates — Phase 4e (see card_design_v1.md §18)
+# ---------------------------------------------------------------------------
+
+
+class TestNormalElementPool:
+    """NORMAL is the splashable utility element added in Phase 4e. It stands
+    outside the type-effectiveness ring (always 1.0×) and exists as the
+    home for archetype-less support cards. These gates lock the design
+    intent: NORMAL must be a real splash option (not a token), and every
+    NORMAL card must carry `archetype: null`."""
+
+    def test_normal_meets_minimum_total(self, manifest):
+        """NORMAL must be a non-trivial splash element, not a token tier."""
+        per_elem = Counter(e["element"] for e in manifest["cards"])
+        n = per_elem.get("NORMAL", 0)
+        assert n >= NORMAL_MIN_TOTAL, (
+            f"NORMAL pool size {n} below minimum {NORMAL_MIN_TOTAL} — "
+            f"NORMAL is meant to be a real splash option, not a token. "
+            f"Update card_design_v1.md §18 if shrinking is intentional."
+        )
+
+    def test_normal_meets_minimum_per_bulk_tier(self, manifest):
+        """NORMAL must appear in C/U/R at meaningful counts so pulls at any
+        bulk tier can plausibly return a NORMAL card."""
+        by_tier: dict[str, int] = defaultdict(int)
+        for e in manifest["cards"]:
+            if e["element"] == "NORMAL":
+                by_tier[e["rarity"]] += 1
+        for tier, floor in NORMAL_MIN_PER_BULK_TIER.items():
+            n = by_tier[tier]
+            assert n >= floor, (
+                f"NORMAL has {n} {tier}s; minimum is {floor}. "
+                f"NORMAL distribution: {dict(by_tier)}"
+            )
+
+    def test_normal_cards_have_null_archetype(self, cards_on_disk):
+        """NORMAL cards must carry `archetype: null` — they're intentionally
+        archetype-less so they splash into any deck without distorting
+        archetype identity."""
+        violators: list[str] = []
+        for c in cards_on_disk:
+            if c.get("element") != "NORMAL":
+                continue
+            arch = c.get("archetype")
+            # JSON null deserializes to Python None; allow missing key as
+            # equivalent (caller treated null vs absent as same intent).
+            if arch is not None:
+                violators.append(f"{c['card_id']}: archetype={arch!r}")
+        assert not violators, (
+            "NORMAL cards must have archetype: null — see §18. "
+            "Violators:\n  " + "\n  ".join(violators)
+        )
+
+    def test_no_elemental_card_carries_normal_archetype_label(self, cards_on_disk):
+        """Inverse direction — no FIRE/WATER/NATURE/VOLT/VOID card should
+        get `archetype: "NORMAL"` either. NORMAL is an *element*, not an
+        archetype label."""
+        violators: list[str] = []
+        for c in cards_on_disk:
+            if str(c.get("archetype", "")).upper() == "NORMAL":
+                violators.append(f"{c['card_id']}: archetype=NORMAL")
+        assert not violators, (
+            "NORMAL is an element, not an archetype label. Violators:\n  "
+            + "\n  ".join(violators)
+        )
 
 
 # ---------------------------------------------------------------------------

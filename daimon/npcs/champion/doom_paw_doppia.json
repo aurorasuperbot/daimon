@@ -5,5 +5,12 @@
   "rank": 5,
   "flavor": "The wall the legends fall on.",
   "bio": "Final boss of the V1 alpha roster. Voltcat Apex anchor + BOTH epics + BOTH rares + Anvilram. Every card on her bench has a trigger. Beating her is a graduation.",
-  "loadout": ["voltcat_apex", "mindroot", "bulwarthog", "stormhare", "tidewyrm", "anvilram"]
+  "loadout": [
+    "voltcat_apex",
+    "mindroot",
+    "bulwarthog",
+    "stormhare",
+    "tidewyrm",
+    "thornpup"
+  ]
 }

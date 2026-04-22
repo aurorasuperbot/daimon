@@ -1,0 +1,23 @@
+{
+  "card_id": "runic_whelp",
+  "species": "runic_whelp",
+  "element": "NORMAL",
+  "atk": 5,
+  "def": 3,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_DEF",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Runic Whelp",
+  "flavor": "Half a chant, sung in earnest — and the team braces.",
+  "rarity": "common",
+  "archetype": null,
+  "art": "art/common/runic_whelp.png",
+  "moves": []
+}

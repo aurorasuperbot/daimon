@@ -1,0 +1,23 @@
+{
+  "card_id": "wrought_bear",
+  "species": "wrought_bear",
+  "element": "NORMAL",
+  "atk": 5,
+  "def": 6,
+  "hp": 24,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "APPLY_TAUNT",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Wrought Bear",
+  "flavor": "The first hit only convinces it to stand farther forward.",
+  "rarity": "uncommon",
+  "archetype": null,
+  "art": "art/uncommon/wrought_bear.png",
+  "moves": []
+}

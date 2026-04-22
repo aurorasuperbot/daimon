@@ -1,0 +1,23 @@
+{
+  "card_id": "rune_owl",
+  "species": "rune_owl",
+  "element": "NORMAL",
+  "atk": 6,
+  "def": 4,
+  "hp": 21,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Rune Owl",
+  "flavor": "Reads the air as if it were a clock; the team learns the hour.",
+  "rarity": "uncommon",
+  "archetype": null,
+  "art": "art/uncommon/rune_owl.png",
+  "moves": []
+}

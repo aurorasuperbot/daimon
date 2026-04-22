@@ -1,0 +1,29 @@
+{
+  "card_id": "loremaster_ape",
+  "species": "loremaster_ape",
+  "element": "NORMAL",
+  "atk": 7,
+  "def": 5,
+  "hp": 27,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "ALL_ALLIES",
+      "value": 3
+    },
+    {
+      "when": "ON_TURN_END",
+      "op": "BUFF_SPD",
+      "target": "RANDOM_ALLY",
+      "value": 3
+    }
+  ],
+  "name": "Loremaster Ape",
+  "flavor": "Reads the team aloud each round; they grow into the recital.",
+  "rarity": "rare",
+  "archetype": null,
+  "art": "art/rare/loremaster_ape.png",
+  "moves": []
+}

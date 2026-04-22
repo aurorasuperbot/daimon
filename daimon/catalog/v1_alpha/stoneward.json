@@ -1,0 +1,23 @@
+{
+  "card_id": "stoneward",
+  "species": "stoneward",
+  "element": "NORMAL",
+  "atk": 5,
+  "def": 6,
+  "hp": 24,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "ADD_SHIELD",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Stoneward",
+  "flavor": "Passes a shard of granite to every teammate before the bell.",
+  "rarity": "uncommon",
+  "archetype": null,
+  "art": "art/uncommon/stoneward.png",
+  "moves": []
+}

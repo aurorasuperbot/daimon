@@ -1,0 +1,23 @@
+{
+  "card_id": "mossback_ox",
+  "species": "mossback_ox",
+  "element": "NORMAL",
+  "atk": 4,
+  "def": 5,
+  "hp": 21,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "APPLY_TAUNT",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Mossback Ox",
+  "flavor": "Stands where it stands. Asks the enemy to come to it.",
+  "rarity": "common",
+  "archetype": null,
+  "art": "art/common/mossback_ox.png",
+  "moves": []
+}

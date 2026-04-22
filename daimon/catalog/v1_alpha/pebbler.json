@@ -1,0 +1,23 @@
+{
+  "card_id": "pebbler",
+  "species": "pebbler",
+  "element": "NORMAL",
+  "atk": 4,
+  "def": 5,
+  "hp": 21,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "ADD_SHIELD",
+      "target": "RANDOM_ALLY",
+      "value": 2
+    }
+  ],
+  "name": "Pebbler",
+  "flavor": "Carries a pocketful of stones; passes one to whoever needs it.",
+  "rarity": "common",
+  "archetype": null,
+  "art": "art/common/pebbler.png",
+  "moves": []
+}

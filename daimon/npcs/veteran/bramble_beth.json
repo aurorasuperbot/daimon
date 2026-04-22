@@ -5,5 +5,12 @@
   "rank": 3,
   "flavor": "Roots that fight back.",
   "bio": "Pure-nature partisan. Iron Boar holds, Anvilram retaliates, Tidewyrm heals the whole hedge between rounds.",
-  "loadout": ["iron_boar", "anvilram", "geodeling", "tidewyrm", "glimmerowl", "scoutling"]
+  "loadout": [
+    "iron_boar",
+    "thornpup",
+    "geodeling",
+    "tidewyrm",
+    "glimmerowl",
+    "sproutling"
+  ]
 }

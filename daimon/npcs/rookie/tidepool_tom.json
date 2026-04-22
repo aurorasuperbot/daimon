@@ -5,5 +5,12 @@
   "rank": 1,
   "flavor": "Slow is smooth.",
   "bio": "Old fisherman, fights like one. Opens with Shellpup and dares you to finish before the round cap.",
-  "loadout": ["shellpup", "anvilram", "geodeling", "iron_boar", "scoutling", "blade_foxling"]
+  "loadout": [
+    "mistling",
+    "thornpup",
+    "geodeling",
+    "iron_boar",
+    "sproutling",
+    "emberpup"
+  ]
 }

@@ -5,5 +5,12 @@
   "rank": 2,
   "flavor": "Heals you. Then doesn't.",
   "bio": "Used to be a medic. Tidewyrm ON_ROUND_START heals his whole bench by 1 every round; Anvilram refunds the damage you spent getting here.",
-  "loadout": ["tidewyrm", "anvilram", "iron_boar", "shellpup", "geodeling", "dashmouse"]
+  "loadout": [
+    "tidewyrm",
+    "thornpup",
+    "iron_boar",
+    "mistling",
+    "geodeling",
+    "dashmouse"
+  ]
 }

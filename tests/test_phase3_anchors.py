@@ -110,7 +110,7 @@ PHASE3_ANCHORS = [
     "worldroot_sentinel", "bulwark_patriarch",
     "tide_empress", "coral_augur",
     "tempest_apex", "arc_predator",
-    "crypt_wraith", "mourners_lich",
+    "crypt_wraith",                   # mourners_lich retired in Phase 4e
     "prism_chimera", "rainbow_drake",
 ]
 
@@ -153,18 +153,26 @@ class TestCatalogLoad:
         )
 
     def test_epic_count_locked_at_twelve(self):
-        """V1 doc locks: exactly 12 epics — the Phase-3 archetype anchors.
+        """V1 doc locks: exactly 12 epics.
 
-        Phase 4a reconciled legacy scaffolded epics down to rare. Adding a
-        13th epic requires an explicit doc update + archetype rationale.
+        Phase 4a reconciled legacy scaffolded epics down to rare. Phase 4e
+        retired `mourners_lich` (REVENANT collapses to a single epic anchor —
+        crypt_wraith — symmetric with INFERNO/BULWARK/TIDAL/STORMCHAIN once
+        Phase 4f promotes their second epics to legendary) and added
+        `concord_phoenix` as the NORMAL element's epic anchor. Net count
+        unchanged at 12; composition swapped 1-for-1.
+
+        Adding a 13th epic requires an explicit doc update + archetype
+        (or NORMAL) rationale.
         """
         expected_epics = {
-            "magma_tyrant", "solar_phoenix",          # INFERNO
+            "magma_tyrant", "solar_phoenix",           # INFERNO
             "worldroot_sentinel", "bulwark_patriarch", # BULWARK
             "tide_empress", "coral_augur",             # TIDAL
             "tempest_apex", "arc_predator",            # STORMCHAIN
-            "crypt_wraith", "mourners_lich",           # REVENANT
+            "crypt_wraith",                            # REVENANT (mourners_lich retired Phase 4e)
             "prism_chimera", "rainbow_drake",          # FLUX
+            "concord_phoenix",                         # NORMAL (Phase 4e)
         }
         manifest = json.loads(MANIFEST_PATH.read_text())
         epics = {
@@ -577,34 +585,12 @@ class TestCryptWraith:
         assert "applies SILENCE" in log
 
 
-class TestMournersLich:
-    def test_ally_death_buffs_self(self):
-        suicidal_ally = Card(
-            card_id="suicidal", species="suicidal", element=Element.NATURE,
-            atk=0, defense=0, hp=1, spd=0,
-        )
-        attacker = Card(
-            card_id="aggro", species="aggro", element=Element.NATURE,
-            atk=10, defense=5, hp=30, spd=8,
-        )
-        team_a = pair(anchor("mourners_lich"), suicidal_ally)
-        team_b = solo(attacker)
-        result = resolve_match(team_a, team_b, SEED_ZERO)
-        log = all_logs(result)
-        assert "buffs ATK of mourners_lich by +4" in log
-
-    def test_death_debuffs_enemy_team(self):
-        # Crush the lich on round 1 so its ON_DEATH fires.
-        crusher = Card(
-            card_id="crusher", species="crusher", element=Element.NATURE,
-            atk=99, defense=99, hp=200, spd=99,
-        )
-        team_a = solo(anchor("mourners_lich"))
-        team_b = solo(crusher)
-        result = resolve_match(team_a, team_b, SEED_ZERO)
-        log = all_logs(result)
-        # ON_DEATH DEBUFF_ATK ALL_ENEMIES 4 — we should see crusher debuffed.
-        assert "mourners_lich debuffs ATK of crusher by -4" in log
+# NOTE: Mourners Lich behavioural tests removed in Phase 4e — the card was
+# retired to make room for the NORMAL element. REVENANT collapses to a single
+# epic anchor (crypt_wraith). The ON_ALLY_DEATH/ON_DEATH op coverage that
+# mourners_lich provided lives on in crypt_wraith's tests above and in the
+# trigger-frequency audit planned for Phase 5; nothing else referenced these
+# tests.
 
 
 # ---------------------------------------------------------------------------

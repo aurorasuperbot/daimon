@@ -572,4 +572,65 @@ This commit is the **engine slice only**. The pool slice (authoring 15 NORMAL ca
 
 ---
 
-*End of Phase 4 (a/b/c/d). Phase 4e (NORMAL element + counters) and Phase 4f (legendary promotion) come next, then Phase 5 (balance via simulation).*
+## §19 — Phase 4e changelog (pool slice): 15 NORMAL cards, 15 elemental cards retired
+
+**Locked 2026-04-22.** Manifest version bumped `0.4.3 → 0.4.4`. Total cards: **200 (unchanged)**.
+
+### What shipped
+
+15 NORMAL cards added — all with `archetype: null`, no condition gates, no archetype-coded ops (LIFESTEAL/APPLY_BURN/APPLY_POISON/APPLY_SILENCE/APPLY_STUN). Authored as splashable utility:
+
+| Rarity | Count | Cards |
+|---|---|---|
+| common | 8 | `brass_mole`, `cloth_sprite`, `grove_pup`, `mossback_ox`, `page_slime`, `pebbler`, `quill_cat`, `runic_whelp` |
+| uncommon | 4 | `mendicant_sphinx`, `rune_owl`, `stoneward`, `wrought_bear` |
+| rare | 2 | `aegis_lion`, `loremaster_ape` |
+| epic | 1 | `concord_phoenix` |
+
+15 elemental cards retired to keep the 200-card lock:
+
+| Rarity | Count | Retired |
+|---|---|---|
+| common | 8 | `blade_foxling`, `sparrowflame`, `shellpup`, `bubblefry`, `scoutling`, `mossbat`, `jolthog`, `nullkit` (proportional 2/2/2/1/1 across FIRE/WATER/NATURE/VOLT/VOID — vanilla scaffold-tier with no archetype hooks) |
+| uncommon | 4 | `cinder_lancer`, `riverotter`, `anvilram`, `thunderfox` (1 each FIRE/WATER/NATURE/VOLT — generic singletons with no archetype hooks) |
+| rare | 2 | `flarewing`, `void_serpent` (single-DAMAGE rares, no archetype hooks) |
+| epic | 1 | `mourners_lich` (REVENANT collapses to one epic anchor — `crypt_wraith` — symmetric with the other strategic archetypes once Phase 4f promotes the second epics to legendary) |
+
+### Distribution after Phase 4e (manifest snapshot)
+
+```
+TOTAL:   200
+RARITY:  98C / 60U / 28R / 12E / 2L
+ELEMENT: FIRE 37 · WATER 36 · NATURE 36 · VOLT 37 · VOID 39 · NORMAL 15
+```
+
+### NPC fixup
+
+The 25 V1 NPCs were authored against the original vanilla pool. Without rewiring, every match-vs-NPC entry-point would 500 with `card_id 'X' not in catalog`. `scripts/fix_npcs_phase4e.py` substitutes retired IDs deterministically: same element first, same rarity first, never duplicate within a loadout. All 25 NPC files updated; loadout rarity-mix preserved.
+
+### Test coverage shipped
+
+`tests/test_phase4_distribution.py` (was 11 tests, now 15):
+- `ELEMENTS` tuple now includes NORMAL; ring-only invariants moved to a new `RING_ELEMENTS` constant
+- `test_element_balance_within_common_tier` iterates `RING_ELEMENTS` only — NORMAL has its own dedicated floor
+- New `TestNormalElementPool` class with 4 explicit gates: total floor, per-rarity floor, `archetype: null` enforcement, and an inverse check that NORMAL never appears as an archetype label on a non-NORMAL card
+
+`tests/test_phase3_anchors.py` (was 33 tests, now 31):
+- `mourners_lich` removed from `PHASE3_ANCHORS` list and from `expected_epics` (replaced by `concord_phoenix` — keeps the count locked at 12)
+- `TestMournersLich` class deleted with a comment explaining why and noting that the ON_ALLY_DEATH/ON_DEATH op coverage lives on in `crypt_wraith`'s tests
+
+`tests/test_npcs.py`: 3 hardcoded test loadouts updated to use surviving card IDs.
+
+### Authoring tooling shipped
+
+`scripts/author_phase4e_normals.py` — one-shot card authoring + manifest update + retire-list executor with comprehensive `_validate()` self-check (budget gates, NORMAL-specific rules: `archetype: null`, no condition gates, no archetype-coded ops).
+
+`scripts/fix_npcs_phase4e.py` — deterministic NPC loadout rewriter (same element + rarity + dedup, walks rarity tiers as fallback).
+
+### What's still pending in Phase 4e
+
+The counter-card slice (re-flavoring 5-6 rares as designated archetype counters) ships in the next commit.
+
+---
+
+*End of Phase 4 (a/b/c/d/e-engine/e-pool). Phase 4e-counters and Phase 4f (legendary promotion) come next, then Phase 5 (balance via simulation).*

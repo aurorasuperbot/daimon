@@ -5,5 +5,12 @@
   "rank": 5,
   "flavor": "Three speed buffs. Three.",
   "bio": "Speed cathedral. Voltcat Apex self-SPD, Stormhare all-allies SPD, Glimmerowl self-SPD -- her ENTIRE bench moves before yours does after round 1. Mindroot debuffs you on top.",
-  "loadout": ["voltcat_apex", "stormhare", "glimmerowl", "dashmouse", "blade_foxling", "mindroot"]
+  "loadout": [
+    "voltcat_apex",
+    "stormhare",
+    "glimmerowl",
+    "dashmouse",
+    "emberpup",
+    "mindroot"
+  ]
 }

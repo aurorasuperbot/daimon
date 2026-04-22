@@ -5,5 +5,12 @@
   "rank": 1,
   "flavor": "Match #1 is always free.",
   "bio": "The first NPC every player fights. Trained on every common, master of none. No triggers, no surprises -- just six bodies and a smile.",
-  "loadout": ["scoutling", "iron_boar", "blade_foxling", "shellpup", "dashmouse", "geodeling"]
+  "loadout": [
+    "sproutling",
+    "iron_boar",
+    "emberpup",
+    "mistling",
+    "dashmouse",
+    "geodeling"
+  ]
 }

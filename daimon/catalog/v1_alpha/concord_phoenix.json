@@ -1,0 +1,29 @@
+{
+  "card_id": "concord_phoenix",
+  "species": "concord_phoenix",
+  "element": "NORMAL",
+  "atk": 9,
+  "def": 8,
+  "hp": 36,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 5
+    },
+    {
+      "when": "ON_ALLY_DEATH",
+      "op": "BUFF_ATK",
+      "target": "ALL_ALLIES",
+      "value": 4
+    }
+  ],
+  "name": "Concord Phoenix",
+  "flavor": "Doesn't burn for any element; burns FOR every element.",
+  "rarity": "epic",
+  "archetype": null,
+  "art": "art/epic/concord_phoenix.png",
+  "moves": []
+}
