@@ -22,8 +22,8 @@
   ],
   "name": "Maelstrom Serpent",
   "flavor": "The whirlpool with a name and a long memory.",
-  "rarity": "epic",
-  "art": "art/epic/maelstrom_serpent.png",
+  "rarity": "rare",
+  "art": "art/rare/maelstrom_serpent.png",
   "moves": [
     {
       "name": "Drown the Will",

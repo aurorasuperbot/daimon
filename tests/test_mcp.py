@@ -370,14 +370,16 @@ def test_match_propagates_real_catalog_display_metadata(monkeypatch, tmp_path):
             f"{side_key}: got {got_names}, expected {expected_names}"
         )
 
-    # Rarities flow through — voltcat_apex is legendary, bulwarthog/mindroot
-    # are epic, stormhare/tidewyrm rare, iron_boar common.
+    # Rarities flow through. Phase 4a (2026-04-22) reconciled legacy
+    # scaffolded legendaries + epics down to rare; the V1 lock keeps only
+    # voidking_morr + world_eater at legendary and the 12 Phase-3 anchors
+    # at epic. Everything else defaults to rare or below.
     player_by_species = {
         c.species: c for c in payload.participants["player"].loadout
     }
-    assert player_by_species["voltcat_apex"].rarity == "legendary"
-    assert player_by_species["bulwarthog"].rarity == "epic"
-    assert player_by_species["mindroot"].rarity == "epic"
+    assert player_by_species["voltcat_apex"].rarity == "rare"
+    assert player_by_species["bulwarthog"].rarity == "rare"
+    assert player_by_species["mindroot"].rarity == "rare"
     assert player_by_species["stormhare"].rarity == "rare"
     assert player_by_species["tidewyrm"].rarity == "rare"
     assert player_by_species["iron_boar"].rarity == "common"
@@ -390,7 +392,7 @@ def test_match_propagates_real_catalog_display_metadata(monkeypatch, tmp_path):
     # Art paths flow through verbatim.
     assert (
         player_by_species["voltcat_apex"].art_path
-        == "art/legendary/voltcat_apex.png"
+        == "art/rare/voltcat_apex.png"
     )
 
 
@@ -744,12 +746,15 @@ def test_catalog_list_unknown_expansion():
 
 
 def test_catalog_card_full_payload():
-    r = _call(dm_catalog_card, card_id="voltcat_apex")
-    assert r["card_id"] == "voltcat_apex"
+    # Switched from voltcat_apex (demoted to rare in Phase 4a) to world_eater
+    # so this test stays pinned to a known-legendary card. world_eater is the
+    # FLUX apex legendary shipped in Phase 3.
+    r = _call(dm_catalog_card, card_id="world_eater")
+    assert r["card_id"] == "world_eater"
     assert r["rarity"] == "legendary"
     # Display fields must flow through (engine blind to them, but tool isn't).
     assert "name" in r["payload"]
-    assert r["payload"]["name"] == "Voltcat Apex"
+    assert r["payload"]["name"] == "World-Eater"
 
 
 def test_catalog_card_unknown_card():

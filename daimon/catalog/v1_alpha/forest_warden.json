@@ -22,8 +22,8 @@
   ],
   "name": "Forest Warden",
   "flavor": "Mourning, in this grove, is the same word as vengeance.",
-  "rarity": "epic",
-  "art": "art/epic/forest_warden.png",
+  "rarity": "rare",
+  "art": "art/rare/forest_warden.png",
   "moves": [
     {
       "name": "Grove Aegis",

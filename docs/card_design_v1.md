@@ -86,11 +86,15 @@ Aggressive curve — keeps gacha pulls feeling differentiated:
 
 | Rarity | Count | % of pool | Pull rate (gacha) | Per-archetype slots |
 |---|---|---|---|---|
-| Common | 100 | 50% | 60% | ~16-17 each |
+| Common | 98 | 49% | 60% | ~16 each |
 | Uncommon | 60 | 30% | 25% | ~10 each |
 | Rare | 28 | 14% | 10% | ~4-5 each |
-| Epic | 10 | 5% | 4% | 1-2 each (archetype anchor) |
+| Epic | 12 | 6% | 4% | 2 each (the Phase-3 archetype anchor pair) |
 | Legendary | 2 | 1% | 1% | cross-archetype set icons |
+
+*(Revised 2026-04-22 after Phase 3: bumped epic count 10→12 so every
+archetype gets exactly 2 anchors; commons dropped 100→98 to keep the
+total at 200.)*
 
 **Pull rate ≠ pool composition** — pull rates are weighted by `manifest.json::rarity_weights` (already locked at 60/25/10/4/1). Pool composition is how many *unique* cards exist at each rarity.
 
@@ -340,3 +344,48 @@ The 6 legacy scaffolded "legendaries" (`storm_celestial`, `voltcat_apex`, `echo_
 ---
 
 *End of Phase 3. Phase 4 (pool fill-out) begins next.*
+
+---
+
+## 14. Phase 4a changelog — rarity reconciliation (2026-04-22)
+
+**Deliverable**: demote legacy scaffolded "legendaries" + "epics" down to `rare` so the rarity histogram matches the V1 lock before we start filling the pool to 200.
+
+### Demotions (15 cards → `rare`)
+
+| Before | Card IDs |
+|---|---|
+| legendary (scaffold, 6) | `storm_celestial`, `voltcat_apex`, `echo_lich`, `pyrotyrant`, `leviathan_prime`, `worldroot_colossus` |
+| epic (scaffold, 9) | `bulwarthog`, `mindroot`, `inferno_lynx`, `ashen_phoenix`, `maelstrom_serpent`, `forest_warden`, `plasma_djinn`, `abyss_warden`, `nullhound` |
+
+Stats + triggers intentionally UNTOUCHED — these cards retain their existing mechanical power at the lower rarity tier. Phase 5 (balance sim) will flag any over-budget rares and apply targeted stat tuning once the full pool is authored.
+
+### Post-4a distribution (80 cards, pre-fill)
+
+| Rarity | Count | V1 target | Gap |
+|---|---|---|---|
+| legendary | 2 | 2 | 0 ✅ |
+| epic | 12 | 12 | 0 ✅ |
+| rare | 28 | 28 | 0 ✅ |
+| uncommon | 15 | 60 | need +45 |
+| common | 23 | 98 | need +75 |
+| **Total** | **80** | **200** | **need +120** |
+
+Phase 4b+c authors the remaining 120 cards (75 commons + 45 uncommons) to hit the 200 target.
+
+### Files added
+- `scripts/reconcile_phase4_rarities.py` — one-shot idempotent reconciliation
+
+### Files modified
+- `daimon/catalog/v1_alpha/manifest.json` — bumped to 0.4.1; 15 rarity entries patched; description regenerated
+- 15 card JSONs: rarity + art_path patched
+- `tests/test_phase3_anchors.py` — tightened `test_legendary_count_locked_at_two` to exact match; added `test_epic_count_locked_at_twelve` + `test_json_rarity_matches_manifest` (drift gates)
+- `tests/test_mcp.py` — updated `test_match_propagates_real_catalog_display_metadata` + `test_catalog_card_full_payload` to reflect post-reconciliation rarities (voltcat_apex is now rare; swapped the legendary-assertion target to world_eater)
+- `docs/card_design_v1.md` — this section + rarity distribution table updated (10→12 epics, 100→98 commons)
+
+### Test count
+**628 passing, 1 skipped** (was 626 + 2 new Phase-4a test gates = 628).
+
+---
+
+*End of Phase 4a. Phase 4b (author 75 new commons) begins next.*

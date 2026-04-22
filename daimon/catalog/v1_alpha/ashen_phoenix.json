@@ -22,8 +22,8 @@
   ],
   "name": "Ashen Phoenix",
   "flavor": "Its last breath is a gift; its first, a promise.",
-  "rarity": "epic",
-  "art": "art/epic/ashen_phoenix.png",
+  "rarity": "rare",
+  "art": "art/rare/ashen_phoenix.png",
   "moves": [
     {
       "name": "Ember Dirge",

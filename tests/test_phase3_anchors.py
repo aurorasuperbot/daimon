@@ -136,20 +136,69 @@ class TestCatalogLoad:
             load_card(PACK_DIR / entry["file"])
 
     def test_legendary_count_locked_at_two(self):
-        """V1 doc locks: only two legendaries — Voidking Morr + World-Eater."""
+        """V1 doc locks: exactly two legendaries — Voidking Morr + World-Eater.
+
+        Phase 4a reconciled legacy scaffolded legendaries down to rare; from
+        that point forward the pack must never carry a third legendary without
+        an explicit design doc update.
+        """
         manifest = json.loads(MANIFEST_PATH.read_text())
         legendaries = sorted(
             entry["card_id"] for entry in manifest["cards"]
             if entry["rarity"] == "legendary"
         )
-        # NOTE: legacy scaffolded "legendaries" still in pack
-        # (storm_celestial / voltcat_apex / echo_lich / pyrotyrant /
-        # leviathan_prime / worldroot_colossus). Phase 4 reconciles them
-        # down to exactly 2. This test documents the expected pre-Phase-4
-        # state — when Phase 4 reconciles, change to exact == ["voidking_morr",
-        # "world_eater"] match.
-        assert "voidking_morr" in legendaries
-        assert "world_eater" in legendaries
+        assert legendaries == ["voidking_morr", "world_eater"], (
+            f"Legendary set drifted from the V1 lock. Expected exactly "
+            f"['voidking_morr', 'world_eater']; got {legendaries}."
+        )
+
+    def test_epic_count_locked_at_twelve(self):
+        """V1 doc locks: exactly 12 epics — the Phase-3 archetype anchors.
+
+        Phase 4a reconciled legacy scaffolded epics down to rare. Adding a
+        13th epic requires an explicit doc update + archetype rationale.
+        """
+        expected_epics = {
+            "magma_tyrant", "solar_phoenix",          # INFERNO
+            "worldroot_sentinel", "bulwark_patriarch", # BULWARK
+            "tide_empress", "coral_augur",             # TIDAL
+            "tempest_apex", "arc_predator",            # STORMCHAIN
+            "crypt_wraith", "mourners_lich",           # REVENANT
+            "prism_chimera", "rainbow_drake",          # FLUX
+        }
+        manifest = json.loads(MANIFEST_PATH.read_text())
+        epics = {
+            entry["card_id"] for entry in manifest["cards"]
+            if entry["rarity"] == "epic"
+        }
+        assert epics == expected_epics, (
+            f"Epic set drifted from the V1 anchor lock.\n"
+            f"  Expected: {sorted(expected_epics)}\n"
+            f"  Got:      {sorted(epics)}\n"
+            f"  Missing:  {sorted(expected_epics - epics)}\n"
+            f"  Extra:    {sorted(epics - expected_epics)}"
+        )
+
+    def test_json_rarity_matches_manifest(self):
+        """Each card's JSON `rarity` field must match its manifest entry.
+
+        Reconciliation drift would otherwise manifest as render-vs-pull bugs
+        (card displays at one rarity, gets pulled at another).
+        """
+        manifest = json.loads(MANIFEST_PATH.read_text())
+        mismatches = []
+        for entry in manifest["cards"]:
+            json_rarity = json.loads(
+                (PACK_DIR / entry["file"]).read_text()
+            ).get("rarity")
+            if json_rarity != entry["rarity"]:
+                mismatches.append(
+                    f"{entry['card_id']}: manifest={entry['rarity']} "
+                    f"vs json={json_rarity}"
+                )
+        assert not mismatches, (
+            "Manifest/JSON rarity mismatch:\n" + "\n".join(mismatches)
+        )
 
 
 # ---------------------------------------------------------------------------

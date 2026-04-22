@@ -28,8 +28,8 @@
   ],
   "name": "Leviathan Prime",
   "flavor": "Older than the coastline that fears it.",
-  "rarity": "legendary",
-  "art": "art/legendary/leviathan_prime.png",
+  "rarity": "rare",
+  "art": "art/rare/leviathan_prime.png",
   "moves": [
     {
       "name": "Aegis of the Deep",

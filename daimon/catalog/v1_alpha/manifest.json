@@ -1,8 +1,8 @@
 {
   "pack_id": "v1_alpha",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "schema_version": 2,
-  "description": "DAIMON V1 alpha bundled creature pool. 80 monsters across 5 elements (Fire/Water/Nature/Volt/Void) and 6 archetypes (INFERNO/BULWARK/TIDAL/STORMCHAIN/REVENANT/FLUX). Phase-3 anchors ship at 0.4.0 — 2 set legendaries (Voidking Morr + World-Eater) plus 12 archetype epic anchors. Phase 4 fills the pool to 200 and reconciles legacy scaffolded rarities.",
+  "description": "DAIMON V1 alpha bundled creature pool. 80 monsters across 5 elements and 6 archetypes. Phase 4a reconciled legacy scaffolded rarities to match V1 target distribution. Current: 23C/15U/28R/12E/2L. Phase 4b+c fills out to the 200-card target (100C/60U/28R/12E/2L).",
   "rarity_weights": {
     "common": 60,
     "uncommon": 25,
@@ -73,19 +73,19 @@
     },
     {
       "card_id": "bulwarthog",
-      "rarity": "epic",
+      "rarity": "rare",
       "element": "NATURE",
       "file": "bulwarthog.json"
     },
     {
       "card_id": "mindroot",
-      "rarity": "epic",
+      "rarity": "rare",
       "element": "VOID",
       "file": "mindroot.json"
     },
     {
       "card_id": "voltcat_apex",
-      "rarity": "legendary",
+      "rarity": "rare",
       "element": "VOLT",
       "file": "voltcat_apex.json"
     },
@@ -151,19 +151,19 @@
     },
     {
       "card_id": "inferno_lynx",
-      "rarity": "epic",
+      "rarity": "rare",
       "element": "FIRE",
       "file": "inferno_lynx.json"
     },
     {
       "card_id": "ashen_phoenix",
-      "rarity": "epic",
+      "rarity": "rare",
       "element": "FIRE",
       "file": "ashen_phoenix.json"
     },
     {
       "card_id": "pyrotyrant",
-      "rarity": "legendary",
+      "rarity": "rare",
       "element": "FIRE",
       "file": "pyrotyrant.json"
     },
@@ -223,13 +223,13 @@
     },
     {
       "card_id": "maelstrom_serpent",
-      "rarity": "epic",
+      "rarity": "rare",
       "element": "WATER",
       "file": "maelstrom_serpent.json"
     },
     {
       "card_id": "leviathan_prime",
-      "rarity": "legendary",
+      "rarity": "rare",
       "element": "WATER",
       "file": "leviathan_prime.json"
     },
@@ -265,13 +265,13 @@
     },
     {
       "card_id": "forest_warden",
-      "rarity": "epic",
+      "rarity": "rare",
       "element": "NATURE",
       "file": "forest_warden.json"
     },
     {
       "card_id": "worldroot_colossus",
-      "rarity": "legendary",
+      "rarity": "rare",
       "element": "NATURE",
       "file": "worldroot_colossus.json"
     },
@@ -319,13 +319,13 @@
     },
     {
       "card_id": "plasma_djinn",
-      "rarity": "epic",
+      "rarity": "rare",
       "element": "VOLT",
       "file": "plasma_djinn.json"
     },
     {
       "card_id": "storm_celestial",
-      "rarity": "legendary",
+      "rarity": "rare",
       "element": "VOLT",
       "file": "storm_celestial.json"
     },
@@ -391,19 +391,19 @@
     },
     {
       "card_id": "abyss_warden",
-      "rarity": "epic",
+      "rarity": "rare",
       "element": "VOID",
       "file": "abyss_warden.json"
     },
     {
       "card_id": "nullhound",
-      "rarity": "epic",
+      "rarity": "rare",
       "element": "VOID",
       "file": "nullhound.json"
     },
     {
       "card_id": "echo_lich",
-      "rarity": "legendary",
+      "rarity": "rare",
       "element": "VOID",
       "file": "echo_lich.json"
     },

@@ -22,8 +22,8 @@
   ],
   "name": "Abyss Warden",
   "flavor": "Keeps a ledger of every grudge the dark ever swallowed.",
-  "rarity": "epic",
-  "art": "art/epic/abyss_warden.png",
+  "rarity": "rare",
+  "art": "art/rare/abyss_warden.png",
   "moves": [
     {
       "name": "Quietus",

@@ -28,8 +28,8 @@
   ],
   "name": "Storm Celestial",
   "flavor": "A constellation that decided to come down and watch.",
-  "rarity": "legendary",
-  "art": "art/legendary/storm_celestial.png",
+  "rarity": "rare",
+  "art": "art/rare/storm_celestial.png",
   "moves": [
     {
       "name": "Heaven's Tempo",

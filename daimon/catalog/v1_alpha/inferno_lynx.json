@@ -22,8 +22,8 @@
   ],
   "name": "Inferno Lynx",
   "flavor": "Strikes leave heat-shimmer where the body used to be.",
-  "rarity": "epic",
-  "art": "art/epic/inferno_lynx.png",
+  "rarity": "rare",
+  "art": "art/rare/inferno_lynx.png",
   "moves": [
     {
       "name": "Quickflame",

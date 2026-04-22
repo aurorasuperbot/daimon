@@ -22,8 +22,8 @@
   ],
   "name": "Nullhound",
   "flavor": "Whatever it bites is a little less, after.",
-  "rarity": "epic",
-  "art": "art/epic/nullhound.png",
+  "rarity": "rare",
+  "art": "art/rare/nullhound.png",
   "moves": [
     {
       "name": "Erase Edges",

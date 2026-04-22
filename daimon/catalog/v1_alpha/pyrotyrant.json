@@ -28,8 +28,8 @@
   ],
   "name": "Pyrotyrant",
   "flavor": "What it cannot rule, it renders.",
-  "rarity": "legendary",
-  "art": "art/legendary/pyrotyrant.png",
+  "rarity": "rare",
+  "art": "art/rare/pyrotyrant.png",
   "moves": [
     {
       "name": "Ascend the Throne",

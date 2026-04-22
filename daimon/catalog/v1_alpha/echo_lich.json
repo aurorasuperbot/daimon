@@ -28,8 +28,8 @@
   ],
   "name": "Echo Lich",
   "flavor": "Repeats every grief, then bills you for the recital.",
-  "rarity": "legendary",
-  "art": "art/legendary/echo_lich.png",
+  "rarity": "rare",
+  "art": "art/rare/echo_lich.png",
   "moves": [
     {
       "name": "Lament Field",

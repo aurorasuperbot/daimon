@@ -22,8 +22,8 @@
   ],
   "name": "Plasma Djinn",
   "flavor": "Granted exactly one wish. The lightning kept it.",
-  "rarity": "epic",
-  "art": "art/epic/plasma_djinn.png",
+  "rarity": "rare",
+  "art": "art/rare/plasma_djinn.png",
   "moves": [
     {
       "name": "Quicken the Court",

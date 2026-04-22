@@ -7,15 +7,31 @@
   "hp": 18,
   "spd": 7,
   "triggers": [
-    { "when": "ON_BATTLE_START", "op": "BUFF_SPD", "target": "SELF", "value": 3 },
-    { "when": "ON_ATTACK", "op": "DAMAGE", "target": "RANDOM_ENEMY", "value": 4 }
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 3
+    },
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 4
+    }
   ],
   "name": "Voltcat Apex",
-  "flavor": "First strike, second strike, third strike \u2014 all the same instant.",
-  "rarity": "legendary",
-  "art": "art/legendary/voltcat_apex.png",
+  "flavor": "First strike, second strike, third strike — all the same instant.",
+  "rarity": "rare",
+  "art": "art/rare/voltcat_apex.png",
   "moves": [
-    {"name": "Plasma Lance", "when": "ON_ATTACK"},
-    {"name": "Thunderstep", "when": "ON_BATTLE_START"}
+    {
+      "name": "Plasma Lance",
+      "when": "ON_ATTACK"
+    },
+    {
+      "name": "Thunderstep",
+      "when": "ON_BATTLE_START"
+    }
   ]
 }

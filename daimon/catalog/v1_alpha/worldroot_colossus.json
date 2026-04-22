@@ -28,8 +28,8 @@
   ],
   "name": "Worldroot Colossus",
   "flavor": "Every fallen tree was a promise it kept.",
-  "rarity": "legendary",
-  "art": "art/legendary/worldroot_colossus.png",
+  "rarity": "rare",
+  "art": "art/rare/worldroot_colossus.png",
   "moves": [
     {
       "name": "Anchor of Eras",
