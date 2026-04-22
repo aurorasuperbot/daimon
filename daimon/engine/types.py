@@ -43,10 +43,15 @@ class Element(IntEnum):
 # ---------------------------------------------------------------------------
 
 class StatusCondition(IntEnum):
-    BURN = 1     # 3 dmg at round start, ticks down
-    CHILL = 2    # spd_mod -3 while active
-    ROOT = 3     # skip attack while active
-    CHARGE = 4   # next attack +6 atk, consumed on use
+    BURN = 1      # 3 dmg at round start, ticks down
+    CHILL = 2     # spd_mod -3 while active
+    ROOT = 3      # skip attack while active
+    CHARGE = 4    # next attack +6 atk, consumed on use
+    # Phase-2 additions (V1 vocab expansion, 2026-04-22):
+    STUN = 5      # skip next action; ticks down once per round
+    SILENCE = 6   # all triggers on this unit suppressed; ticks down at round-start
+    TAUNT = 7     # enemies must target this unit first (priority override)
+    POISON = 8    # alternative DOT (2 dmg / round, distinct from BURN's 3 dmg)
 
 
 # ---------------------------------------------------------------------------
@@ -61,10 +66,21 @@ class TriggerWhen(IntEnum):
     ON_TAKE_DAMAGE = 4
     ON_DEATH = 5
     ON_ALLY_DEATH = 6
+    # Phase-2 additions:
+    ON_TURN_END = 7          # fires on the unit AFTER its action this round
+    ON_KILL = 8              # fires on attacker when its attack KOs the target
+    ON_LOW_HP = 9            # fires once when self.hp drops below 25% of card.hp
+    ON_OPENING_ATTACK = 10   # fires on a unit's first attack of the match
 
 
 class EffectOp(IntEnum):
-    """What the trigger does. All ops take an integer value."""
+    """What the trigger does. All ops take an integer value.
+
+    The integer-value semantics vary by op:
+      - BUFF_*/DEBUFF_*/HEAL/DAMAGE/ADD_SHIELD: magnitude
+      - APPLY_BURN/STUN/SILENCE/TAUNT/POISON: duration in rounds
+      - LIFESTEAL: damage dealt (heal-back is half of dealt-damage, ceil-rounded)
+    """
     BUFF_ATK = 1
     DEBUFF_ATK = 2
     BUFF_DEF = 3
@@ -73,6 +89,13 @@ class EffectOp(IntEnum):
     DAMAGE = 6
     ADD_SHIELD = 7
     BUFF_SPD = 8
+    # Phase-2 additions:
+    APPLY_BURN = 9       # value = duration in rounds
+    APPLY_STUN = 10      # value = duration in rounds (1 = next action only)
+    APPLY_SILENCE = 11   # value = duration in rounds
+    APPLY_TAUNT = 12     # value = duration in rounds
+    APPLY_POISON = 13    # value = duration in rounds
+    LIFESTEAL = 14       # value = damage dealt; attacker heals ceil(value/2)
 
 
 class TargetFilter(IntEnum):
@@ -88,15 +111,28 @@ class TargetFilter(IntEnum):
 
 @dataclass(frozen=True)
 class Trigger:
-    """A trigger is a (when, op, target, value) 4-tuple. Pure ints."""
+    """A trigger is a (when, op, target, value) 4-tuple plus optional condition.
+
+    `condition`, when not None, is a DSL string evaluated at fire-time against
+    the unit + match context. The trigger fires only if the condition evaluates
+    truthy. Grammar lives in `daimon/engine/conditions.py`. Examples:
+      "team.distinct_elements >= 2"
+      "self.hp < self.hp_max * 0.5"
+      "enemies.alive_count <= 2"
+    The string is parsed-and-validated at card-load time (not at fire-time);
+    invalid conditions raise during catalog load, not mid-match.
+    """
     when: TriggerWhen
     op: EffectOp
     target: TargetFilter
     value: int
+    condition: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.value, int):
             raise TypeError("Trigger.value must be int")
+        if self.condition is not None and not isinstance(self.condition, str):
+            raise TypeError("Trigger.condition must be string or None")
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +180,10 @@ class UnitState:
     alive: bool = True
     # status[StatusCondition.BURN] = remaining rounds. 0/missing = not active.
     status: Dict[int, int] = field(default_factory=dict)
+    # Phase-2 lifecycle flags (one-shot bookkeeping, not part of status):
+    low_hp_fired: bool = False         # ON_LOW_HP fires at most once per match
+    has_attacked: bool = False         # set after the unit's first attack;
+                                       # gates ON_OPENING_ATTACK
 
     @property
     def effective_atk(self) -> int:

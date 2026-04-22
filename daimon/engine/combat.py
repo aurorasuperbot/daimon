@@ -35,8 +35,10 @@ ON_DEATH effects, ON_ALLY_DEATH cascades) nest under their parent action's
 from __future__ import annotations
 
 import math
-from typing import List, Optional
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
+from daimon.engine.conditions import compile_condition
 from daimon.engine.elements import element_multiplier
 from daimon.engine.loadout import Loadout
 from daimon.engine.rng import SeededRng
@@ -54,6 +56,23 @@ from daimon.engine.types import (
 
 ROUND_CAP = 5
 
+# Phase-2 status tick magnitudes (locked):
+#   BURN = 3 dmg/round
+#   POISON = 2 dmg/round (smaller-but-distinct DOT)
+_BURN_TICK_DMG = 3
+_POISON_TICK_DMG = 2
+
+# ON_LOW_HP threshold — trigger fires once when self.hp drops to ≤ 25% of card.hp.
+# Integer floor division keeps the boundary deterministic across all hp_max values.
+_LOW_HP_DENOM = 4
+
+# Cached compile of trigger conditions. Conditions are short DSL strings whose
+# parse cost is non-trivial relative to fire frequency; cache by string identity
+# so repeated triggers across cards/units share one compiled callable.
+@lru_cache(maxsize=512)
+def _cached_compile(expr: str):
+    return compile_condition(expr)
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers — small enums-to-strings + hp snapshot.
@@ -66,24 +85,50 @@ ROUND_CAP = 5
 
 # EffectOp -> ActionKind (string). The kinds match play.schema.ActionKind.
 _EFFECT_OP_TO_KIND: dict[int, str] = {
-    int(EffectOp.BUFF_ATK):    "buff",
-    int(EffectOp.DEBUFF_ATK):  "debuff",
-    int(EffectOp.BUFF_DEF):    "buff",
-    int(EffectOp.DEBUFF_DEF):  "debuff",
-    int(EffectOp.HEAL):        "heal",
-    int(EffectOp.DAMAGE):      "damage",
-    int(EffectOp.ADD_SHIELD):  "shield",
-    int(EffectOp.BUFF_SPD):    "buff",
+    int(EffectOp.BUFF_ATK):     "buff",
+    int(EffectOp.DEBUFF_ATK):   "debuff",
+    int(EffectOp.BUFF_DEF):     "buff",
+    int(EffectOp.DEBUFF_DEF):   "debuff",
+    int(EffectOp.HEAL):         "heal",
+    int(EffectOp.DAMAGE):       "damage",
+    int(EffectOp.ADD_SHIELD):   "shield",
+    int(EffectOp.BUFF_SPD):     "buff",
+    # Phase-2 ops:
+    int(EffectOp.APPLY_BURN):    "status",
+    int(EffectOp.APPLY_STUN):    "status",
+    int(EffectOp.APPLY_SILENCE): "status",
+    int(EffectOp.APPLY_TAUNT):   "status",
+    int(EffectOp.APPLY_POISON):  "status",
+    # LIFESTEAL is recorded as 'damage' on the target hit; the heal-back is a
+    # nested 'heal' event under it. The op-level kind tracks the primary outcome.
+    int(EffectOp.LIFESTEAL):     "damage",
 }
 
 # TriggerWhen -> reason string (matches the engine seam vocabulary).
 _TRIGGER_REASON: dict[int, str] = {
-    int(TriggerWhen.ON_BATTLE_START): "ON_BATTLE_START",
-    int(TriggerWhen.ON_ROUND_START):  "ON_ROUND_START",
-    int(TriggerWhen.ON_ATTACK):       "ON_ATTACK",
-    int(TriggerWhen.ON_TAKE_DAMAGE):  "ON_TAKE_DAMAGE",
-    int(TriggerWhen.ON_DEATH):        "ON_DEATH",
-    int(TriggerWhen.ON_ALLY_DEATH):   "ON_ALLY_DEATH",
+    int(TriggerWhen.ON_BATTLE_START):    "ON_BATTLE_START",
+    int(TriggerWhen.ON_ROUND_START):     "ON_ROUND_START",
+    int(TriggerWhen.ON_ATTACK):          "ON_ATTACK",
+    int(TriggerWhen.ON_TAKE_DAMAGE):     "ON_TAKE_DAMAGE",
+    int(TriggerWhen.ON_DEATH):           "ON_DEATH",
+    int(TriggerWhen.ON_ALLY_DEATH):      "ON_ALLY_DEATH",
+    # Phase-2 whens:
+    int(TriggerWhen.ON_TURN_END):        "ON_TURN_END",
+    int(TriggerWhen.ON_KILL):            "ON_KILL",
+    int(TriggerWhen.ON_LOW_HP):          "ON_LOW_HP",
+    int(TriggerWhen.ON_OPENING_ATTACK):  "ON_OPENING_ATTACK",
+}
+
+# Status name strings — used for log line formatting + CombatEvent.status_applied.
+_STATUS_NAME: dict[int, str] = {
+    int(StatusCondition.BURN):    "BURN",
+    int(StatusCondition.CHILL):   "CHILL",
+    int(StatusCondition.ROOT):    "ROOT",
+    int(StatusCondition.CHARGE):  "CHARGE",
+    int(StatusCondition.STUN):    "STUN",
+    int(StatusCondition.SILENCE): "SILENCE",
+    int(StatusCondition.TAUNT):   "TAUNT",
+    int(StatusCondition.POISON):  "POISON",
 }
 
 
@@ -241,6 +286,113 @@ def _apply_effect(
         line = f"{actor_id} buffs SPD of {target.card.card_id} by +{value}"
         log.append(line)
         _emit("buff", value, line)
+    elif op == EffectOp.APPLY_BURN:
+        _apply_status(target, StatusCondition.BURN, value, log,
+                      actor_id=actor_id, attacker=attacker,
+                      events=events, reason=reason)
+    elif op == EffectOp.APPLY_STUN:
+        _apply_status(target, StatusCondition.STUN, value, log,
+                      actor_id=actor_id, attacker=attacker,
+                      events=events, reason=reason)
+    elif op == EffectOp.APPLY_SILENCE:
+        _apply_status(target, StatusCondition.SILENCE, value, log,
+                      actor_id=actor_id, attacker=attacker,
+                      events=events, reason=reason)
+    elif op == EffectOp.APPLY_TAUNT:
+        _apply_status(target, StatusCondition.TAUNT, value, log,
+                      actor_id=actor_id, attacker=attacker,
+                      events=events, reason=reason)
+    elif op == EffectOp.APPLY_POISON:
+        _apply_status(target, StatusCondition.POISON, value, log,
+                      actor_id=actor_id, attacker=attacker,
+                      events=events, reason=reason)
+    elif op == EffectOp.LIFESTEAL:
+        # value semantics: damage dealt to target. Attacker heals ceil(value/2).
+        # The damage half respects element multiplier (same path as DAMAGE op);
+        # the heal half is computed off the *intended* value (not the post-mult
+        # final), so lifesteal is a stable % of the card's design rather than a
+        # multiplier-amplified swing. Attacker is required.
+        if attacker is None:
+            return
+        final_value = value
+        prefix_line = ""
+        mult = element_multiplier(attacker.card.element, target.card.element)
+        if mult != 1.0:
+            final_value = max(0, math.ceil(value * mult))
+            if final_value != value:
+                prefix_line = (
+                    f"{actor_id}'s element vs {target.card.card_id}: "
+                    f"{mult}× ({value}→{final_value})"
+                )
+                log.append(prefix_line)
+        _take_damage(
+            target, final_value, log,
+            source=actor_id, source_unit=attacker,
+            events=events, reason=reason, log_prefix=prefix_line,
+        )
+        heal = math.ceil(value / 2)
+        if attacker.alive and heal > 0:
+            attacker.hp += heal
+            line = f"{actor_id} drains {heal} hp from {target.card.card_id}"
+            log.append(line)
+            if events is not None:
+                events.append(CombatEvent(
+                    kind="heal",
+                    actor_side=attacker.side,
+                    actor_position=attacker.position,
+                    actor_card_id=attacker.card.card_id,
+                    target_side=attacker.side,
+                    target_position=attacker.position,
+                    target_card_id=attacker.card.card_id,
+                    amount=heal,
+                    hp_after=_hp_snapshot(attacker),
+                    reason=reason,
+                    log_line=line,
+                ))
+
+
+def _apply_status(
+    target: UnitState,
+    status: StatusCondition,
+    duration: int,
+    log: List[str],
+    *,
+    actor_id: str,
+    attacker: Optional[UnitState],
+    events: Optional[List[CombatEvent]] = None,
+    reason: Optional[str] = None,
+) -> None:
+    """Apply a duration-based status condition.
+
+    Refresh semantics: existing duration is replaced with max(existing, new).
+    This way overlapping applications extend (don't pile up to absurd lengths)
+    but a longer subsequent application can refresh.
+
+    Zero or negative durations are no-ops — protects against malformed cards.
+    """
+    if not target.alive or duration <= 0:
+        return
+    name = _STATUS_NAME.get(int(status), str(int(status)))
+    existing = target.status.get(int(status), 0)
+    target.status[int(status)] = max(existing, duration)
+    line = f"{actor_id} applies {name} ({duration}r) to {target.card.card_id}"
+    log.append(line)
+    if events is None or attacker is None:
+        return
+    events.append(CombatEvent(
+        kind="status",
+        actor_side=attacker.side,
+        actor_position=attacker.position,
+        actor_card_id=attacker.card.card_id,
+        target_side=target.side,
+        target_position=target.position,
+        target_card_id=target.card.card_id,
+        amount=duration,
+        hp_after=_hp_snapshot(target),
+        reason=reason,
+        status_applied=name,
+        log_line=line,
+    ))
 
 
 def _take_damage(
@@ -330,6 +482,47 @@ def _take_damage(
 
 
 # ---------------------------------------------------------------------------
+# Condition evaluation context
+# ---------------------------------------------------------------------------
+#
+# Triggers may carry a Trigger.condition DSL string. The DSL grammar lives in
+# daimon/engine/conditions.py; this builder maps engine state into the dict
+# the DSL evaluator expects. Snapshot semantics: the context is rebuilt for
+# every trigger evaluation, so a trigger that fires after a teammate dies
+# sees the post-death alive_count.
+# ---------------------------------------------------------------------------
+
+def _build_condition_ctx(
+    unit: UnitState,
+    allies: List[UnitState],
+    enemies: List[UnitState],
+    round_number: int,
+) -> Dict[str, Any]:
+    return {
+        "self": {
+            "hp":      unit.hp,
+            "hp_max":  unit.card.hp,
+            "shield":  unit.shield,
+            "atk":     unit.effective_atk,
+            "def":     unit.effective_def,
+            "spd":     unit.effective_spd,
+            "element": int(unit.card.element),
+        },
+        "team": {
+            "distinct_elements": len({int(u.card.element) for u in allies if u.alive}),
+            "alive_count":       sum(1 for u in allies if u.alive),
+            "size":              len(allies),
+        },
+        "enemies": {
+            "distinct_elements": len({int(u.card.element) for u in enemies if u.alive}),
+            "alive_count":       sum(1 for u in enemies if u.alive),
+            "size":              len(enemies),
+        },
+        "round": round_number,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Trigger orchestration
 # ---------------------------------------------------------------------------
 
@@ -342,14 +535,31 @@ def _fire_triggers_for_unit(
     log: List[str],
     *,
     events: Optional[List[CombatEvent]] = None,
+    round_number: int = 0,
 ) -> None:
-    """Fire all of `unit`'s triggers matching `when`, in declaration order."""
+    """Fire all of `unit`'s triggers matching `when`, in declaration order.
+
+    SILENCE gates ALL triggers on the unit (including ON_DEATH) — a silenced
+    unit's death-rattle does not pop. Per design: "all triggers on this unit
+    suppressed; ticks down at round-start".
+
+    Each trigger may carry a `condition` DSL string; if present, the trigger
+    only fires when the condition evaluates truthy against a freshly-snapshot
+    context. Parse failures are guaranteed-impossible at fire-time because the
+    catalog loader validates conditions at load-time.
+    """
     if not unit.alive and when != TriggerWhen.ON_DEATH:
+        return
+    if unit.status.get(int(StatusCondition.SILENCE), 0) > 0:
         return
     reason = _TRIGGER_REASON.get(int(when))
     for trig in unit.card.triggers:
         if trig.when != when:
             continue
+        if trig.condition is not None:
+            ctx = _build_condition_ctx(unit, allies, enemies, round_number)
+            if not _cached_compile(trig.condition)(ctx):
+                continue
         for tgt in _pick_targets(trig, unit, allies, enemies, rng):
             _apply_effect(
                 trig.op, trig.value, tgt, log, unit.card.card_id,
@@ -366,6 +576,7 @@ def _fire_triggers_all_units(
     first_player: int = 0,
     *,
     events: Optional[List[CombatEvent]] = None,
+    round_number: int = 0,
 ) -> None:
     """Deterministic order: `first_player` side by position, then other side by position.
 
@@ -378,9 +589,15 @@ def _fire_triggers_all_units(
     else:
         first, second = side_b, side_a
     for u in sorted(first, key=lambda x: x.position):
-        _fire_triggers_for_unit(when, u, first, second, rng, log, events=events)
+        _fire_triggers_for_unit(
+            when, u, first, second, rng, log,
+            events=events, round_number=round_number,
+        )
     for u in sorted(second, key=lambda x: x.position):
-        _fire_triggers_for_unit(when, u, second, first, rng, log, events=events)
+        _fire_triggers_for_unit(
+            when, u, second, first, rng, log,
+            events=events, round_number=round_number,
+        )
 
 
 def _ally_death_triggers(
@@ -391,12 +608,49 @@ def _ally_death_triggers(
     log: List[str],
     *,
     events: Optional[List[CombatEvent]] = None,
+    round_number: int = 0,
 ) -> None:
     for u in sorted(side, key=lambda x: x.position):
         if u is dying or not u.alive:
             continue
         _fire_triggers_for_unit(
-            TriggerWhen.ON_ALLY_DEATH, u, side, enemies, rng, log, events=events,
+            TriggerWhen.ON_ALLY_DEATH, u, side, enemies, rng, log,
+            events=events, round_number=round_number,
+        )
+
+
+def _sweep_low_hp_triggers(
+    side_a: List[UnitState],
+    side_b: List[UnitState],
+    rng: SeededRng,
+    log: List[str],
+    round_number: int,
+    *,
+    events: Optional[List[CombatEvent]] = None,
+) -> None:
+    """Fire ON_LOW_HP for any alive unit that has crossed the 25% HP threshold
+    and not yet fired its one-shot ON_LOW_HP trigger this match.
+
+    Centralized as a sweep (not inline in _take_damage) because damage flows
+    from many sources — basic attacks, trigger-sourced DAMAGE/LIFESTEAL, BURN
+    + POISON ticks. A single sweep after every damage boundary is simpler and
+    deterministic: side then position iteration order.
+
+    Per-match one-shot is gated by UnitState.low_hp_fired; a unit at 0% HP is
+    obviously dead and skipped. Threshold uses card.hp (max), not effective_hp,
+    so buffs/debuffs to current HP don't shift the trigger boundary.
+    """
+    for unit in sorted(side_a + side_b, key=lambda x: (x.side, x.position)):
+        if not unit.alive or unit.low_hp_fired:
+            continue
+        if unit.hp > unit.card.hp // _LOW_HP_DENOM:
+            continue
+        unit.low_hp_fired = True
+        allies = side_a if unit.side == 0 else side_b
+        enemies = side_b if unit.side == 0 else side_a
+        _fire_triggers_for_unit(
+            TriggerWhen.ON_LOW_HP, unit, allies, enemies, rng, log,
+            events=events, round_number=round_number,
         )
 
 
@@ -407,25 +661,52 @@ def _tick_status_start_of_round(
     *,
     events: Optional[List[CombatEvent]] = None,
 ) -> None:
-    """Apply status condition ticks at round start. Plumbing-only in V2 —
-    no catalog cards emit status yet, so this is a no-op in practice until
-    Phase 6 content lands."""
+    """Apply status condition ticks at round start.
+
+    Tick semantics:
+      - BURN:    deal 3 dmg, decrement.
+      - POISON:  deal 2 dmg, decrement (smaller-but-distinct DOT vs BURN).
+      - CHILL:   no damage; effect lives in effective_spd; decrement here.
+      - ROOT:    no damage; effect lives in _resolve_action; decrement here.
+      - SILENCE: no damage; trigger gating lives in _fire_triggers_for_unit;
+                 decrement here per design ("ticks down at round-start").
+      - TAUNT:   no damage; target-priority override lives in _resolve_action;
+                 decrement here.
+      - STUN:    NOT ticked here. Per design "1 = next action only" — STUN
+                 ticks on action-skip in _resolve_action, not at round-start.
+                 Otherwise a 1-round STUN applied mid-round would expire before
+                 doing anything.
+      - CHARGE:  consumed on attack in _resolve_action; never ticks here.
+    """
     for u in sorted(side_a + side_b, key=lambda x: (x.side, x.position)):
         if not u.alive:
             continue
         burn = u.status.get(int(StatusCondition.BURN), 0)
         if burn > 0:
             _take_damage(
-                u, 3, log, source="burn",
+                u, _BURN_TICK_DMG, log, source="burn",
                 source_unit=None, events=events, reason="STATUS_TICK",
             )
             u.status[int(StatusCondition.BURN)] = burn - 1
+        poison = u.status.get(int(StatusCondition.POISON), 0)
+        if poison > 0 and u.alive:
+            _take_damage(
+                u, _POISON_TICK_DMG, log, source="poison",
+                source_unit=None, events=events, reason="STATUS_TICK",
+            )
+            u.status[int(StatusCondition.POISON)] = poison - 1
         chill = u.status.get(int(StatusCondition.CHILL), 0)
         if chill > 0:
             u.status[int(StatusCondition.CHILL)] = chill - 1
         root = u.status.get(int(StatusCondition.ROOT), 0)
         if root > 0:
             u.status[int(StatusCondition.ROOT)] = root - 1
+        silence = u.status.get(int(StatusCondition.SILENCE), 0)
+        if silence > 0:
+            u.status[int(StatusCondition.SILENCE)] = silence - 1
+        taunt = u.status.get(int(StatusCondition.TAUNT), 0)
+        if taunt > 0:
+            u.status[int(StatusCondition.TAUNT)] = taunt - 1
 
 
 # ---------------------------------------------------------------------------
@@ -440,6 +721,7 @@ def _resolve_action(
     log: List[str],
     *,
     events: Optional[List[CombatEvent]] = None,
+    round_number: int = 0,
 ) -> None:
     if not actor.alive:
         return
@@ -463,29 +745,68 @@ def _resolve_action(
                 log_line=line,
             ))
         return
+    # STUN: skip this action and consume one stack. Per design "1 = next action
+    # only" — STUN ticks on consumption (here), NOT in _tick_status_start_of_round.
+    stun = actor.status.get(int(StatusCondition.STUN), 0)
+    if stun > 0:
+        actor.status[int(StatusCondition.STUN)] = stun - 1
+        line = f"{actor.card.card_id} is stunned, skips action"
+        log.append(line)
+        if events is not None:
+            events.append(CombatEvent(
+                kind="status",
+                actor_side=actor.side,
+                actor_position=actor.position,
+                actor_card_id=actor.card.card_id,
+                target_side=actor.side,
+                target_position=actor.position,
+                target_card_id=actor.card.card_id,
+                amount=None,
+                hp_after=_hp_snapshot(actor),
+                reason="STUN",
+                status_applied="STUN",
+                log_line=line,
+            ))
+        return
     alive_enemies = _alive(enemies)
     if not alive_enemies:
         return
 
-    # The parent attack event — built lazily after we have a target. Reactive
-    # ON_ATTACK / ON_TAKE_DAMAGE / ON_DEATH triggers nest into its `triggers`
-    # list so the renderer can visualize them as one cause-effect chain.
-    parent_event: Optional[CombatEvent] = None
-    parent_triggers: Optional[List[CombatEvent]] = None
+    # ON_OPENING_ATTACK: fires once per match on the unit's first attack of
+    # the match. Fires BEFORE ON_ATTACK and BEFORE the actual attack (it's
+    # proactive on the attacker, not reactive to damage). The has_attacked
+    # flag is set after _take_damage below so an early-return (no enemies)
+    # doesn't burn the one-shot.
+    if not actor.has_attacked:
+        _fire_triggers_for_unit(
+            TriggerWhen.ON_OPENING_ATTACK, actor, allies, enemies, rng, log,
+            events=events, round_number=round_number,
+        )
 
     # ON_ATTACK triggers fire BEFORE the actual attack. We don't know the
     # target yet (pick happens after triggers), so ON_ATTACK events go
-    # top-level for now — they're proactive on the attacker, not reactive
+    # top-level — they're proactive on the attacker, not reactive
     # to the damage.
     _fire_triggers_for_unit(
-        TriggerWhen.ON_ATTACK, actor, allies, enemies, rng, log, events=events,
+        TriggerWhen.ON_ATTACK, actor, allies, enemies, rng, log,
+        events=events, round_number=round_number,
     )
 
     # Re-resolve target after triggers (target may have died or been added to)
     alive_enemies = _alive(enemies)
     if not alive_enemies:
         return
-    target = min(alive_enemies, key=lambda u: (u.hp, u.position))
+
+    # TAUNT target override: if any enemy has TAUNT active, the basic attack
+    # MUST hit a taunting enemy first. Within the taunting subset we still
+    # use the lowest-HP / lowest-position rule for determinism. TAUNT only
+    # affects the basic attack here; trigger-driven targeting (LOWEST_HP_ENEMY
+    # etc.) keeps its declared filter — TAUNT models physical aggression draw,
+    # not magical compulsion.
+    taunting = [u for u in alive_enemies
+                if u.status.get(int(StatusCondition.TAUNT), 0) > 0]
+    target_pool = taunting if taunting else alive_enemies
+    target = min(target_pool, key=lambda u: (u.hp, u.position))
 
     # Base damage, with Charge consumption and element multiplier
     charge_bonus = 0
@@ -509,16 +830,19 @@ def _resolve_action(
 
     # Set up the parent event sink BEFORE _take_damage so the damage event
     # itself is the parent of subsequent ON_TAKE_DAMAGE / ON_DEATH triggers.
-    if events is not None:
-        # We capture the index of the about-to-be-emitted damage event so
-        # we can reach back into the events list and grab it as parent.
-        events_pre_len = len(events)
+    parent_event: Optional[CombatEvent] = None
+    parent_triggers: Optional[List[CombatEvent]] = None
+    events_pre_len = len(events) if events is not None else 0
 
     _take_damage(
         target, final_dmg, log,
         source=actor.card.card_id, source_unit=actor,
         events=events, reason=None, log_prefix=prefix_line,
     )
+
+    # Mark first-attack consumed AFTER damage application — the unit
+    # "attempted an attack" at this point, even if final_dmg was 0.
+    actor.has_attacked = True
 
     if events is not None:
         # If _take_damage emitted (i.e. damage > 0 and target was alive), the
@@ -532,17 +856,41 @@ def _resolve_action(
         _fire_triggers_for_unit(
             TriggerWhen.ON_TAKE_DAMAGE, target, enemies, allies, rng, log,
             events=parent_triggers if parent_triggers is not None else events,
+            round_number=round_number,
         )
 
     # Death triggers — also nest under parent damage event.
-    if pre_alive and not target.alive:
+    target_died = pre_alive and not target.alive
+    if target_died:
         _fire_triggers_for_unit(
             TriggerWhen.ON_DEATH, target, enemies, allies, rng, log,
             events=parent_triggers if parent_triggers is not None else events,
+            round_number=round_number,
         )
         _ally_death_triggers(
             target, enemies, allies, rng, log,
             events=parent_triggers if parent_triggers is not None else events,
+            round_number=round_number,
+        )
+        # ON_KILL fires on the attacker right after target dies — also nests
+        # under the parent damage event so the render shows the kill chain
+        # cleanly. Skipped if the attacker was killed by a counter (ON_TAKE_DAMAGE
+        # damage cascade) before reaching here.
+        if actor.alive:
+            _fire_triggers_for_unit(
+                TriggerWhen.ON_KILL, actor, allies, enemies, rng, log,
+                events=parent_triggers if parent_triggers is not None else events,
+                round_number=round_number,
+            )
+
+    # ON_TURN_END fires on the actor at the end of its action regardless of
+    # whether it killed anything. Only fires if the actor is still alive
+    # (counter-killed attackers don't get a turn-end pop). Top-level event:
+    # logically it's a "post-action" beat, not a sub-action of the attack.
+    if actor.alive:
+        _fire_triggers_for_unit(
+            TriggerWhen.ON_TURN_END, actor, allies, enemies, rng, log,
+            events=events, round_number=round_number,
         )
 
 
@@ -588,12 +936,15 @@ def resolve_match(
     # Battle start triggers (one-shot) — accumulate into a separate buffer so
     # they can be merged into round 1's logs deterministically. Use the
     # seed-derived start_player so battle-start trigger order is also fair.
+    # round_number=0 here so any trigger condition that gates on `round`
+    # treats battle-start as pre-round (round 1 begins on the next sweep).
     start_log: List[str] = []
     start_events: List[CombatEvent] = []
     _fire_triggers_all_units(
         TriggerWhen.ON_BATTLE_START, side_a, side_b, rng, start_log,
-        first_player=start_player, events=start_events,
+        first_player=start_player, events=start_events, round_number=0,
     )
+    _sweep_low_hp_triggers(side_a, side_b, rng, start_log, 0, events=start_events)
 
     winner: Optional[int] = None
     reason = "round_cap"
@@ -611,9 +962,14 @@ def resolve_match(
             round_log.actions.extend(start_log)
             round_log.events.extend(start_events)
 
-        # Tick status conditions first (burn dmg, etc.)
+        # Tick status conditions first (burn/poison dmg, chill/silence/taunt
+        # countdown, etc.) — then sweep ON_LOW_HP because tick damage may have
+        # crossed the threshold.
         _tick_status_start_of_round(
             side_a, side_b, round_log.actions, events=round_log.events,
+        )
+        _sweep_low_hp_triggers(
+            side_a, side_b, rng, round_log.actions, r, events=round_log.events,
         )
 
         # Check for wipes caused by burn damage before doing more work
@@ -637,7 +993,10 @@ def resolve_match(
         # Round start triggers (first_player side fires first)
         _fire_triggers_all_units(
             TriggerWhen.ON_ROUND_START, side_a, side_b, rng, round_log.actions,
-            first_player=first_player, events=round_log.events,
+            first_player=first_player, events=round_log.events, round_number=r,
+        )
+        _sweep_low_hp_triggers(
+            side_a, side_b, rng, round_log.actions, r, events=round_log.events,
         )
 
         # Build action queue: all alive units, sorted by spd desc.
@@ -656,7 +1015,12 @@ def resolve_match(
             enemies = side_b if actor.side == 0 else side_a
             _resolve_action(
                 actor, allies, enemies, rng, round_log.actions,
-                events=round_log.events,
+                events=round_log.events, round_number=r,
+            )
+            # Sweep after every action — the action may have damaged units
+            # on either side (counters, lifesteal, ON_TAKE_DAMAGE cascades).
+            _sweep_low_hp_triggers(
+                side_a, side_b, rng, round_log.actions, r, events=round_log.events,
             )
 
         round_log.side_a_hp_total = _hp_total(side_a)

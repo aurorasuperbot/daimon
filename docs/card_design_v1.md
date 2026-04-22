@@ -170,31 +170,43 @@ Open for Phase 3:
 
 ---
 
-## 7. Engine vocabulary expansion (Phase 2 input)
+## 7. Engine vocabulary expansion (Phase 2 — SHIPPED 2026-04-22)
 
-Current vocab has 6 events × 8 ops × 7 targets — realistically supports ~100-120 mechanically distinct cards before remix-fatigue. For 200 unique cards across 6 archetypes, we need new vocabulary. Phase 2 will add:
+Prior vocab had 6 events × 8 ops × 7 targets — realistically supports ~100-120 mechanically distinct cards before remix-fatigue. For 200 unique cards across 6 archetypes, we needed new vocabulary.
 
-### New `when` events
-- `ON_TURN_END` — enables BURN/DOT mechanics
-- `ON_KILL` — enables INFERNO's snowball ("when you KO, gain ATK")
-- `ON_LOW_HP` — fires once when SELF.hp drops below 25% (enables "desperation" cards)
-- `ON_OPENING_ATTACK` — fires on first attack of the match (enables alpha-strike / ambush)
+### ✅ New `when` events (shipped)
+- `ON_TURN_END` — fires on actor after its action; enables BURN/DOT mechanics
+- `ON_KILL` — fires on attacker when its attack KOs the target (INFERNO snowball)
+- `ON_LOW_HP` — one-shot fire when `self.hp ≤ hp_max // 4` (desperation cards)
+- `ON_OPENING_ATTACK` — one-shot fire on unit's first attack of the match (alpha-strike)
 
-### New `op` effects
-- `BURN` — apply N stacks of DoT damage; resolves on `ON_TURN_END`
-- `LIFESTEAL` — target takes N damage, source heals N (or N/2)
-- `RETALIATE` — when SELF takes damage, attacker takes N back
-- `STUN` — target skips next action
-- `SILENCE` — target loses all triggers for N rounds
-- `SUMMON` — spawn a phantom monster (limited stat profile, no triggers, dies after 1 hit)
-- `RESURRECT` — return SELF to play at half HP, can only fire once per match
-- `TAUNT` — enemies must target SELF first (status, not value-based)
-- `BUFF_HP` / `DEBUFF_HP` — adjust max HP (sustained, not heal/damage)
+### ✅ New `op` effects (shipped)
+- `APPLY_BURN` — set BURN status for N rounds; ticks 3 dmg at round start
+- `APPLY_POISON` — set POISON status for N rounds; ticks 2 dmg at round start (lower-magnitude DOT distinct from BURN)
+- `APPLY_STUN` — set STUN status; target skips next action (consumed on skip, NOT on round tick — per design "1 = next action only")
+- `APPLY_SILENCE` — set SILENCE status for N rounds; ALL triggers on target suppressed (including ON_DEATH); ticks at round-start
+- `APPLY_TAUNT` — set TAUNT status for N rounds; basic attack target-priority override (taunting enemies must be hit first)
+- `LIFESTEAL` — deal N damage to target (element-multiplier applies), attacker heals `ceil(N/2)` (heal-back is % of intent, not post-mult)
 
-### Conditional triggers
-New trigger schema field: `condition` (optional) — parsed expression like `"team.distinct_elements >= 2"` or `"self.hp < self.hp_max * 0.5"`. Enables FLUX and ON_LOW_HP designs without requiring new `when` for every condition.
+### ✅ Conditional triggers (shipped)
+New trigger field: `condition` (optional string). Restricted-eval DSL (`daimon/engine/conditions.py`) — AST whitelist, `{"__builtins__": None}` eval frame. Vocabulary:
+- `self.{hp, hp_max, shield, atk, def, spd, element}` — actor state
+- `team.{distinct_elements, alive_count, size}` — actor's side
+- `enemies.{distinct_elements, alive_count, size}` — opposing side
+- `round` — current round number (0 at ON_BATTLE_START)
+- Booleans: `and or not`; comparisons `< > <= >= == !=`; arithmetic `+ - * // %`; `True`/`False`; int/float literals
+- **Disallowed**: function calls, subscripts, division `/`, power `**`, bitwise, strings, lambdas, walrus
 
-### Keyword shorthand (render layer)
+Conditions are parsed + validated at card-LOAD time (`cards/loader.py`); compiled callable is cached per condition string via `lru_cache` in `combat.py`. Engine determinism: conditions can NEVER raise at fire-time.
+
+### ⏳ Deferred (need larger architectural work — NOT in Phase 2)
+- `RETALIATE` — already expressible as ON_TAKE_DAMAGE + DAMAGE (keyword flavor, not new op)
+- `SUMMON` — requires virtual-slot team expansion; punt to V1.1
+- `RESURRECT` — requires once-per-match state + revive lifecycle hooks; punt to V1.1
+- `BUFF_HP`/`DEBUFF_HP` — requires hp_max mutation (currently treated as immutable card.hp); punt to V1.1
+- `CHARGE` / `ROOT` / `CHILL` — already implemented as StatusConditions but no `APPLY_*` op yet; if Phase 3/4 needs them, trivial to add
+
+### Keyword shorthand (render layer, deferred to Phase 3)
 Player-facing card text will use keywords (TAUNT, BURN, LIFESTEAL) that map to canonical trigger sets behind the scenes. Engine still operates on raw triggers; keywords are flavor compression for UX.
 
 ---
@@ -238,9 +250,9 @@ Sim harness work goes into a new `daimon/sim/` module — deterministic match ru
 
 | Phase | Deliverable | Status |
 |---|---|---|
-| **1. Framework doc** | This file | ✅ done (this commit) |
-| **2. Engine vocab expansion** | New ops/events/conditions in `engine/types.py` + `engine/triggers.py` + tests | next |
-| **3. Archetype skeletons** | One legendary + two epic anchors per archetype = ~14-18 cards proving each archetype plays distinctly | after Phase 2 |
+| **1. Framework doc** | This file | ✅ done |
+| **2. Engine vocab expansion** | New ops/events/conditions in `engine/types.py` + `engine/conditions.py` + `engine/combat.py` + tests | ✅ done (4 new whens, 6 new ops, condition DSL — 595 tests pass) |
+| **3. Archetype skeletons** | One legendary + two epic anchors per archetype = ~14-18 cards proving each archetype plays distinctly | next |
 | **4. Pool fill-out** | 200 cards meeting distribution + species shape | after Phase 3 |
 | **5. Balance via simulation** | `daimon/sim/` harness + matchup matrix + tuning pass | after Phase 4 |
 
@@ -248,15 +260,31 @@ After Phase 5: the legacy 67-card scaffolding (`scripts/author_v1_alpha_expansio
 
 ---
 
-## 11. Open questions (to resolve before Phase 3)
+## 11. Open questions (resolved + remaining)
 
-1. **FLUX trigger condition syntax** — string DSL (`"team.distinct_elements >= 2"`) parsed at load time, or structured Python expression? **Provisional**: string DSL with a tiny restricted parser; safer than `eval`, easier to validate.
-2. **SUMMON phantom card representation** — does a summoned phantom occupy a team slot, or sit in a separate "field" slot? **Provisional**: summoned phantoms occupy a virtual slot capped at 2 active per side; do not count toward TEAM_SIZE.
-3. **Legendary balance philosophy** — should legendaries be strictly stronger than epics (Hearthstone model) or alternative power profiles (Magic mythic model)? **Provisional**: Magic model — legendaries are *unique* in mechanic, not strictly bigger numbers, so dropping a legendary doesn't always trump dropping an epic.
-4. **Should FLUX cards have an element field at all?** Currently every card requires an element. **Provisional**: yes, FLUX cards have a "host element" that determines elemental matchup, but their main trigger only fires when team is multi-element. Keeps engine schema unchanged.
-
-These get answered concretely in Phase 2/3 when we put cards on the page.
+1. ✅ **FLUX trigger condition syntax** — RESOLVED: restricted-eval string DSL with AST whitelist. Lives at `daimon/engine/conditions.py`; vocabulary documented in §7. Validated at card load, never raises mid-match.
+2. ⏳ **SUMMON phantom card representation** — DEFERRED to V1.1 (engine architecture change too large for V1 scope; phantoms not in Phase-2 op shipset).
+3. ❓ **Legendary balance philosophy** — Hearthstone (strictly bigger) vs Magic (mechanically unique)? **Provisional**: Magic model — legendaries are *unique* in mechanic, not strictly bigger numbers. Confirm in Phase 3 when designing the 2 legendary anchors.
+4. ❓ **Should FLUX cards have an element field at all?** Currently every card requires an element. **Provisional**: yes, FLUX cards have a "host element" that determines elemental matchup, but their main trigger only fires when team is multi-element (gated via `condition: "team.distinct_elements >= 2"`). Phase 2 condition DSL makes this trivially expressible.
+5. ❓ **Status-condition stack semantics** — APPLY_* uses `max(existing, new)` refresh (not addition). Is that the right default for BURN/POISON, or should DOTs stack additively? **Provisional**: max-refresh keeps total tick damage bounded by card design (single epic with BURN(3) + another BURN(3) doesn't double the DOT). Re-evaluate in Phase 3 if INFERNO archetype needs additive BURN.
 
 ---
 
-*End of Phase 1 framework. Phase 2 work begins on review approval.*
+## 12. Phase 2 changelog (2026-04-22)
+
+Files added:
+- `daimon/engine/conditions.py` — restricted-eval DSL parser
+- `tests/test_conditions.py` — 43 DSL tests (whitelist + happy path + edge cases)
+- `tests/test_combat_phase2.py` — 20 combat tests for new ops/whens
+
+Files modified:
+- `daimon/engine/types.py` — 4 new TriggerWhen, 6 new EffectOp, 4 new StatusCondition, `Trigger.condition` field, `UnitState.{low_hp_fired, has_attacked}` lifecycle flags
+- `daimon/engine/combat.py` — `_apply_status` helper, `_apply_effect` dispatch for 6 new ops, `_resolve_action` dispatch for 4 new whens, STUN/TAUNT semantics, `_sweep_low_hp_triggers` helper, `_build_condition_ctx` + condition gating in `_fire_triggers_for_unit`, SILENCE gate, condition compile cache
+- `daimon/cards/loader.py` — accept new op/when names, parse + validate `condition` field at load time
+- `docs/card_design_v1.md` — this update
+
+Test count: 595 passing, 1 skipped (was 529 + 43 conditions + 20 combat-phase2 + a few others = 595).
+
+---
+
+*End of Phase 2. Phase 3 (archetype skeletons) begins next.*

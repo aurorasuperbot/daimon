@@ -16,10 +16,16 @@ Card JSON schema (V2 — monster pivot):
   "spd": int >= 0,
   "triggers": [
       {
-        "when":  "ON_BATTLE_START|ON_ROUND_START|ON_ATTACK|ON_TAKE_DAMAGE|ON_DEATH|ON_ALLY_DEATH",
-        "op":    "BUFF_ATK|DEBUFF_ATK|BUFF_DEF|DEBUFF_DEF|HEAL|DAMAGE|ADD_SHIELD|BUFF_SPD",
+        "when":  "ON_BATTLE_START|ON_ROUND_START|ON_ATTACK|ON_TAKE_DAMAGE|"
+                 "ON_DEATH|ON_ALLY_DEATH|ON_TURN_END|ON_KILL|ON_LOW_HP|"
+                 "ON_OPENING_ATTACK",
+        "op":    "BUFF_ATK|DEBUFF_ATK|BUFF_DEF|DEBUFF_DEF|HEAL|DAMAGE|"
+                 "ADD_SHIELD|BUFF_SPD|APPLY_BURN|APPLY_STUN|APPLY_SILENCE|"
+                 "APPLY_TAUNT|APPLY_POISON|LIFESTEAL",
         "target":"SELF|ALL_ALLIES|ALL_ENEMIES|LOWEST_HP_ENEMY|HIGHEST_HP_ENEMY|RANDOM_ENEMY|RANDOM_ALLY",
-        "value": int
+        "value": int,
+        "condition": "string?"   # optional DSL expression — see daimon/engine/conditions.py
+                                 # parsed + validated at load time, evaluated at fire time
       }
   ],
 
@@ -43,6 +49,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from daimon.engine.conditions import ConditionError, parse as parse_condition
 from daimon.engine.types import (
     Card,
     EffectOp,
@@ -60,6 +67,7 @@ _VALID_RARITIES = ("common", "uncommon", "rare", "epic", "legendary")
 MAX_STAT = 999
 MAX_TRIGGER_VALUE = 999
 MAX_TRIGGERS_PER_CARD = 8
+MAX_CONDITION_LEN = 256  # defensive cap on condition expression length
 
 
 def _parse_enum(enum_cls: type, value: Any, field: str) -> int:
@@ -91,7 +99,34 @@ def _parse_trigger(d: Dict[str, Any], idx: int) -> Trigger:
         raise ValueError(f"trigger[{idx}].value must be int")
     if abs(value) > MAX_TRIGGER_VALUE:
         raise ValueError(f"trigger[{idx}].value={value} out of range")
-    return Trigger(when=when, op=op, target=target, value=value)
+
+    # Optional `condition` DSL string. Validated at LOAD time so a bad
+    # expression breaks catalog load (not mid-match — engine determinism
+    # depends on conditions never raising at fire-time). The compiled callable
+    # is rebuilt at fire-time via lru_cache in combat.py; we discard the AST
+    # here and only retain the source string on the Trigger.
+    condition_raw = d.get("condition")
+    condition: Optional[str] = None
+    if condition_raw is not None:
+        if not isinstance(condition_raw, str):
+            raise ValueError(
+                f"trigger[{idx}].condition must be string, got "
+                f"{type(condition_raw).__name__}"
+            )
+        if len(condition_raw) > MAX_CONDITION_LEN:
+            raise ValueError(
+                f"trigger[{idx}].condition length {len(condition_raw)} "
+                f"exceeds cap {MAX_CONDITION_LEN}"
+            )
+        try:
+            parse_condition(condition_raw)
+        except ConditionError as e:
+            raise ValueError(
+                f"trigger[{idx}].condition invalid: {e}"
+            ) from e
+        condition = condition_raw
+
+    return Trigger(when=when, op=op, target=target, value=value, condition=condition)
 
 
 def load_card_dict(d: Dict[str, Any]) -> Card:
