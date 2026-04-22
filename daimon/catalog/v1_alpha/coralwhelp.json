@@ -1,0 +1,23 @@
+{
+  "card_id": "coralwhelp",
+  "species": "coralwhelp",
+  "element": "WATER",
+  "atk": 4,
+  "def": 4,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Coralwhelp",
+  "flavor": "Each kill blooms a brief reef inside the team.",
+  "rarity": "common",
+  "archetype": "TIDAL",
+  "art": "art/common/coralwhelp.png",
+  "moves": []
+}

@@ -1,0 +1,23 @@
+{
+  "card_id": "ironseed",
+  "species": "ironseed",
+  "element": "NATURE",
+  "atk": 3,
+  "def": 6,
+  "hp": 21,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "APPLY_TAUNT",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Ironseed",
+  "flavor": "Roots first; lets everything else grow around it.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/ironseed.png",
+  "moves": []
+}

@@ -1,0 +1,23 @@
+{
+  "card_id": "galekit",
+  "species": "galekit",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 3,
+  "hp": 15,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "DAMAGE",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 3
+    }
+  ],
+  "name": "Galekit",
+  "flavor": "The kill is the wind; the next kill is the next wind.",
+  "rarity": "common",
+  "archetype": "STORMCHAIN",
+  "art": "art/common/galekit.png",
+  "moves": []
+}

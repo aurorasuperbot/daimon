@@ -1,0 +1,23 @@
+{
+  "card_id": "flashfox",
+  "species": "flashfox",
+  "element": "VOLT",
+  "atk": 4,
+  "def": 2,
+  "hp": 18,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_LOW_HP",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Flashfox",
+  "flavor": "Wounded fox runs faster than fed fox.",
+  "rarity": "common",
+  "archetype": "STORMCHAIN",
+  "art": "art/common/flashfox.png",
+  "moves": []
+}

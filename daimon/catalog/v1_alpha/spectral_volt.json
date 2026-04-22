@@ -1,0 +1,24 @@
+{
+  "card_id": "spectral_volt",
+  "species": "spectral_volt",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 2,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Spectral Volt",
+  "flavor": "Steals a watt from every neighbor that isn't kin.",
+  "rarity": "common",
+  "archetype": "FLUX",
+  "art": "art/common/spectral_volt.png",
+  "moves": []
+}

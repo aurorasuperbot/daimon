@@ -1,0 +1,23 @@
+{
+  "card_id": "miasma_imp",
+  "species": "miasma_imp",
+  "element": "VOID",
+  "atk": 4,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "DEBUFF_DEF",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Miasma Imp",
+  "flavor": "Picks the weakest plate to thin.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/miasma_imp.png",
+  "moves": []
+}

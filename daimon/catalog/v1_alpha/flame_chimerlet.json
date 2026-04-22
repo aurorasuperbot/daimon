@@ -1,0 +1,24 @@
+{
+  "card_id": "flame_chimerlet",
+  "species": "flame_chimerlet",
+  "element": "FIRE",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 2,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Flame Chimerlet",
+  "flavor": "Two heads, two tempers, one shared appetite.",
+  "rarity": "common",
+  "archetype": "FLUX",
+  "art": "art/common/flame_chimerlet.png",
+  "moves": []
+}

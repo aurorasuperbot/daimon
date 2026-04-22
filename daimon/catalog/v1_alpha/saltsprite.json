@@ -1,0 +1,24 @@
+{
+  "card_id": "saltsprite",
+  "species": "saltsprite",
+  "element": "WATER",
+  "atk": 3,
+  "def": 4,
+  "hp": 21,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_ROUND_START",
+      "op": "HEAL",
+      "target": "RANDOM_ALLY",
+      "value": 2,
+      "condition": "round >= 2"
+    }
+  ],
+  "name": "Saltsprite",
+  "flavor": "Patient with the wound; impatient with the bleeding.",
+  "rarity": "common",
+  "archetype": "TIDAL",
+  "art": "art/common/saltsprite.png",
+  "moves": []
+}

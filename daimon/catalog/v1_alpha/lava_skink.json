@@ -1,0 +1,23 @@
+{
+  "card_id": "lava_skink",
+  "species": "lava_skink",
+  "element": "FIRE",
+  "atk": 4,
+  "def": 4,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "APPLY_BURN",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Lava Skink",
+  "flavor": "Strike it; it leaves embers under your fingernails.",
+  "rarity": "common",
+  "archetype": "INFERNO",
+  "art": "art/common/lava_skink.png",
+  "moves": []
+}

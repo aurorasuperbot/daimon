@@ -1,0 +1,24 @@
+{
+  "card_id": "mistchimera",
+  "species": "mistchimera",
+  "element": "WATER",
+  "atk": 4,
+  "def": 4,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 2,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Mist Chimera",
+  "flavor": "Three throats, one mercy — when the team isn't already alone.",
+  "rarity": "common",
+  "archetype": "FLUX",
+  "art": "art/common/mistchimera.png",
+  "moves": []
+}

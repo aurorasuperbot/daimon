@@ -1,0 +1,23 @@
+{
+  "card_id": "brambleling",
+  "species": "brambleling",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 4,
+  "hp": 21,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_DEF",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Brambleling",
+  "flavor": "Sets the hedge before the attackers know there is one.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/brambleling.png",
+  "moves": []
+}

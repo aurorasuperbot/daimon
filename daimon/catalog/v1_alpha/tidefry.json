@@ -1,0 +1,23 @@
+{
+  "card_id": "tidefry",
+  "species": "tidefry",
+  "element": "WATER",
+  "atk": 4,
+  "def": 3,
+  "hp": 21,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Tidefry",
+  "flavor": "Rolls in with the morning current.",
+  "rarity": "common",
+  "archetype": "TIDAL",
+  "art": "art/common/tidefry.png",
+  "moves": []
+}

@@ -1,0 +1,24 @@
+{
+  "card_id": "prismbolt",
+  "species": "prismbolt",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 2,
+  "hp": 18,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 2,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Prismbolt",
+  "flavor": "Sees the team's colors; runs faster when there's more than one.",
+  "rarity": "common",
+  "archetype": "FLUX",
+  "art": "art/common/prismbolt.png",
+  "moves": []
+}

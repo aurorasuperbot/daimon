@@ -1,0 +1,23 @@
+{
+  "card_id": "barkpup",
+  "species": "barkpup",
+  "element": "NATURE",
+  "atk": 3,
+  "def": 6,
+  "hp": 21,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_DEF",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Barkpup",
+  "flavor": "Hardens at the first whiff of trouble.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/barkpup.png",
+  "moves": []
+}

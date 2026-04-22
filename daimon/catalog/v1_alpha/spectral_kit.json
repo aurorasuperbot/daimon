@@ -1,0 +1,23 @@
+{
+  "card_id": "spectral_kit",
+  "species": "spectral_kit",
+  "element": "VOID",
+  "atk": 4,
+  "def": 3,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_TURN_END",
+      "op": "APPLY_POISON",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Spectral Kit",
+  "flavor": "Leaves a chill in the corner of someone's lung.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/spectral_kit.png",
+  "moves": []
+}

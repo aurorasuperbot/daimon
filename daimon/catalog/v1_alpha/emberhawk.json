@@ -1,0 +1,23 @@
+{
+  "card_id": "emberhawk",
+  "species": "emberhawk",
+  "element": "FIRE",
+  "atk": 5,
+  "def": 2,
+  "hp": 18,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 2
+    }
+  ],
+  "name": "Emberhawk",
+  "flavor": "Dives once on every battlefield it sees.",
+  "rarity": "common",
+  "archetype": "INFERNO",
+  "art": "art/common/emberhawk.png",
+  "moves": []
+}

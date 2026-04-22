@@ -1,0 +1,23 @@
+{
+  "card_id": "rootsnake",
+  "species": "rootsnake",
+  "element": "NATURE",
+  "atk": 5,
+  "def": 3,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "BUFF_DEF",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Rootsnake",
+  "flavor": "Sinks deeper after every strike.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/rootsnake.png",
+  "moves": []
+}

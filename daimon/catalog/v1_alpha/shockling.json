@@ -1,0 +1,23 @@
+{
+  "card_id": "shockling",
+  "species": "shockling",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Shockling",
+  "flavor": "A small death; a faster team.",
+  "rarity": "common",
+  "archetype": "STORMCHAIN",
+  "art": "art/common/shockling.png",
+  "moves": []
+}

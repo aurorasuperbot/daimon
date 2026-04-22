@@ -1,0 +1,23 @@
+{
+  "card_id": "surfling",
+  "species": "surfling",
+  "element": "WATER",
+  "atk": 4,
+  "def": 3,
+  "hp": 21,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "HEAL",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Surfling",
+  "flavor": "The first wave restores it; the rest are for show.",
+  "rarity": "common",
+  "archetype": "TIDAL",
+  "art": "art/common/surfling.png",
+  "moves": []
+}

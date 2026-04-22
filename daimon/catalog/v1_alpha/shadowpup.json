@@ -1,0 +1,23 @@
+{
+  "card_id": "shadowpup",
+  "species": "shadowpup",
+  "element": "VOID",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_DEATH",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 3
+    }
+  ],
+  "name": "Shadowpup",
+  "flavor": "Falls — and so does the menace of those who watched.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/shadowpup.png",
+  "moves": []
+}

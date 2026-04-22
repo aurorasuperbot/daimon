@@ -1,0 +1,23 @@
+{
+  "card_id": "dewfin",
+  "species": "dewfin",
+  "element": "WATER",
+  "atk": 5,
+  "def": 3,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_TURN_END",
+      "op": "HEAL",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Dewfin",
+  "flavor": "Ends every move a little newer than it began.",
+  "rarity": "common",
+  "archetype": "TIDAL",
+  "art": "art/common/dewfin.png",
+  "moves": []
+}

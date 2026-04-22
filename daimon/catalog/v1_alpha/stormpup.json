@@ -1,0 +1,23 @@
+{
+  "card_id": "stormpup",
+  "species": "stormpup",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Stormpup",
+  "flavor": "Born during the squall; never quite calmed.",
+  "rarity": "common",
+  "archetype": "STORMCHAIN",
+  "art": "art/common/stormpup.png",
+  "moves": []
+}

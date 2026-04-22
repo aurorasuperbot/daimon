@@ -1,0 +1,23 @@
+{
+  "card_id": "silentmoth",
+  "species": "silentmoth",
+  "element": "VOID",
+  "atk": 4,
+  "def": 3,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "DEBUFF_ATK",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Silent Moth",
+  "flavor": "Folds the loudest enemy into a smaller voice.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/silentmoth.png",
+  "moves": []
+}

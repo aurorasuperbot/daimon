@@ -1,0 +1,23 @@
+{
+  "card_id": "magmaling",
+  "species": "magmaling",
+  "element": "FIRE",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Magmaling",
+  "flavor": "When a thing dies, the lava splashes.",
+  "rarity": "common",
+  "archetype": "INFERNO",
+  "art": "art/common/magmaling.png",
+  "moves": []
+}

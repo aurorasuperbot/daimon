@@ -1,0 +1,24 @@
+{
+  "card_id": "prism_seedling",
+  "species": "prism_seedling",
+  "element": "NATURE",
+  "atk": 3,
+  "def": 4,
+  "hp": 24,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 2,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Prism Seedling",
+  "flavor": "Blooms different each time the team's colors change.",
+  "rarity": "common",
+  "archetype": "FLUX",
+  "art": "art/common/prism_seedling.png",
+  "moves": []
+}

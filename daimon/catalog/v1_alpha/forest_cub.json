@@ -1,0 +1,23 @@
+{
+  "card_id": "forest_cub",
+  "species": "forest_cub",
+  "element": "NATURE",
+  "atk": 3,
+  "def": 5,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_TURN_END",
+      "op": "HEAL",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Forest Cub",
+  "flavor": "Sleeps it off, even between blows.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/forest_cub.png",
+  "moves": []
+}

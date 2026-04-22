@@ -1,0 +1,23 @@
+{
+  "card_id": "boltkit",
+  "species": "boltkit",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 2,
+  "hp": 15,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Boltkit",
+  "flavor": "Each kill sharpens its line.",
+  "rarity": "common",
+  "archetype": "STORMCHAIN",
+  "art": "art/common/boltkit.png",
+  "moves": []
+}

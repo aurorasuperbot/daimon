@@ -1,0 +1,23 @@
+{
+  "card_id": "mosscat",
+  "species": "mosscat",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 4,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Moss Cat",
+  "flavor": "Purrs in chlorophyll.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/mosscat.png",
+  "moves": []
+}

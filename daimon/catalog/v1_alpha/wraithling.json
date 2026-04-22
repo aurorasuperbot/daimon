@@ -1,0 +1,23 @@
+{
+  "card_id": "wraithling",
+  "species": "wraithling",
+  "element": "VOID",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_DEATH",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 2
+    }
+  ],
+  "name": "Wraithling",
+  "flavor": "A small death that splashes outward.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/wraithling.png",
+  "moves": []
+}

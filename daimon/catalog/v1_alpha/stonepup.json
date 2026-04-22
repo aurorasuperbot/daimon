@@ -1,0 +1,23 @@
+{
+  "card_id": "stonepup",
+  "species": "stonepup",
+  "element": "NATURE",
+  "atk": 3,
+  "def": 6,
+  "hp": 21,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_DEATH",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Stonepup",
+  "flavor": "Crumbles into mineral that the others drink.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/stonepup.png",
+  "moves": []
+}

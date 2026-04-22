@@ -1,0 +1,23 @@
+{
+  "card_id": "dread_kit",
+  "species": "dread_kit",
+  "element": "VOID",
+  "atk": 4,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 2
+    }
+  ],
+  "name": "Dread Kit",
+  "flavor": "Its first whisper trims a knife from every enemy.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/dread_kit.png",
+  "moves": []
+}

@@ -1,0 +1,23 @@
+{
+  "card_id": "thunderfly",
+  "species": "thunderfly",
+  "element": "VOLT",
+  "atk": 4,
+  "def": 2,
+  "hp": 15,
+  "spd": 9,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Thunderfly",
+  "flavor": "The team buzzes a little louder when it joins.",
+  "rarity": "common",
+  "archetype": "STORMCHAIN",
+  "art": "art/common/thunderfly.png",
+  "moves": []
+}

@@ -1,0 +1,24 @@
+{
+  "card_id": "verdant_chimerlet",
+  "species": "verdant_chimerlet",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 4,
+  "hp": 21,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_DEF",
+      "target": "ALL_ALLIES",
+      "value": 2,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Verdant Chimerlet",
+  "flavor": "Three saplings in conference; better when there's weather to share.",
+  "rarity": "common",
+  "archetype": "FLUX",
+  "art": "art/common/verdant_chimerlet.png",
+  "moves": []
+}

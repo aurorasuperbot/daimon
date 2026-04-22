@@ -1,0 +1,23 @@
+{
+  "card_id": "arc_pup",
+  "species": "arc_pup",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 2,
+  "hp": 18,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "DAMAGE",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 3
+    }
+  ],
+  "name": "Arc Pup",
+  "flavor": "Always finds the weakest spark.",
+  "rarity": "common",
+  "archetype": "STORMCHAIN",
+  "art": "art/common/arc_pup.png",
+  "moves": []
+}

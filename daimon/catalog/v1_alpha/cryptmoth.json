@@ -1,0 +1,23 @@
+{
+  "card_id": "cryptmoth",
+  "species": "cryptmoth",
+  "element": "VOID",
+  "atk": 4,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_ALLY_DEATH",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 2
+    }
+  ],
+  "name": "Cryptmoth",
+  "flavor": "Eats the grief; spits the chill.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/cryptmoth.png",
+  "moves": []
+}

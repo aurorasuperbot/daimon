@@ -1,0 +1,23 @@
+{
+  "card_id": "brimling",
+  "species": "brimling",
+  "element": "FIRE",
+  "atk": 5,
+  "def": 2,
+  "hp": 18,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "APPLY_BURN",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Brimling",
+  "flavor": "Its first breath is the one to remember.",
+  "rarity": "common",
+  "archetype": "INFERNO",
+  "art": "art/common/brimling.png",
+  "moves": []
+}

@@ -1,0 +1,23 @@
+{
+  "card_id": "plasma_kit",
+  "species": "plasma_kit",
+  "element": "VOLT",
+  "atk": 6,
+  "def": 2,
+  "hp": 15,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 3
+    }
+  ],
+  "name": "Plasma Kit",
+  "flavor": "Burns through the first thing it sees.",
+  "rarity": "common",
+  "archetype": "STORMCHAIN",
+  "art": "art/common/plasma_kit.png",
+  "moves": []
+}

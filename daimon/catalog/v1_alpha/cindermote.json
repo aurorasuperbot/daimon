@@ -1,0 +1,23 @@
+{
+  "card_id": "cindermote",
+  "species": "cindermote",
+  "element": "FIRE",
+  "atk": 4,
+  "def": 3,
+  "hp": 18,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_TURN_END",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Cindermote",
+  "flavor": "The spark that lingers after the swing.",
+  "rarity": "common",
+  "archetype": "INFERNO",
+  "art": "art/common/cindermote.png",
+  "moves": []
+}

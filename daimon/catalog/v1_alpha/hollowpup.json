@@ -1,0 +1,23 @@
+{
+  "card_id": "hollowpup",
+  "species": "hollowpup",
+  "element": "VOID",
+  "atk": 4,
+  "def": 3,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_DEATH",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Hollowpup",
+  "flavor": "Ends with a gift it had been hoarding.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/hollowpup.png",
+  "moves": []
+}

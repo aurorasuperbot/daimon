@@ -1,0 +1,24 @@
+{
+  "card_id": "shadeprism",
+  "species": "shadeprism",
+  "element": "VOID",
+  "atk": 4,
+  "def": 3,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 2,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Shadeprism",
+  "flavor": "Refracts the light it doesn't need into the eyes of those it does.",
+  "rarity": "common",
+  "archetype": "FLUX",
+  "art": "art/common/shadeprism.png",
+  "moves": []
+}

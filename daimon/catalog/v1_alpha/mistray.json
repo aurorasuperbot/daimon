@@ -1,0 +1,23 @@
+{
+  "card_id": "mistray",
+  "species": "mistray",
+  "element": "WATER",
+  "atk": 3,
+  "def": 5,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "HEAL",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Mist Ray",
+  "flavor": "Wears its own fog as a balm.",
+  "rarity": "common",
+  "archetype": "TIDAL",
+  "art": "art/common/mistray.png",
+  "moves": []
+}

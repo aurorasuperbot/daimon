@@ -1,0 +1,23 @@
+{
+  "card_id": "petalwing",
+  "species": "petalwing",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 4,
+  "hp": 21,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 2
+    }
+  ],
+  "name": "Petalwing",
+  "flavor": "The first flap drops pollen that mends.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/petalwing.png",
+  "moves": []
+}

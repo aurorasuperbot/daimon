@@ -1,0 +1,23 @@
+{
+  "card_id": "zapling",
+  "species": "zapling",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 2,
+  "hp": 15,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Zapling",
+  "flavor": "The first out of the gate, always.",
+  "rarity": "common",
+  "archetype": "STORMCHAIN",
+  "art": "art/common/zapling.png",
+  "moves": []
+}

@@ -1,0 +1,23 @@
+{
+  "card_id": "sproutkin",
+  "species": "sproutkin",
+  "element": "NATURE",
+  "atk": 3,
+  "def": 5,
+  "hp": 24,
+  "spd": 3,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "HEAL",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Sproutkin",
+  "flavor": "Roots that drink the blow and grow on it.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/sproutkin.png",
+  "moves": []
+}

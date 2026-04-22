@@ -1,0 +1,23 @@
+{
+  "card_id": "coalwhelp",
+  "species": "coalwhelp",
+  "element": "FIRE",
+  "atk": 6,
+  "def": 3,
+  "hp": 21,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 3
+    }
+  ],
+  "name": "Coalwhelp",
+  "flavor": "Saves its hottest breath for the smallest target.",
+  "rarity": "common",
+  "archetype": "INFERNO",
+  "art": "art/common/coalwhelp.png",
+  "moves": []
+}

@@ -1,0 +1,23 @@
+{
+  "card_id": "thornling",
+  "species": "thornling",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 4,
+  "hp": 21,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Thornling",
+  "flavor": "The first lesson of hedgerows.",
+  "rarity": "common",
+  "archetype": "BULWARK",
+  "art": "art/common/thornling.png",
+  "moves": []
+}

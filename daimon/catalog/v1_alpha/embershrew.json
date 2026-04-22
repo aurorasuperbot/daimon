@@ -1,0 +1,23 @@
+{
+  "card_id": "embershrew",
+  "species": "embershrew",
+  "element": "FIRE",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Embershrew",
+  "flavor": "Bites once. Then twice as hard.",
+  "rarity": "common",
+  "archetype": "INFERNO",
+  "art": "art/common/embershrew.png",
+  "moves": []
+}

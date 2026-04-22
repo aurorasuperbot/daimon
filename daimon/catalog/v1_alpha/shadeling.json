@@ -1,0 +1,23 @@
+{
+  "card_id": "shadeling",
+  "species": "shadeling",
+  "element": "VOID",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_ALLY_DEATH",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Shadeling",
+  "flavor": "Each lost name is fed to the next swing.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/shadeling.png",
+  "moves": []
+}

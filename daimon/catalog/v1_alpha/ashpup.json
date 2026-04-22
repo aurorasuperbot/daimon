@@ -1,0 +1,23 @@
+{
+  "card_id": "ashpup",
+  "species": "ashpup",
+  "element": "FIRE",
+  "atk": 5,
+  "def": 2,
+  "hp": 18,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "APPLY_BURN",
+      "target": "RANDOM_ENEMY",
+      "value": 2
+    }
+  ],
+  "name": "Ashpup",
+  "flavor": "Marks the wounded with smouldering bites.",
+  "rarity": "common",
+  "archetype": "INFERNO",
+  "art": "art/common/ashpup.png",
+  "moves": []
+}

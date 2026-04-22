@@ -1,0 +1,23 @@
+{
+  "card_id": "soot_finch",
+  "species": "soot_finch",
+  "element": "FIRE",
+  "atk": 4,
+  "def": 2,
+  "hp": 18,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 2
+    }
+  ],
+  "name": "Soot Finch",
+  "flavor": "Sings the kettle into boiling.",
+  "rarity": "common",
+  "archetype": "INFERNO",
+  "art": "art/common/soot_finch.png",
+  "moves": []
+}

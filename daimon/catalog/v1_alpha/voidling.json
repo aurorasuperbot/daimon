@@ -1,0 +1,23 @@
+{
+  "card_id": "voidling",
+  "species": "voidling",
+  "element": "VOID",
+  "atk": 5,
+  "def": 3,
+  "hp": 18,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 2
+    }
+  ],
+  "name": "Voidling",
+  "flavor": "A removed life is a removed lesson.",
+  "rarity": "common",
+  "archetype": "REVENANT",
+  "art": "art/common/voidling.png",
+  "moves": []
+}
