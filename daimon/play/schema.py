@@ -44,12 +44,18 @@ class Side(str, Enum):
 
 
 class Element(str, Enum):
-    """Monster elemental types. Mirrors engine.types.Element names."""
+    """Monster elemental types. Mirrors engine.types.Element names.
+
+    NORMAL is outside the type-effectiveness ring — see
+    `daimon.engine.elements` for the affinity rules. Render layer treats it
+    as a neutral / utility tint (white in primitives, WHITE in HUD).
+    """
     FIRE = "fire"
     WATER = "water"
     NATURE = "nature"
     VOLT = "volt"
     VOID = "void"
+    NORMAL = "normal"
 
 
 class ActionKind(str, Enum):

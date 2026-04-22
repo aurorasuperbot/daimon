@@ -1,18 +1,28 @@
 """Element type-effectiveness table.
 
-V2 (2026-04-21): five elements in a closed rock-paper-scissors-plus-void loop.
+V2.1 (2026-04-22): six elements total. Five form a closed
+rock-paper-scissors-plus-void loop; NORMAL is outside the loop.
 
-Ring:  Fire → Nature → Water → Volt → Void → Fire (closes the loop)
+Ring (5 elements):  Fire → Nature → Water → Volt → Void → Fire
+
+NORMAL: deliberately outside the ring. Carries no offensive bonus and
+suffers no defensive penalty — every (NORMAL, X) and (X, NORMAL) pair
+resolves to 1.0×. NORMAL exists as the home for "splashable support"
+monsters that should slot into any archetype-aligned deck without
+distorting the affinity math.
 
 Rules:
   - Attacker element strong-against defender element: 1.5× DAMAGE
   - Attacker element weak-against defender element: 0.75× DAMAGE
   - Same element or unrelated pair: 1.0× DAMAGE
+  - NORMAL involved on either side: 1.0× DAMAGE (no exceptions)
   - Multiplier applies to post-DEF damage at the moment of hit.
   - Rounding: math.ceil — a 2-damage hit with 1.5× becomes 3, not 3.0.
 
 The effectiveness map is the single source of truth. One lookup per hit;
-cheap, deterministic, test-locked.
+cheap, deterministic, test-locked. Implementation note: because NORMAL is
+absent from `_STRONG_AGAINST` entirely, its 1.0× behavior falls out of
+`_EFFECTIVENESS.get(..., NEUTRAL_MULT)` for free — no special case needed.
 """
 
 from __future__ import annotations

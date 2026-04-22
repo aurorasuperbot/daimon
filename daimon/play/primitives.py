@@ -157,6 +157,7 @@ ELEMENT_COLOR = {
     Element.NATURE: "green",
     Element.VOLT: "yellow",
     Element.VOID: "magenta",
+    Element.NORMAL: "white",   # outside the type ring → neutral tint
 }
 
 

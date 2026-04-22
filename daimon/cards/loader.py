@@ -9,7 +9,7 @@ Card JSON schema (V2 — monster pivot):
   "card_id": "string",         # unique within pack
   "species": "string",         # family identifier; rarity tiers of same
                                #   creature share species (e.g. "embercub")
-  "element": "FIRE|WATER|NATURE|VOLT|VOID",
+  "element": "FIRE|WATER|NATURE|VOLT|VOID|NORMAL",
   "atk": int >= 0,
   "def": int >= 0,
   "hp":  int >= 0,

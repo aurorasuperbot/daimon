@@ -510,4 +510,66 @@ The full Phase-4 arc (a/b/c/d) ships:
 
 ---
 
-*End of Phase 4. Phase 5 (balance via simulation) begins next.*
+---
+
+## §18 — Phase 4e changelog (engine slice): NORMAL element
+
+**Locked 2026-04-22**, after Santiago design-direction:
+> *"we need one monster type to be normal, that is usually used in other monsters elemental decks, normal should have no elemental bonus or weakness against anyone in the affinity charts, and are mostly support monsters"*
+
+### Decision
+
+A **6th element** named `NORMAL` joins `Element` enum, deliberately **outside** the type-effectiveness ring. It exists as the home for splashable utility/support monsters that should slot into any archetype-aligned deck without distorting the affinity math.
+
+### Affinity contract
+
+| Pair shape | Multiplier |
+|---|---|
+| Any of FIRE/WATER/NATURE/VOLT/VOID vs ring-counter | 1.5× / 0.75× (unchanged) |
+| Same ring element vs same | 1.0× (unchanged) |
+| **NORMAL → anything (including NORMAL)** | **1.0×** |
+| **anything → NORMAL** | **1.0×** |
+
+Implementation note: NORMAL is absent from `_STRONG_AGAINST` entirely. The 1.0× behavior falls out of `_EFFECTIVENESS.get(..., NEUTRAL_MULT)` for free — no special case needed in the engine.
+
+### Architectural framing
+
+NORMAL is an **element**, not an archetype. The 6 strategic archetypes are unchanged:
+
+```
+INFERNO (FIRE) · BULWARK (NATURE) · TIDAL (WATER)
+STORMCHAIN (VOLT) · REVENANT (VOID) · FLUX (hybrid)
+```
+
+NORMAL cards carry **`archetype: null`** in the catalog — they are intentionally archetype-less, designed to be picked up by any of the 6 strategic decks. They are NOT eligible for FLUX gates that count distinct elements (the implementation lets `team.distinct_elements` count NORMAL the same as any other element, but design intent is that NORMAL is "background colour" — gates should be authored on the assumption that NORMAL is filler).
+
+NORMAL gets **no legendary** in V1. The "one legendary per archetype" rule (§3) only covers strategic archetypes; NORMAL's cap is epic.
+
+### Engine + render changes shipped
+
+| File | Change |
+|---|---|
+| `daimon/engine/types.py` | `Element.NORMAL = 6` added; docstring updated to "6 elements (5 ring + 1 outside)" |
+| `daimon/engine/elements.py` | Docstring updated; matchup logic auto-handles NORMAL via `.get(..., NEUTRAL_MULT)` default |
+| `daimon/play/schema.py` | `Element.NORMAL = "normal"` added to schema enum |
+| `daimon/play/primitives.py` | `Element.NORMAL: "white"` in `ELEMENT_COLOR` (neutral tint) |
+| `daimon/play/hud/render.py` | `"normal": WHITE` in HUD ANSI table |
+| `daimon/play/card_tile.py` | NORMAL added to `_PLAY_TO_ENGINE_ELEMENT` mapping |
+| `daimon/cards/loader.py` | Schema docstring updated to `FIRE\|WATER\|NATURE\|VOLT\|VOID\|NORMAL` |
+
+### Test coverage shipped
+
+`tests/test_elements.py` (was 11 tests, now 16):
+- Old `test_every_element_has_exactly_one_strong_and_one_weak` rewritten as `test_every_ring_element_has_exactly_one_strong_and_one_weak` (iterates the 5 ring elements explicitly via new `RING_ELEMENTS` constant)
+- `test_ring_closes` updated to assert NORMAL never appears in the ring walk
+- New `test_normal_has_no_strong_or_weak_relationships` — locks NORMAL out of the affinity table
+- New `test_normal_attacker_is_always_neutral` — NORMAL → every defender (incl. NORMAL) = 1.0×
+- New `test_normal_defender_is_always_neutral` — every attacker → NORMAL = 1.0×
+
+### What's still pending in Phase 4e
+
+This commit is the **engine slice only**. The pool slice (authoring 15 NORMAL cards + retiring 15 elemental cards to keep 200 total) and the counter-card slice (re-flavoring 5-6 rares as designated archetype counters) ship in the next commits.
+
+---
+
+*End of Phase 4 (a/b/c/d). Phase 4e (NORMAL element + counters) and Phase 4f (legendary promotion) come next, then Phase 5 (balance via simulation).*

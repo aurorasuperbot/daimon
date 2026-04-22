@@ -3,9 +3,16 @@
 The element ring is:
   FIRE → NATURE → WATER → VOLT → VOID → FIRE (closed 5-loop)
 
+NORMAL (added in Phase 4e, 2026-04-22) is deliberately OUTSIDE the ring —
+it never gives a bonus, never receives one, always 1.0×. NORMAL exists for
+splashable utility/support monsters; the affinity tests in this file
+explicitly assert that asymmetry so a future ring-rewiring can't sneak
+NORMAL into the loop without breaking gates.
+
 STRONG (1.5×):  (a, b) where a beats b in the ring.
 WEAK   (0.75×): (b, a) inverse of strong.
-NEUTRAL (1.0×): everything else (same element, or unrelated pairs).
+NEUTRAL (1.0×): everything else (same element, unrelated pairs, OR any
+                pair involving NORMAL).
 
 These tests are the single source of truth for the type chart.
 """
@@ -77,20 +84,64 @@ def test_unrelated_pair_neutral():
     assert element_multiplier(Element.WATER, Element.FIRE) == NEUTRAL_MULT
 
 
-def test_every_element_has_exactly_one_strong_and_one_weak():
-    for e in Element:
-        assert len(strong_against(e)) == 1
-        assert len(weak_against(e)) == 1
+RING_ELEMENTS = (
+    Element.FIRE,
+    Element.NATURE,
+    Element.WATER,
+    Element.VOLT,
+    Element.VOID,
+)
+
+
+def test_every_ring_element_has_exactly_one_strong_and_one_weak():
+    """The 5 ring elements each have exactly one strong and one weak target.
+    NORMAL is outside the ring and is asserted separately below."""
+    for e in RING_ELEMENTS:
+        assert len(strong_against(e)) == 1, f"{e.name} should have 1 strong target"
+        assert len(weak_against(e)) == 1, f"{e.name} should have 1 weak target"
+
+
+def test_normal_has_no_strong_or_weak_relationships():
+    """NORMAL is deliberately outside the type ring. It must never appear in
+    any matchup as strong-or-weak — asserts the ring stays a 5-loop and
+    NORMAL stays a true neutral."""
+    assert strong_against(Element.NORMAL) == ()
+    assert weak_against(Element.NORMAL) == ()
 
 
 def test_ring_closes():
-    """Walking the strong-against arrows should cycle through all 5 elements."""
+    """Walking the strong-against arrows from FIRE cycles back to FIRE through
+    the 5 ring elements (NORMAL is intentionally not visited)."""
     visited = [Element.FIRE]
     for _ in range(5):
         nxt = strong_against(visited[-1])[0]
         visited.append(nxt)
     assert visited[-1] == visited[0], f"ring did not close: {visited}"
-    assert set(visited[:-1]) == set(Element)
+    assert set(visited[:-1]) == set(RING_ELEMENTS)
+    assert Element.NORMAL not in set(visited), (
+        "NORMAL must never appear in the type ring — see "
+        "daimon/engine/elements.py for the affinity contract."
+    )
+
+
+# -- NORMAL element neutrality (Phase 4e, 2026-04-22) ------------------------
+
+def test_normal_attacker_is_always_neutral():
+    """NORMAL on offense: every defender, including NORMAL itself, gets 1.0×."""
+    for defender in Element:
+        assert element_multiplier(Element.NORMAL, defender) == NEUTRAL_MULT, (
+            f"NORMAL→{defender.name} should be neutral; got "
+            f"{element_multiplier(Element.NORMAL, defender)}"
+        )
+
+
+def test_normal_defender_is_always_neutral():
+    """NORMAL on defense: no attacker gets a damage bonus or penalty."""
+    for attacker in Element:
+        assert element_multiplier(attacker, Element.NORMAL) == NEUTRAL_MULT, (
+            f"{attacker.name}→NORMAL should be neutral; got "
+            f"{element_multiplier(attacker, Element.NORMAL)}"
+        )
 
 
 # -- Combat-level application ------------------------------------------------

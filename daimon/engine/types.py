@@ -26,7 +26,12 @@ TEAM_SIZE = 6
 
 
 # ---------------------------------------------------------------------------
-# Elements: for type-effectiveness. 5-element rock-paper-scissors loop.
+# Elements: for type-effectiveness. Six total — five form a closed
+# rock-paper-scissors-plus-void ring (FIRE→NATURE→WATER→VOLT→VOID→FIRE),
+# and NORMAL stands deliberately OUTSIDE that ring: it never gives a bonus,
+# never receives a bonus, and always resolves to 1.0× damage. NORMAL is the
+# "splashable support" element — the home of utility monsters that slot into
+# any archetype-aligned deck without skewing the matchup math.
 # ---------------------------------------------------------------------------
 
 class Element(IntEnum):
@@ -35,6 +40,7 @@ class Element(IntEnum):
     NATURE = 3
     VOLT = 4
     VOID = 5
+    NORMAL = 6   # outside the type ring; always neutral (1.0×) vs everything
 
 
 # ---------------------------------------------------------------------------

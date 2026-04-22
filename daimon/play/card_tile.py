@@ -100,6 +100,7 @@ _PLAY_TO_ENGINE_ELEMENT: dict[PlayElement, EngineElement] = {
     PlayElement.NATURE: EngineElement.NATURE,
     PlayElement.VOLT:   EngineElement.VOLT,
     PlayElement.VOID:   EngineElement.VOID,
+    PlayElement.NORMAL: EngineElement.NORMAL,
 }
 
 

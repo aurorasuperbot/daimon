@@ -68,12 +68,15 @@ WHITE = "\x1b[37m"
 GRAY = "\x1b[90m"
 
 # Element → color. Mapped to readable ANSI 4-bit so it works on any terminal.
+# NORMAL is outside the type ring — rendered as plain WHITE to read as
+# "neutral / utility" against the colored elemental tints.
 ELEMENT_COLOR = {
     "fire":   RED,
     "water":  BLUE,
     "nature": GREEN,
     "volt":   YELLOW,
     "void":   MAGENTA,
+    "normal": WHITE,
 }
 
 # Symbolic primitive-emission color → ANSI escape. Primitives speak in
