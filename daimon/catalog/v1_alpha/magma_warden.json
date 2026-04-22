@@ -1,0 +1,23 @@
+{
+  "card_id": "magma_warden",
+  "species": "magmaling",
+  "element": "FIRE",
+  "atk": 7,
+  "def": 4,
+  "hp": 21,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 3
+    }
+  ],
+  "name": "Magma Warden",
+  "flavor": "Each fallen enemy lights the next one up.",
+  "rarity": "uncommon",
+  "archetype": "INFERNO",
+  "art": "art/uncommon/magma_warden.png",
+  "moves": []
+}

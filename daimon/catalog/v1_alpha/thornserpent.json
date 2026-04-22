@@ -1,0 +1,23 @@
+{
+  "card_id": "thornserpent",
+  "species": "thornling",
+  "element": "NATURE",
+  "atk": 5,
+  "def": 5,
+  "hp": 27,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 3
+    }
+  ],
+  "name": "Thornserpent",
+  "flavor": "Coils through the hedge; the hedge bites back twice.",
+  "rarity": "uncommon",
+  "archetype": "BULWARK",
+  "art": "art/uncommon/thornserpent.png",
+  "moves": []
+}

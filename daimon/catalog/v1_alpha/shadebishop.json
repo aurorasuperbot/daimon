@@ -1,0 +1,23 @@
+{
+  "card_id": "shadebishop",
+  "species": "shadeling",
+  "element": "VOID",
+  "atk": 6,
+  "def": 4,
+  "hp": 21,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_ALLY_DEATH",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Shadebishop",
+  "flavor": "Reads the obituary; sharpens accordingly.",
+  "rarity": "uncommon",
+  "archetype": "REVENANT",
+  "art": "art/uncommon/shadebishop.png",
+  "moves": []
+}

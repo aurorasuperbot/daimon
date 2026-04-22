@@ -1,0 +1,23 @@
+{
+  "card_id": "spark_serpent",
+  "species": "spark_serpent",
+  "element": "VOLT",
+  "atk": 6,
+  "def": 3,
+  "hp": 21,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Spark Serpent",
+  "flavor": "Each strike sharpens the line of the next.",
+  "rarity": "uncommon",
+  "archetype": "STORMCHAIN",
+  "art": "art/uncommon/spark_serpent.png",
+  "moves": []
+}

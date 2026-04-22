@@ -1,0 +1,23 @@
+{
+  "card_id": "flarelord",
+  "species": "flarelord",
+  "element": "FIRE",
+  "atk": 7,
+  "def": 4,
+  "hp": 21,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 4
+    }
+  ],
+  "name": "Flarelord",
+  "flavor": "Walks in like a daybreak. Leaves like a noon.",
+  "rarity": "uncommon",
+  "archetype": "INFERNO",
+  "art": "art/uncommon/flarelord.png",
+  "moves": []
+}

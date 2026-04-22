@@ -1,0 +1,24 @@
+{
+  "card_id": "tide_chanter",
+  "species": "tide_chanter",
+  "element": "WATER",
+  "atk": 4,
+  "def": 5,
+  "hp": 27,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_ROUND_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "round >= 2"
+    }
+  ],
+  "name": "Tide Chanter",
+  "flavor": "Patient with the pain; insistent with the song.",
+  "rarity": "uncommon",
+  "archetype": "TIDAL",
+  "art": "art/uncommon/tide_chanter.png",
+  "moves": []
+}

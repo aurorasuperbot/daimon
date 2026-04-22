@@ -1,0 +1,23 @@
+{
+  "card_id": "abyssbreaker",
+  "species": "abyssbreaker",
+  "element": "WATER",
+  "atk": 6,
+  "def": 4,
+  "hp": 24,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Abyssbreaker",
+  "flavor": "Ends the depth; gives back the breath.",
+  "rarity": "uncommon",
+  "archetype": "TIDAL",
+  "art": "art/uncommon/abyssbreaker.png",
+  "moves": []
+}

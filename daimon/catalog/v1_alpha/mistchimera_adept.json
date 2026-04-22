@@ -1,0 +1,24 @@
+{
+  "card_id": "mistchimera_adept",
+  "species": "mistchimera",
+  "element": "WATER",
+  "atk": 5,
+  "def": 5,
+  "hp": 24,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Mist Chimera Adept",
+  "flavor": "Three throats; one chorus; richer harmony in mixed company.",
+  "rarity": "uncommon",
+  "archetype": "FLUX",
+  "art": "art/uncommon/mistchimera_adept.png",
+  "moves": []
+}

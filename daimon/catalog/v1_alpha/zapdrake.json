@@ -1,0 +1,23 @@
+{
+  "card_id": "zapdrake",
+  "species": "zapling",
+  "element": "VOLT",
+  "atk": 6,
+  "def": 3,
+  "hp": 21,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 4
+    }
+  ],
+  "name": "Zapdrake",
+  "flavor": "Out of the gate before the gate is finished opening.",
+  "rarity": "uncommon",
+  "archetype": "STORMCHAIN",
+  "art": "art/uncommon/zapdrake.png",
+  "moves": []
+}

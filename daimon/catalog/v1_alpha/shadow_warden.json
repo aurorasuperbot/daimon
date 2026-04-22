@@ -1,0 +1,23 @@
+{
+  "card_id": "shadow_warden",
+  "species": "shadow_warden",
+  "element": "VOID",
+  "atk": 6,
+  "def": 4,
+  "hp": 21,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_DEATH",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 4
+    }
+  ],
+  "name": "Shadow Warden",
+  "flavor": "Falls — and the enemy menace goes with it.",
+  "rarity": "uncommon",
+  "archetype": "REVENANT",
+  "art": "art/uncommon/shadow_warden.png",
+  "moves": []
+}

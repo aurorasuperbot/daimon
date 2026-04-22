@@ -1,0 +1,23 @@
+{
+  "card_id": "galelord",
+  "species": "galelord",
+  "element": "VOLT",
+  "atk": 5,
+  "def": 3,
+  "hp": 21,
+  "spd": 9,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Galelord",
+  "flavor": "The team flies a half-second nearer the front for it.",
+  "rarity": "uncommon",
+  "archetype": "STORMCHAIN",
+  "art": "art/uncommon/galelord.png",
+  "moves": []
+}

@@ -1,0 +1,23 @@
+{
+  "card_id": "shellguard",
+  "species": "shellfin",
+  "element": "WATER",
+  "atk": 4,
+  "def": 6,
+  "hp": 24,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "ADD_SHIELD",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Shellguard",
+  "flavor": "Owes another plate to the next blow that asks.",
+  "rarity": "uncommon",
+  "archetype": "TIDAL",
+  "art": "art/uncommon/shellguard.png",
+  "moves": []
+}

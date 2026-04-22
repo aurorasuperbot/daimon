@@ -1,0 +1,23 @@
+{
+  "card_id": "boltrunner",
+  "species": "boltkit",
+  "element": "VOLT",
+  "atk": 6,
+  "def": 3,
+  "hp": 21,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Boltrunner",
+  "flavor": "Runs faster after every name it crosses out.",
+  "rarity": "uncommon",
+  "archetype": "STORMCHAIN",
+  "art": "art/uncommon/boltrunner.png",
+  "moves": []
+}

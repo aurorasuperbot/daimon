@@ -1,0 +1,23 @@
+{
+  "card_id": "root_warden",
+  "species": "root_warden",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 6,
+  "hp": 27,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "APPLY_TAUNT",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Root Warden",
+  "flavor": "Stays where the team needs the line drawn.",
+  "rarity": "uncommon",
+  "archetype": "BULWARK",
+  "art": "art/uncommon/root_warden.png",
+  "moves": []
+}

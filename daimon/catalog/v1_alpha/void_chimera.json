@@ -1,0 +1,24 @@
+{
+  "card_id": "void_chimera",
+  "species": "void_chimerlet",
+  "element": "VOID",
+  "atk": 6,
+  "def": 4,
+  "hp": 21,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Void Chimera",
+  "flavor": "Two grins, sharper for variety in their company.",
+  "rarity": "uncommon",
+  "archetype": "FLUX",
+  "art": "art/uncommon/void_chimera.png",
+  "moves": []
+}

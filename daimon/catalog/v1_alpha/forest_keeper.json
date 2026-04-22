@@ -1,0 +1,23 @@
+{
+  "card_id": "forest_keeper",
+  "species": "forest_keeper",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 6,
+  "hp": 27,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_TURN_END",
+      "op": "HEAL",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Forest Keeper",
+  "flavor": "Tends the wound the way it tends a sapling.",
+  "rarity": "uncommon",
+  "archetype": "BULWARK",
+  "art": "art/uncommon/forest_keeper.png",
+  "moves": []
+}

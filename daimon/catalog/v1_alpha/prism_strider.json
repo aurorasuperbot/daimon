@@ -1,0 +1,24 @@
+{
+  "card_id": "prism_strider",
+  "species": "prismbolt",
+  "element": "VOLT",
+  "atk": 6,
+  "def": 3,
+  "hp": 21,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Prism Strider",
+  "flavor": "Knows the team by its colors; runs proportionally.",
+  "rarity": "uncommon",
+  "archetype": "FLUX",
+  "art": "art/uncommon/prism_strider.png",
+  "moves": []
+}

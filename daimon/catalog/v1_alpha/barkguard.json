@@ -1,0 +1,23 @@
+{
+  "card_id": "barkguard",
+  "species": "barkpup",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 7,
+  "hp": 24,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_DEF",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Barkguard",
+  "flavor": "Hardens before the first axe is even named.",
+  "rarity": "uncommon",
+  "archetype": "BULWARK",
+  "art": "art/uncommon/barkguard.png",
+  "moves": []
+}

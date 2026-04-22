@@ -1,0 +1,24 @@
+{
+  "card_id": "prism_grove",
+  "species": "prism_seedling",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 5,
+  "hp": 30,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Prism Grove",
+  "flavor": "Blooms in whatever colors its companions are wearing.",
+  "rarity": "uncommon",
+  "archetype": "FLUX",
+  "art": "art/uncommon/prism_grove.png",
+  "moves": []
+}

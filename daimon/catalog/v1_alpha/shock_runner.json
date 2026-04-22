@@ -1,0 +1,23 @@
+{
+  "card_id": "shock_runner",
+  "species": "shock_runner",
+  "element": "VOLT",
+  "atk": 6,
+  "def": 3,
+  "hp": 21,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_KILL",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Shock Runner",
+  "flavor": "Each kill is a tailwind for everyone behind.",
+  "rarity": "uncommon",
+  "archetype": "STORMCHAIN",
+  "art": "art/uncommon/shock_runner.png",
+  "moves": []
+}

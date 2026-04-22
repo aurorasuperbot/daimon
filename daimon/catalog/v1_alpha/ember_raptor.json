@@ -1,0 +1,23 @@
+{
+  "card_id": "ember_raptor",
+  "species": "emberhawk",
+  "element": "FIRE",
+  "atk": 7,
+  "def": 3,
+  "hp": 21,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 3
+    }
+  ],
+  "name": "Ember Raptor",
+  "flavor": "Dives once at the start; the rest is bookkeeping.",
+  "rarity": "uncommon",
+  "archetype": "INFERNO",
+  "art": "art/uncommon/ember_raptor.png",
+  "moves": []
+}

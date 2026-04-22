@@ -1,0 +1,24 @@
+{
+  "card_id": "flame_chimera_adept",
+  "species": "flame_chimerlet",
+  "element": "FIRE",
+  "atk": 6,
+  "def": 4,
+  "hp": 21,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Flame Chimera Adept",
+  "flavor": "Has learned what its small selves only sang about.",
+  "rarity": "uncommon",
+  "archetype": "FLUX",
+  "art": "art/uncommon/flame_chimera_adept.png",
+  "moves": []
+}

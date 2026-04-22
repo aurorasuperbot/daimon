@@ -1,0 +1,23 @@
+{
+  "card_id": "dread_warden",
+  "species": "dread_warden",
+  "element": "VOID",
+  "atk": 6,
+  "def": 4,
+  "hp": 21,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 3
+    }
+  ],
+  "name": "Dread Warden",
+  "flavor": "Its first whisper takes a finger of strength from each.",
+  "rarity": "uncommon",
+  "archetype": "REVENANT",
+  "art": "art/uncommon/dread_warden.png",
+  "moves": []
+}

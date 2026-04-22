@@ -1,0 +1,24 @@
+{
+  "card_id": "verdant_chimera",
+  "species": "verdant_chimerlet",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 6,
+  "hp": 27,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_DEF",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Verdant Chimera",
+  "flavor": "Three saplings agree on the weather; the team thickens.",
+  "rarity": "uncommon",
+  "archetype": "FLUX",
+  "art": "art/uncommon/verdant_chimera.png",
+  "moves": []
+}

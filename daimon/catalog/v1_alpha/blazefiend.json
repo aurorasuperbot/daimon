@@ -1,0 +1,23 @@
+{
+  "card_id": "blazefiend",
+  "species": "blazefiend",
+  "element": "FIRE",
+  "atk": 6,
+  "def": 4,
+  "hp": 21,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "APPLY_BURN",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 3
+    }
+  ],
+  "name": "Blazefiend",
+  "flavor": "Picks the limp; sets the limp on fire.",
+  "rarity": "uncommon",
+  "archetype": "INFERNO",
+  "art": "art/uncommon/blazefiend.png",
+  "moves": []
+}

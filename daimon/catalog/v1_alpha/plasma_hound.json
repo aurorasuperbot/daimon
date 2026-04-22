@@ -1,0 +1,23 @@
+{
+  "card_id": "plasma_hound",
+  "species": "plasma_hound",
+  "element": "VOLT",
+  "atk": 7,
+  "def": 3,
+  "hp": 18,
+  "spd": 8,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "RANDOM_ENEMY",
+      "value": 4
+    }
+  ],
+  "name": "Plasma Hound",
+  "flavor": "Burns the first scent of the battlefield off something.",
+  "rarity": "uncommon",
+  "archetype": "STORMCHAIN",
+  "art": "art/uncommon/plasma_hound.png",
+  "moves": []
+}

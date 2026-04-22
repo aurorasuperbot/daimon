@@ -1,0 +1,23 @@
+{
+  "card_id": "dirge_lich",
+  "species": "dirge_lich",
+  "element": "VOID",
+  "atk": 6,
+  "def": 4,
+  "hp": 21,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_ALLY_DEATH",
+      "op": "DEBUFF_DEF",
+      "target": "ALL_ENEMIES",
+      "value": 3
+    }
+  ],
+  "name": "Dirge Lich",
+  "flavor": "Sings; the enemy plates thin to listen.",
+  "rarity": "uncommon",
+  "archetype": "REVENANT",
+  "art": "art/uncommon/dirge_lich.png",
+  "moves": []
+}

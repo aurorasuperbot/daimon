@@ -1,0 +1,23 @@
+{
+  "card_id": "bramble_warden",
+  "species": "bramble_warden",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 6,
+  "hp": 27,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_DEF",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Bramble Warden",
+  "flavor": "Sets the briar before the song of the first arrow.",
+  "rarity": "uncommon",
+  "archetype": "BULWARK",
+  "art": "art/uncommon/bramble_warden.png",
+  "moves": []
+}

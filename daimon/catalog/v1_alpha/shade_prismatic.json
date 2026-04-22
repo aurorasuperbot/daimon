@@ -1,0 +1,24 @@
+{
+  "card_id": "shade_prismatic",
+  "species": "shadeprism",
+  "element": "VOID",
+  "atk": 5,
+  "def": 4,
+  "hp": 24,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Shade Prismatic",
+  "flavor": "Refracts what the team doesn't need into the eyes that face it.",
+  "rarity": "uncommon",
+  "archetype": "FLUX",
+  "art": "art/uncommon/shade_prismatic.png",
+  "moves": []
+}

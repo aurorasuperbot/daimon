@@ -1,0 +1,23 @@
+{
+  "card_id": "tidewatcher",
+  "species": "tidefry",
+  "element": "WATER",
+  "atk": 4,
+  "def": 5,
+  "hp": 27,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 3
+    }
+  ],
+  "name": "Tidewatcher",
+  "flavor": "Counts the team in by the sound of the surf.",
+  "rarity": "uncommon",
+  "archetype": "TIDAL",
+  "art": "art/uncommon/tidewatcher.png",
+  "moves": []
+}

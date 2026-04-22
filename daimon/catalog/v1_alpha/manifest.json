@@ -1,8 +1,8 @@
 {
   "pack_id": "v1_alpha",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "schema_version": 2,
-  "description": "DAIMON V1 alpha bundled creature pool. 155 monsters across 5 elements and 6 archetypes. Phase 4b authored 75 new commons (15 per element; 13 archetype-pure + 2 FLUX each). Current: 98C/15U/28R/12E/2L. Phase 4c authors uncommons to reach the 200-card V1 target (98C/60U/28R/12E/2L).",
+  "description": "DAIMON V1 alpha bundled creature pool. 200 monsters across 5 elements and 6 archetypes — V1 200-card target reached. Phase 4c authored 45 new uncommons (9 per element; 7 archetype-pure + 2 FLUX each). Distribution: 98C/60U/28R/12E/2L. Phase 5 (sim balance) follows.",
   "rarity_weights": {
     "common": 60,
     "uncommon": 25,
@@ -940,6 +940,276 @@
       "rarity": "common",
       "element": "VOID",
       "file": "shadeprism.json"
+    },
+    {
+      "card_id": "ash_strider",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "ash_strider.json"
+    },
+    {
+      "card_id": "magma_warden",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "magma_warden.json"
+    },
+    {
+      "card_id": "coalbreaker",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "coalbreaker.json"
+    },
+    {
+      "card_id": "ember_raptor",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "ember_raptor.json"
+    },
+    {
+      "card_id": "blazefiend",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "blazefiend.json"
+    },
+    {
+      "card_id": "cinder_lancer",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "cinder_lancer.json"
+    },
+    {
+      "card_id": "flarelord",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "flarelord.json"
+    },
+    {
+      "card_id": "flame_chimera_adept",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "flame_chimera_adept.json"
+    },
+    {
+      "card_id": "sunscale_serpent",
+      "rarity": "uncommon",
+      "element": "FIRE",
+      "file": "sunscale_serpent.json"
+    },
+    {
+      "card_id": "brineprince",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "brineprince.json"
+    },
+    {
+      "card_id": "tidewatcher",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "tidewatcher.json"
+    },
+    {
+      "card_id": "shellguard",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "shellguard.json"
+    },
+    {
+      "card_id": "sea_warden",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "sea_warden.json"
+    },
+    {
+      "card_id": "tide_chanter",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "tide_chanter.json"
+    },
+    {
+      "card_id": "coral_priest",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "coral_priest.json"
+    },
+    {
+      "card_id": "abyssbreaker",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "abyssbreaker.json"
+    },
+    {
+      "card_id": "mistchimera_adept",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "mistchimera_adept.json"
+    },
+    {
+      "card_id": "tide_synth",
+      "rarity": "uncommon",
+      "element": "WATER",
+      "file": "tide_synth.json"
+    },
+    {
+      "card_id": "mossbear",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "mossbear.json"
+    },
+    {
+      "card_id": "barkguard",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "barkguard.json"
+    },
+    {
+      "card_id": "thornserpent",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "thornserpent.json"
+    },
+    {
+      "card_id": "bramble_warden",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "bramble_warden.json"
+    },
+    {
+      "card_id": "stone_titan",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "stone_titan.json"
+    },
+    {
+      "card_id": "forest_keeper",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "forest_keeper.json"
+    },
+    {
+      "card_id": "root_warden",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "root_warden.json"
+    },
+    {
+      "card_id": "verdant_chimera",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "verdant_chimera.json"
+    },
+    {
+      "card_id": "prism_grove",
+      "rarity": "uncommon",
+      "element": "NATURE",
+      "file": "prism_grove.json"
+    },
+    {
+      "card_id": "zapdrake",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "zapdrake.json"
+    },
+    {
+      "card_id": "boltrunner",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "boltrunner.json"
+    },
+    {
+      "card_id": "arc_lancer",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "arc_lancer.json"
+    },
+    {
+      "card_id": "plasma_hound",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "plasma_hound.json"
+    },
+    {
+      "card_id": "galelord",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "galelord.json"
+    },
+    {
+      "card_id": "shock_runner",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "shock_runner.json"
+    },
+    {
+      "card_id": "spark_serpent",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "spark_serpent.json"
+    },
+    {
+      "card_id": "prism_strider",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "prism_strider.json"
+    },
+    {
+      "card_id": "spectral_charge",
+      "rarity": "uncommon",
+      "element": "VOLT",
+      "file": "spectral_charge.json"
+    },
+    {
+      "card_id": "shadebishop",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "shadebishop.json"
+    },
+    {
+      "card_id": "wraith_prince",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "wraith_prince.json"
+    },
+    {
+      "card_id": "dread_warden",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "dread_warden.json"
+    },
+    {
+      "card_id": "crypt_seer",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "crypt_seer.json"
+    },
+    {
+      "card_id": "ghoul_imp",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "ghoul_imp.json"
+    },
+    {
+      "card_id": "shadow_warden",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "shadow_warden.json"
+    },
+    {
+      "card_id": "dirge_lich",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "dirge_lich.json"
+    },
+    {
+      "card_id": "void_chimera",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "void_chimera.json"
+    },
+    {
+      "card_id": "shade_prismatic",
+      "rarity": "uncommon",
+      "element": "VOID",
+      "file": "shade_prismatic.json"
     }
   ]
 }

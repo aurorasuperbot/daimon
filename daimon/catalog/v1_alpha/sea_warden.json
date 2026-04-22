@@ -1,0 +1,23 @@
+{
+  "card_id": "sea_warden",
+  "species": "sea_warden",
+  "element": "WATER",
+  "atk": 5,
+  "def": 5,
+  "hp": 24,
+  "spd": 6,
+  "triggers": [
+    {
+      "when": "ON_ATTACK",
+      "op": "LIFESTEAL",
+      "target": "HIGHEST_HP_ENEMY",
+      "value": 4
+    }
+  ],
+  "name": "Sea Warden",
+  "flavor": "Lives off the largest of the day's mistakes.",
+  "rarity": "uncommon",
+  "archetype": "TIDAL",
+  "art": "art/uncommon/sea_warden.png",
+  "moves": []
+}

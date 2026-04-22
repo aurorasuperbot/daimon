@@ -1,0 +1,24 @@
+{
+  "card_id": "sunscale_serpent",
+  "species": "sunscale_drake",
+  "element": "FIRE",
+  "atk": 6,
+  "def": 4,
+  "hp": 24,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Sunscale Serpent",
+  "flavor": "Coils warmth into the team it travels with.",
+  "rarity": "uncommon",
+  "archetype": "FLUX",
+  "art": "art/uncommon/sunscale_serpent.png",
+  "moves": []
+}

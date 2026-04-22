@@ -1,0 +1,23 @@
+{
+  "card_id": "wraith_prince",
+  "species": "wraithling",
+  "element": "VOID",
+  "atk": 6,
+  "def": 4,
+  "hp": 21,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_DEATH",
+      "op": "DAMAGE",
+      "target": "ALL_ENEMIES",
+      "value": 3
+    }
+  ],
+  "name": "Wraith Prince",
+  "flavor": "A larger death; a wider splash.",
+  "rarity": "uncommon",
+  "archetype": "REVENANT",
+  "art": "art/uncommon/wraith_prince.png",
+  "moves": []
+}

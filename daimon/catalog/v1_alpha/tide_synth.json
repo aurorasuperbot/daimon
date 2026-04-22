@@ -1,0 +1,24 @@
+{
+  "card_id": "tide_synth",
+  "species": "tidemerger",
+  "element": "WATER",
+  "atk": 6,
+  "def": 4,
+  "hp": 24,
+  "spd": 5,
+  "triggers": [
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_ATK",
+      "target": "SELF",
+      "value": 3,
+      "condition": "team.distinct_elements >= 2"
+    }
+  ],
+  "name": "Tide Synth",
+  "flavor": "Tunes its appetite to the keys around it.",
+  "rarity": "uncommon",
+  "archetype": "FLUX",
+  "art": "art/uncommon/tide_synth.png",
+  "moves": []
+}

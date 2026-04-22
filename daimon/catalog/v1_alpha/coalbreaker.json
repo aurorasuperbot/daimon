@@ -1,0 +1,23 @@
+{
+  "card_id": "coalbreaker",
+  "species": "coalwhelp",
+  "element": "FIRE",
+  "atk": 7,
+  "def": 3,
+  "hp": 21,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 4
+    }
+  ],
+  "name": "Coalbreaker",
+  "flavor": "The first hit is always the one it remembers.",
+  "rarity": "uncommon",
+  "archetype": "INFERNO",
+  "art": "art/uncommon/coalbreaker.png",
+  "moves": []
+}

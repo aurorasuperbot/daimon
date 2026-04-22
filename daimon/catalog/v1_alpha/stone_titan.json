@@ -1,0 +1,23 @@
+{
+  "card_id": "stone_titan",
+  "species": "stone_titan",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 6,
+  "hp": 27,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "BUFF_DEF",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Stone Titan",
+  "flavor": "Each blow leaves another mineral coat.",
+  "rarity": "uncommon",
+  "archetype": "BULWARK",
+  "art": "art/uncommon/stone_titan.png",
+  "moves": []
+}

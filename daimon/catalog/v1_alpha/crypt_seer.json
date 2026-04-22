@@ -1,0 +1,23 @@
+{
+  "card_id": "crypt_seer",
+  "species": "crypt_seer",
+  "element": "VOID",
+  "atk": 5,
+  "def": 4,
+  "hp": 24,
+  "spd": 7,
+  "triggers": [
+    {
+      "when": "ON_ALLY_DEATH",
+      "op": "DEBUFF_ATK",
+      "target": "ALL_ENEMIES",
+      "value": 3
+    }
+  ],
+  "name": "Crypt Seer",
+  "flavor": "Reads the team's losses to the enemy's grip.",
+  "rarity": "uncommon",
+  "archetype": "REVENANT",
+  "art": "art/uncommon/crypt_seer.png",
+  "moves": []
+}

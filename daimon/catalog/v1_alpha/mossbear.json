@@ -1,0 +1,23 @@
+{
+  "card_id": "mossbear",
+  "species": "mossling",
+  "element": "NATURE",
+  "atk": 4,
+  "def": 7,
+  "hp": 27,
+  "spd": 4,
+  "triggers": [
+    {
+      "when": "ON_TAKE_DAMAGE",
+      "op": "ADD_SHIELD",
+      "target": "SELF",
+      "value": 3
+    }
+  ],
+  "name": "Mossbear",
+  "flavor": "The forest lends bark to whatever is its bear today.",
+  "rarity": "uncommon",
+  "archetype": "BULWARK",
+  "art": "art/uncommon/mossbear.png",
+  "moves": []
+}
