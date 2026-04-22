@@ -219,12 +219,34 @@ class HudApp:
             return
         if state.id == self._last_state_id:
             return
-        # New state arrived; if it's a match, swap; else ignore for now (other
-        # views aren't part of HUD V1 — they belong to the still-frame
-        # GameTerminal renderer).
+        # New state arrived. Dispatch by view:
+        #   match  → load into playback (full animation)
+        #   pull   → log to recent-activity (V1 reveal-overlay is a TODO;
+        #            see docs/animation_design.md). At minimum the user must
+        #            see SOMETHING when the agent calls dm_pull while
+        #            `daimon play` is open — the recent-activity stream
+        #            satisfies the "terminal reflects MCP-driven events"
+        #            contract until the reveal-overlay lands.
+        #   others (collection, loadout, inspect, leaderboard, rank, idle)
+        #          → log only; richer renderers belong to play-render.
         if state.view == "match":
             self._load_match(state)
+        elif state.view == "pull":
+            self._log_pull(state)
+        else:
+            self._log_misc(state)
         self._last_state_id = state.id
+
+    def _log_pull(self, state: GameState) -> None:
+        """Surface a pull event in the recent-activity log."""
+        d = state.data or {}
+        card_id = d.get("card_id", "?")
+        rarity = d.get("rarity", "?")
+        self._recent.appendleft(f"PULL  {card_id}  [{rarity}]")
+
+    def _log_misc(self, state: GameState) -> None:
+        """Surface other view types in the recent-activity log."""
+        self._recent.appendleft(f"{state.view.upper():5s} {state.id}")
 
     def _load_match(self, state: GameState) -> None:
         try:

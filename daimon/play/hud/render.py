@@ -35,6 +35,7 @@ from __future__ import annotations
 
 from typing import Iterable, Optional
 
+from daimon.play.animator import AnimationSnapshot
 from daimon.play.hud.playback import (
     Frame,
     Phase,
@@ -42,6 +43,7 @@ from daimon.play.hud.playback import (
     SPEED_LADDER,
     Step,
 )
+from daimon.play.primitives import CardEmission
 from daimon.play.schema import ActionKind, Match, Side
 
 
@@ -74,6 +76,22 @@ ELEMENT_COLOR = {
     "void":   MAGENTA,
 }
 
+# Symbolic primitive-emission color → ANSI escape. Primitives speak in
+# semantic color names ("red", "blue", "purple") — render maps to ANSI here so
+# changing the palette never touches primitive code.
+EMISSION_COLOR = {
+    "red":     RED,
+    "green":   GREEN,
+    "blue":    BLUE,
+    "yellow":  YELLOW,
+    "cyan":    CYAN,
+    "magenta": MAGENTA,
+    "purple":  MAGENTA,        # purple ≈ magenta in 4-bit ANSI
+    "gray":    GRAY,
+    "white":   WHITE,
+    "gold":    YELLOW,         # gold ≈ yellow on terminals without 256-color
+}
+
 KIND_PREFIX = {
     ActionKind.DAMAGE:  "⚔",
     ActionKind.HEAL:    "✚",
@@ -101,22 +119,92 @@ def render_frame(frame: Frame, *, color: bool = True) -> str:
     middle "log" band is replaced with a centered chrome banner; the rest
     (title, lineups, status bar) stays intact.
     """
+    # Build divider arrows for the connection line, if any.
+    top_arrows, bot_arrows = _connection_arrows(frame, color=color)
+
     lines: list[str] = []
     lines.append(_box_top())
     lines.append(_title_line(frame, color=color))
     lines.append(_divider())
     lines.extend(_lineup_section(frame, side=Side.OPPONENT, color=color))
-    lines.append(_divider())
+    lines.append(_divider_with_arrows(top_arrows))
     if frame.current_step is not None and frame.current_step.is_phase:
         lines.extend(_chrome_section(frame, color=color))
     else:
         lines.extend(_log_section(frame, color=color))
-    lines.append(_divider())
+    lines.append(_divider_with_arrows(bot_arrows))
     lines.extend(_lineup_section(frame, side=Side.PLAYER, color=color))
     lines.append(_divider())
     lines.append(_status_line(frame, color=color))
     lines.append(_box_bottom())
     return "\n".join(lines)
+
+
+# Approximate card column positions inside the box for arrow overlay.
+# Each side renders 3 rows of 2 cells; even positions (0,2,4) sit on the left
+# cell, odd positions (1,3,5) sit on the right cell. The arrow column is
+# picked at the rough centre of each cell — exact pixel-accuracy isn't the
+# point, the goal is "actor → target across the grid" as a visible signal.
+_LEFT_CELL_COL = 8
+_RIGHT_CELL_COL = 40
+
+
+def _arrow_col_for_position(position: int) -> int:
+    return _RIGHT_CELL_COL if (position % 2 == 1) else _LEFT_CELL_COL
+
+
+def _connection_arrows(
+    frame: Frame, *, color: bool,
+) -> tuple[list[tuple[int, str, str]], list[tuple[int, str, str]]]:
+    """Compute (top_divider_arrows, bot_divider_arrows) for the active conn.
+
+    Each arrow is (col, glyph, ansi_escape). The top divider sits below the
+    OPPONENT lineup; the bot divider sits above the PLAYER lineup. We paint a
+    directional arrow at each actor/target column on the appropriate divider
+    so the eye can trace cause→effect across the grid.
+    """
+    if frame.animation is None or frame.animation.connection is None:
+        return [], []
+    conn = frame.animation.connection
+    ansi = EMISSION_COLOR.get(conn.color, "") if color else ""
+
+    top: list[tuple[int, str, str]] = []
+    bot: list[tuple[int, str, str]] = []
+    # Actor: ▼ if opponent (action travels down), ▲ if player (travels up).
+    if conn.actor_side == Side.OPPONENT:
+        top.append((_arrow_col_for_position(conn.actor_position), "▼", ansi))
+    else:
+        bot.append((_arrow_col_for_position(conn.actor_position), "▲", ansi))
+    # Target: arrow points INTO the target's lineup.
+    if conn.target_side == Side.OPPONENT:
+        top.append((_arrow_col_for_position(conn.target_position), "▲", ansi))
+    else:
+        bot.append((_arrow_col_for_position(conn.target_position), "▼", ansi))
+    return top, bot
+
+
+def _divider_with_arrows(arrows: list[tuple[int, str, str]]) -> str:
+    """Render a divider with optional arrow overlays at given columns.
+
+    ``arrows`` is a list of (col, glyph, ansi_escape) tuples. Columns are
+    0-indexed within the divider's interior (i.e. excluding the corner
+    chars). The default divider line is ``═`` × (WIDTH-2); each overlay
+    replaces that column with the colored glyph.
+    """
+    if not arrows:
+        return _divider()
+    interior_len = WIDTH - 2
+    cells = ["═"] * interior_len
+    overlays: dict[int, str] = {}
+    for col, glyph, ansi in arrows:
+        if 0 <= col < interior_len:
+            cells[col] = "\0"   # placeholder we'll replace below
+            overlays[col] = (ansi + glyph + RESET) if ansi else glyph
+    out = ["╠"]
+    for i, ch in enumerate(cells):
+        out.append(overlays[i] if ch == "\0" else ch)
+    out.append("╣")
+    return "".join(out)
 
 
 def render_idle(*, recent: Iterable[str] = (), color: bool = True) -> str:
@@ -135,7 +223,7 @@ def render_idle(*, recent: Iterable[str] = (), color: bool = True) -> str:
     lines.append(_divider())
     recent_l = list(recent)[:5]
     if recent_l:
-        lines.append(_left("recent matches:", color=color, bold=True))
+        lines.append(_left("recent activity:", color=color, bold=True))
         for r in recent_l:
             lines.append(_left(f"  · {r}", color=color, dim=True))
     else:
@@ -332,18 +420,105 @@ def _lineup_section(frame: Frame, *, side: Side, color: bool) -> list[str]:
     return lines
 
 
+def _emissions_for(frame: Frame, side: Side, position: int) -> list[CardEmission]:
+    """Return primitive emissions targeting (side, position) for the current beat.
+
+    Pure read of ``frame.animation``. Empty list when no animation is active
+    (phase steps, idle, dead frames). Order matches registry paint order so
+    the renderer can apply them last-write-wins.
+    """
+    if frame.animation is None:
+        return []
+    return frame.animation.for_card(side, position)
+
+
 def _card_cell(frame: Frame, side: Side, card, *, color: bool) -> str:
-    """Render one [Name] HP: ████░░░░ N/M cell."""
+    """Render one [Name] HP: ████░░░░ N/M cell, with active primitive effects.
+
+    Layout slots (fixed width per cell, ~28 visible chars):
+      - Optional 1-char overlay icon prefix
+      - Optional ±1 col shake offset
+      - [Name] (5 chars, padded), color from element OR from active flash
+      - HP bar + numeric HP
+      - Optional bold/bright wrap on intent (telegraph) or persistent glow
+
+    Effects compose:
+      shake → outer offset
+      intent → BOLD on the whole cell (including name)
+      color_flash → overrides name color (red/green/blue/yellow per kind)
+      zap → element-color flash on name (cascade triggers)
+      glow → bright YELLOW border on the brackets
+      overlay_icon → 1-char prefix before the cell
+    """
     cur_hp = frame.hp.get(side, card.position, default=card.hp)
     bar = _hp_bar(cur_hp, card.hp_max, color=color)
     name = (card.short_name or card.name or card.species)[:5]
     elem_color = ELEMENT_COLOR.get(card.element.value, "") if color else ""
-    name_str = (elem_color + f"[{name:<5}]" + (RESET if elem_color else ""))
-    hp_str = f"{cur_hp:>2}/{card.hp_max:<2}"
+
+    # Always read emissions — color-only effects gate on `color`, but
+    # structural cues (overlay icons, shake offset) work in monochrome too,
+    # per acceptance criterion #3 in docs/animation_design.md.
+    emissions = _emissions_for(frame, side, card.position)
+    flash_color: Optional[str] = None
+    intent_active = False
+    glow_active = False
+    overlay_icon: Optional[str] = None
+    shake_offset = 0
+    for e in emissions:
+        if color and e.kind == "color_flash" and e.color:
+            flash_color = EMISSION_COLOR.get(e.color, "")
+        elif color and e.kind == "zap" and e.color:
+            # Zap overrides flash with element color (more specific signal).
+            flash_color = EMISSION_COLOR.get(e.color, "") or flash_color
+        elif color and e.kind == "intent":
+            intent_active = True
+        elif color and e.kind == "glow":
+            glow_active = True
+        elif e.kind == "overlay_icon" and e.icon:
+            overlay_icon = e.icon
+        elif e.kind == "shake":
+            shake_offset = int(e.extra.get("offset_cells", 0))
+
+    # Choose name color: flash > glow > element (so impact reads "now").
+    if flash_color:
+        name_color = flash_color
+    elif glow_active and color:
+        name_color = YELLOW + BOLD
+    else:
+        name_color = elem_color
+
+    bracket_open = "["
+    bracket_close = "]"
+    if glow_active and color:
+        bracket_open = BOLD + YELLOW + "[" + RESET + name_color
+        bracket_close = BOLD + YELLOW + "]" + RESET
+
+    name_str = (name_color + f"{bracket_open}{name:<5}{bracket_close}"
+                + (RESET if name_color else ""))
     if cur_hp <= 0 and color:
-        # Strikethrough-ish for dead cards.
+        # Strikethrough-ish for dead cards — overrides any flash.
         name_str = GRAY + f"[{name:<5}]" + RESET
-    return f"{name_str} HP: {bar} {hp_str}"
+
+    hp_str = f"{cur_hp:>2}/{card.hp_max:<2}"
+    cell = f"{name_str} HP: {bar} {hp_str}"
+
+    # Overlay icon prefix (1-char) when active for this card.
+    if overlay_icon:
+        cell = f"{overlay_icon} {cell}"
+
+    # Shake — horizontal cell offset by ±1 char (subtle terminal "kick").
+    if shake_offset > 0:
+        cell = " " * shake_offset + cell
+    elif shake_offset < 0:
+        # Negative offset: drop a leading char from the cell. Best-effort —
+        # the cell starts with " " padding from `_left`, so this stays safe.
+        cell = cell[1:] if cell else cell
+
+    # Intent — bold the whole cell. Painted last so it wraps everything.
+    if intent_active and color:
+        cell = BOLD + cell + RESET
+
+    return cell
 
 
 def _hp_bar(cur: int, mx: int, *, color: bool) -> str:

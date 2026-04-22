@@ -36,6 +36,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
+from daimon.play.animator import Animator, AnimationSnapshot
+from daimon.play.primitives import ACTION_BEAT_MS
 from daimon.play.schema import Action, Match, Side
 
 
@@ -149,6 +151,13 @@ class Frame:
     Everything a renderer needs to paint the current screen, computed from
     the ``MatchPlayback`` once. Decouples render code from playback's
     mutable state.
+
+    ``animation`` carries the result of running the primitive registry
+    against the current step's action at the playback's sub-beat time
+    (``t_in_beat_ms``). It is None for phase steps (LINEUP / ROUND_START /
+    OUTCOME) and for empty timelines. Renderers use it to apply per-card
+    effects (color flash, intent highlight, shake, glow, overlay icon) and
+    to draw the connection line — see ``render.py``.
     """
     match: Match
     status: PlaybackStatus
@@ -159,6 +168,8 @@ class Frame:
     current_step: Optional[Step]     # None only when total_steps==0
     log_tail: tuple[Step, ...]       # last N steps including current (most-recent first)
     elapsed_steps_in_round: dict[int, int]  # round_number → steps shown so far in that round
+    t_in_beat_ms: int = 0            # 0..ACTION_BEAT_MS within current step's beat
+    animation: Optional[AnimationSnapshot] = None
 
     @property
     def is_terminal(self) -> bool:
@@ -310,7 +321,13 @@ class MatchPlayback:
     _accum_ms: int = 0
     # ms accumulated past the final step in ENDED state.
     _ended_dwell_ms: int = 0
+    # Hit-pause hint emitted by the current step's HitPausePrimitive (at t=0).
+    # Added to the tick threshold for THIS step so heavy hits feel weighty.
+    # Reset to 0 on every cursor advance, then recomputed for the new step.
+    _pause_ms_pending: int = 0
     state_id: Optional[str] = None     # state.json id this match came from
+    # Animator instance — uses the V1 default 10-primitive registry.
+    _animator: Animator = field(default_factory=Animator)
 
     def __post_init__(self) -> None:
         if not self.timeline:
@@ -318,6 +335,8 @@ class MatchPlayback:
         # Empty matches go straight to ENDED (renderer shows outcome).
         if not self.timeline:
             self.status = PlaybackStatus.ENDED
+        # Prime hit-pause for the initial step (in case it's a heavy hit).
+        self._refresh_pause_pending()
 
     # ----- speed -----
 
@@ -365,6 +384,7 @@ class MatchPlayback:
             return False
         self.cursor += 1
         self._accum_ms = 0
+        self._refresh_pause_pending()
         return True
 
     def back(self) -> bool:
@@ -375,6 +395,7 @@ class MatchPlayback:
         self._accum_ms = 0
         if self.status == PlaybackStatus.ENDED:
             self.status = PlaybackStatus.PAUSED
+        self._refresh_pause_pending()
         return True
 
     def jump_to_end(self) -> None:
@@ -385,6 +406,7 @@ class MatchPlayback:
         self.cursor = len(self.timeline) - 1
         self.status = PlaybackStatus.ENDED
         self._accum_ms = 0
+        self._refresh_pause_pending()
 
     def restart(self) -> None:
         """Snap back to step 0 + PLAYING. Useful after a match ENDS."""
@@ -392,6 +414,26 @@ class MatchPlayback:
         self.status = PlaybackStatus.PLAYING
         self._accum_ms = 0
         self._ended_dwell_ms = 0
+        self._refresh_pause_pending()
+
+    # ----- hit-pause hint -----
+
+    def _refresh_pause_pending(self) -> None:
+        """Recompute pause hint for the current step.
+
+        Reads the animator at t=0 against the current action and stores any
+        emitted ``pause_ms`` so the next ``step()`` call stretches the tick
+        threshold by that much. Phase steps + non-damaging actions = 0.
+        """
+        if not self.timeline:
+            self._pause_ms_pending = 0
+            return
+        cur = self.timeline[min(self.cursor, len(self.timeline) - 1)]
+        if cur.is_phase or cur.action is None:
+            self._pause_ms_pending = 0
+            return
+        snap = self._animator.tick(cur.action, t_ms=0)
+        self._pause_ms_pending = snap.pause_ms
 
     # ----- tick -----
 
@@ -408,17 +450,24 @@ class MatchPlayback:
 
         if self.status == PlaybackStatus.PLAYING:
             self._accum_ms += elapsed_ms
-            tick = max(1, int(BASE_TICK_MS / max(self.speed, 0.01)))
+            base_tick = max(1, int(BASE_TICK_MS / max(self.speed, 0.01)))
             advanced = 0
-            while self._accum_ms >= tick and self.status == PlaybackStatus.PLAYING:
-                self._accum_ms -= tick
+            # Threshold for THIS cursor step = base + any hit-pause hint queued
+            # by ``_refresh_pause_pending``. Stretches heavy hits visibly.
+            threshold = base_tick + self._pause_ms_pending
+            while self._accum_ms >= threshold and self.status == PlaybackStatus.PLAYING:
+                self._accum_ms -= threshold
                 # Inline advance that does NOT reset _accum_ms — leftover ms
                 # must carry across the step so 2 * tick_ms truly advances 2.
                 if self.cursor >= len(self.timeline) - 1:
                     self.status = PlaybackStatus.ENDED
+                    self._pause_ms_pending = 0
                     break
                 self.cursor += 1
                 advanced += 1
+                # New step → recompute pause hint and threshold for next loop iter
+                self._refresh_pause_pending()
+                threshold = base_tick + self._pause_ms_pending
             return advanced
 
         if self.status == PlaybackStatus.ENDED:
@@ -453,6 +502,17 @@ class MatchPlayback:
                 continue
             per_round[step.round_number] = per_round.get(step.round_number, 0) + 1
 
+        # Sub-beat time within current step. Clamped to [0, ACTION_BEAT_MS]
+        # so the animator never runs past the beat window. ``_accum_ms`` may
+        # exceed this when a hit_pause is in flight; renderer should treat
+        # the post-beat tail as steady state.
+        t_in_beat = max(0, min(self._accum_ms, ACTION_BEAT_MS))
+
+        # Animation snapshot — only meaningful for action steps.
+        anim: Optional[AnimationSnapshot] = None
+        if current is not None and current.is_action and current.action is not None:
+            anim = self._animator.tick(current.action, t_ms=t_in_beat)
+
         return Frame(
             match=self.match,
             status=self.status,
@@ -463,4 +523,6 @@ class MatchPlayback:
             current_step=current,
             log_tail=tail,
             elapsed_steps_in_round=per_round,
+            t_in_beat_ms=t_in_beat,
+            animation=anim,
         )

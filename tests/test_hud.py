@@ -627,6 +627,88 @@ def test_hudapp_swaps_playback_when_new_state_id_arrives(sample_match, tmp_path,
     assert pb2.state_id == "swap-2"
 
 
+def test_hudapp_logs_pull_event_to_recent_activity(tmp_path, monkeypatch):
+    """A pull state must surface in the HUD recent-activity log so the user
+    sees SOMETHING when the agent calls dm_pull while `daimon play` is open.
+
+    The terminal HUD doesn't yet have a full reveal-overlay (filed as TODO),
+    but the bare-minimum contract — "MCP-driven event ⇒ HUD reflects it" —
+    is satisfied by the recent-activity stream.
+    """
+    state_path = tmp_path / "state.json"
+    monkeypatch.setenv("DAIMON_STATE", str(state_path))
+    write_state(
+        "pull",
+        {"card_id": "voltcat_apex", "rarity": "legendary", "serial": "abc"},
+        id="pull-test-1",
+        state_path=state_path,
+    )
+    app = HudApp(
+        state_path=state_path, sink=io.StringIO(), color=False,
+        keyboard_enabled=False, poll_only=True,
+        clock_ms=lambda: 0, tick_ms=10,
+    )
+    app._tick_once(kb=None)
+    # Pull does NOT replace match playback (no animation overlay yet).
+    assert app.playback is None
+    # But the recent-activity log MUST carry the pull event.
+    recent_text = " | ".join(app.recent)
+    assert "PULL" in recent_text
+    assert "voltcat_apex" in recent_text
+    assert "legendary" in recent_text
+
+
+def test_hudapp_logs_misc_view_to_recent_activity(tmp_path, monkeypatch):
+    """Non-match / non-pull views must also be visible in recent-activity
+    (collection / loadout / inspect / leaderboard / rank / idle).
+
+    Until each of those gets its own renderer, at minimum the HUD shouldn't
+    pretend the event never happened.
+    """
+    state_path = tmp_path / "state.json"
+    monkeypatch.setenv("DAIMON_STATE", str(state_path))
+    write_state(
+        "collection",
+        {"serials": [], "count": 0},
+        id="coll-test-1",
+        state_path=state_path,
+    )
+    app = HudApp(
+        state_path=state_path, sink=io.StringIO(), color=False,
+        keyboard_enabled=False, poll_only=True,
+        clock_ms=lambda: 0, tick_ms=10,
+    )
+    app._tick_once(kb=None)
+    recent_text = " | ".join(app.recent)
+    assert "COLLECTION" in recent_text
+    assert "coll-test-1" in recent_text
+
+
+def test_hudapp_pull_then_match_swap_clears_pull_from_top_of_recent(
+    sample_match, tmp_path, monkeypatch
+):
+    """A pull followed by a match must show match outcome above the pull
+    in recent-activity (most-recent-first, deque appendleft).
+    """
+    state_path = tmp_path / "state.json"
+    monkeypatch.setenv("DAIMON_STATE", str(state_path))
+    app = HudApp(
+        state_path=state_path, sink=io.StringIO(), color=False,
+        keyboard_enabled=False, poll_only=True,
+        clock_ms=lambda: 0, tick_ms=10,
+    )
+    write_state("pull", {"card_id": "geodeling", "rarity": "common"},
+                id="pull-x", state_path=state_path)
+    app._tick_once(kb=None)
+    write_state("match", sample_match.model_dump(mode="json"),
+                id="match-x", state_path=state_path)
+    app._tick_once(kb=None)
+    # Most recent (index 0) should be the match outcome, then pull.
+    assert len(app.recent) == 2
+    assert "match-x" in app.recent[0] or "vs" in app.recent[0]
+    assert "PULL" in app.recent[1]
+
+
 def test_hudapp_renders_idle_when_no_playback(tmp_path):
     sink = io.StringIO()
     app = HudApp(
@@ -798,3 +880,104 @@ def test_hudapp_max_ticks_returns_cleanly(sample_match, tmp_path):
     app.force_load_match(sample_match, state_id="exit-test")
     rc = app.run()
     assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# Animation wiring — primitives flow through Frame.animation into render
+# ---------------------------------------------------------------------------
+
+def test_snapshot_carries_animation_for_action_steps(sample_match):
+    pb = MatchPlayback(match=sample_match)
+    # Advance past LINEUP + ROUND_START into the first action step.
+    while pb.timeline[pb.cursor].is_phase:
+        pb.advance()
+    frame = pb.snapshot()
+    assert frame.current_step is not None
+    assert frame.current_step.is_action
+    assert frame.animation is not None
+    # Some emissions must be present (color_flash, intent, overlay_icon at minimum).
+    assert len(frame.animation.card_emissions) > 0
+
+
+def test_snapshot_no_animation_for_phase_steps(sample_match):
+    pb = MatchPlayback(match=sample_match)
+    # Cursor 0 is LINEUP — phase step.
+    frame = pb.snapshot()
+    assert frame.current_step is not None
+    assert frame.current_step.is_phase
+    assert frame.animation is None
+
+
+def test_render_color_flash_appears_on_actor(sample_match):
+    pb = MatchPlayback(match=sample_match)
+    while pb.timeline[pb.cursor].is_phase:
+        pb.advance()
+    out = render_frame(pb.snapshot(), color=True)
+    # Color flash for damage uses RED. The fixture's first action is a damage
+    # hit from opponent → player, so RED escapes appear.
+    assert "\x1b[31m" in out  # RED
+
+
+def test_render_connection_arrows_present_for_targeted_action(sample_match):
+    pb = MatchPlayback(match=sample_match)
+    while pb.timeline[pb.cursor].is_phase:
+        pb.advance()
+    out = render_frame(pb.snapshot(), color=False)
+    # Connection arrows render as ▼/▲ on the dividers between lineups.
+    assert "▼" in out or "▲" in out
+
+
+def test_render_no_connection_arrows_for_phase_step(sample_match):
+    pb = MatchPlayback(match=sample_match)
+    # Cursor 0 = LINEUP; no animation.connection.
+    out = render_frame(pb.snapshot(), color=False)
+    assert "▼" not in out and "▲" not in out
+
+
+def test_render_color_off_strips_animation_color_codes(sample_match):
+    pb = MatchPlayback(match=sample_match)
+    while pb.timeline[pb.cursor].is_phase:
+        pb.advance()
+    out = render_frame(pb.snapshot(), color=False)
+    assert "\x1b[" not in out
+
+
+def test_hit_pause_stretches_tick_threshold(sample_match):
+    """A heavy-damage step should require base_tick + pause_ms before advancing."""
+    from daimon.play.primitives import HIT_PAUSE_MS_RANGE
+    from daimon.play.schema import Action, ActionKind, CardRef
+    # Synthesise a heavy-hit action and slot it into the timeline manually.
+    pb = MatchPlayback(match=sample_match)
+    # Force-set cursor to a known action step + inject a big-damage action there.
+    # Easier: just verify the pause_pending field tracks.
+    while pb.timeline[pb.cursor].is_phase:
+        pb.advance()
+    cur = pb.timeline[pb.cursor]
+    # Replace the action with a big-damage variant via dataclass.replace-style
+    # (the Step is frozen, so build a new one with the patched action).
+    big = cur.action.model_copy(update={"amount": 25, "kind": ActionKind.DAMAGE})
+    pb.timeline[pb.cursor] = Step(
+        index=cur.index, round_number=cur.round_number,
+        action_index=cur.action_index, depth=cur.depth, action=big,
+    )
+    pb._refresh_pause_pending()
+    assert pb._pause_ms_pending >= HIT_PAUSE_MS_RANGE[0]
+
+    base_tick = int(BASE_TICK_MS / pb.speed)
+    # base_tick alone shouldn't advance — needs +pause
+    advanced = pb.step(elapsed_ms=base_tick)
+    assert advanced == 0
+    # Push enough extra to clear base + pause
+    advanced2 = pb.step(elapsed_ms=pb._pause_ms_pending + 5)
+    assert advanced2 == 1
+
+
+def test_no_pause_for_small_damage_step(sample_match):
+    pb = MatchPlayback(match=sample_match)
+    while pb.timeline[pb.cursor].is_phase:
+        pb.advance()
+    # Sample fixture's action is a 7-damage hit → below hit_pause threshold (10)
+    assert pb._pause_ms_pending == 0
+    base_tick = int(BASE_TICK_MS / pb.speed)
+    advanced = pb.step(elapsed_ms=base_tick)
+    assert advanced == 1

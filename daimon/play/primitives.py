@@ -1,16 +1,19 @@
-"""Animation primitives — the 4 default effects + extensibility seam.
+"""Animation primitives — the V1 default vocabulary + extensibility seam.
 
 Architecture invariant (per locked spec, 2026-04-22):
 
 Renderers (PIL, Textual, HTML) all read the same BattleFrame. The *primitives*
 tell the renderer what to paint on each card at time t — color flash, overlay
-icon, connection line, HP tick.
+icon, connection line, HP tick, plus the V1 expansion (intent telegraph, zap
+element pulse, shake, pulse, glow, hit-pause, sound cues).
+
+See `docs/animation_design.md` for research synthesis + design rationale.
 
 This module defines:
   - The `Primitive` base class with a uniform interface
-  - The 4 default primitives (color_flash, connection_line, overlay_icon, hp_tick)
-  - Pre-registered V1.x hooks (shake, pulse, glow) — subclasses stubbed so the
-    registry is forward-compatible
+  - 10 default primitives (intent, color_flash, connection_line, overlay_icon,
+    hp_tick, zap, shake, pulse, glow, hit_pause)
+  - The `Cue` enum for sound spec (audio backend deferred)
   - The `PrimitiveRegistry` — pluggable, iteration-order stable
 
 The `Animator` (in animator.py) iterates registered primitives, asks each
@@ -18,17 +21,37 @@ whether it `applies_to(action)`, and if so consults `window(action)` for the
 [start_ms, end_ms) interval, then decorates the frame's ActiveEffects / conn
 line list. This is the ONLY place that knows about primitive semantics.
 
-Adding a new primitive later (e.g. "parry_arc") = subclass `Primitive`,
-register via `registry.add(ParryArcPrimitive())`, ship. No frame.py changes.
+Adding a new primitive later (e.g. "crit_zoom") = subclass `Primitive`,
+register via `registry.add(CritZoomPrimitive())`, ship. No frame.py changes.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Optional
 
-from daimon.play.schema import Action, ActionKind, CardRef, Side
+from daimon.play.schema import Action, ActionKind, CardRef, Element, Side
+
+
+# ---------------------------------------------------------------------------
+# Sound cue spec (audio backend deferred — see docs/animation_design.md)
+# ---------------------------------------------------------------------------
+
+class Cue(str, Enum):
+    """Discrete sound events emitted alongside visual primitives.
+
+    The terminal backend may opt to play the BEL char (`\\a`) for any cue when
+    `DAIMON_AUDIO=bell` is set. Future audio backends (oggs, MIDI, TTS) plug
+    into the same emission stream.
+    """
+    HIT = "hit"
+    KO = "ko"
+    BUFF = "buff"
+    DEBUFF = "debuff"
+    ROUND = "round"
+    OUTCOME = "outcome"
 
 
 # ---------------------------------------------------------------------------
@@ -38,11 +61,22 @@ from daimon.play.schema import Action, ActionKind, CardRef, Side
 
 ACTION_BEAT_MS = 600
 
+INTENT_WINDOW = (0, 200)              # actor highlights BEFORE damage applies
 ACTOR_FLASH_WINDOW = (0, 300)
 TARGET_FLASH_WINDOW = (100, 400)
 CONNECTION_WINDOW = (0, 450)
 OVERLAY_WINDOW = (0, 400)
 HP_TICK_WINDOW = (200, 550)
+ZAP_WINDOW = (0, 300)                 # element-color cycle
+PULSE_WINDOW = (0, 500)
+SHAKE_WINDOW = (100, 350)
+GLOW_WINDOW = (0, ACTION_BEAT_MS)    # persistent across the beat
+HIT_PAUSE_WINDOW = (0, 1)             # one-shot at t=0; emits pause_ms hint
+
+# Damage thresholds (relative)
+SHAKE_DMG_THRESHOLD = 8
+HIT_PAUSE_DMG_PCT_THRESHOLD = 0.20    # hit pauses if dmg ≥ 20% of target hp_max
+HIT_PAUSE_MS_RANGE = (60, 180)        # min..max pause stretch
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +127,7 @@ class CardEmission:
     """A primitive's instruction: attach this effect to this card."""
     side: Side
     position: int                      # 0..5 — team position (V2)
-    kind: str                          # "color_flash" | "overlay_icon" | "hp_tick" | "shake" | ...
+    kind: str                          # "color_flash" | "overlay_icon" | "hp_tick" | "shake" | "intent" | "zap" | "pulse" | "glow"
     color: Optional[str] = None
     icon: Optional[str] = None
     intensity: float = 1.0
@@ -111,6 +145,19 @@ class ConnectionEmission:
     color: str = "red"
     intensity: float = 1.0
     style: str = "solid"               # "solid" | "dashed" | "arc" (future)
+
+
+# ---------------------------------------------------------------------------
+# Element → color table (for ZapPrimitive)
+# ---------------------------------------------------------------------------
+
+ELEMENT_COLOR = {
+    Element.FIRE: "red",
+    Element.WATER: "cyan",
+    Element.NATURE: "green",
+    Element.VOLT: "yellow",
+    Element.VOID: "magenta",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -279,50 +326,86 @@ class HpTickPrimitive(Primitive):
 
 
 # ---------------------------------------------------------------------------
-# V1.x stubbed primitives — registered but opt-in, so the registry is
-# forward-compatible. Default `Animator()` constructor does NOT include them.
+# V1 expansion primitives — promoted to default-on, fully implemented.
 # ---------------------------------------------------------------------------
 
-class ShakePrimitive(Primitive):
-    """Target-card wiggle on big damage (V1.x — stub)."""
+class IntentPrimitive(Primitive):
+    """Telegraph the upcoming action — actor brightens BEFORE damage applies.
 
-    name = "shake"
+    Slay-the-Spire-style intent. The actor tile gets a bold/highlight effect
+    in the first 200ms of the beat, *before* hp_tick fires at 200ms, giving
+    the eye a half-frame to register "Atlas is about to strike Bramble."
+    """
 
-    def applies_to(self, action: Action) -> bool:
-        # Planned: fire when damage >= threshold (say 8)
-        return action.kind == ActionKind.DAMAGE and (action.amount or 0) >= 8 and action.target is not None
-
-    def window(self, action: Action) -> tuple[int, int]:
-        return (100, 350)
-
-    def emit(self, action: Action, t_ms: int) -> tuple[list[CardEmission], Optional[ConnectionEmission]]:
-        if not self.is_active_at(action, t_ms) or action.target is None:
-            return [], None
-        # Sine-ish offset — renderer reads `extra["offset_px"]` to apply
-        import math
-        phase = (t_ms - 100) / 50.0
-        offset_px = int(3 * math.sin(phase * math.pi))
-        return [CardEmission(
-            side=action.target.side, position=action.target.position,
-            kind="shake", extra={"offset_px": offset_px},
-        )], None
-
-
-class PulsePrimitive(Primitive):
-    """Buff/shield expanding ring (V1.x — stub)."""
-
-    name = "pulse"
+    name = "intent"
 
     def applies_to(self, action: Action) -> bool:
-        return action.kind in (ActionKind.BUFF, ActionKind.SHIELD)
+        # Fire on any active-ish action with a target (the cause→effect read).
+        # Skip pure passives that have no target.
+        return action.target is not None
 
     def window(self, action: Action) -> tuple[int, int]:
-        return (0, 500)
+        return INTENT_WINDOW
 
     def emit(self, action: Action, t_ms: int) -> tuple[list[CardEmission], Optional[ConnectionEmission]]:
         if not self.is_active_at(action, t_ms):
             return [], None
-        radius = (t_ms / 500.0)
+        # Linear fade from 1.0 → 0.0 across the window, so the highlight
+        # is most intense at t=0 and tapers as the strike resolves.
+        start, end = self.window(action)
+        intensity = 1.0 - ((t_ms - start) / max(1, end - start))
+        return [CardEmission(
+            side=action.actor.side, position=action.actor.position,
+            kind="intent", color=resolve_color(action), intensity=intensity,
+        )], None
+
+
+class ShakePrimitive(Primitive):
+    """Target-card wiggle on big damage. Default-on as of V1."""
+
+    name = "shake"
+
+    def applies_to(self, action: Action) -> bool:
+        return (
+            action.kind == ActionKind.DAMAGE
+            and (action.amount or 0) >= SHAKE_DMG_THRESHOLD
+            and action.target is not None
+        )
+
+    def window(self, action: Action) -> tuple[int, int]:
+        return SHAKE_WINDOW
+
+    def emit(self, action: Action, t_ms: int) -> tuple[list[CardEmission], Optional[ConnectionEmission]]:
+        if not self.is_active_at(action, t_ms) or action.target is None:
+            return [], None
+        # Sine offset in cells — renderer reads `extra["offset_cells"]` to
+        # shift the target tile horizontally for a few frames.
+        import math
+        start, _ = self.window(action)
+        phase = (t_ms - start) / 50.0
+        offset_cells = int(round(math.sin(phase * math.pi)))  # -1, 0, +1
+        return [CardEmission(
+            side=action.target.side, position=action.target.position,
+            kind="shake", extra={"offset_cells": offset_cells},
+        )], None
+
+
+class PulsePrimitive(Primitive):
+    """Buff/shield expanding ring on the actor. Default-on as of V1."""
+
+    name = "pulse"
+
+    def applies_to(self, action: Action) -> bool:
+        return action.kind in (ActionKind.BUFF, ActionKind.SHIELD, ActionKind.HEAL)
+
+    def window(self, action: Action) -> tuple[int, int]:
+        return PULSE_WINDOW
+
+    def emit(self, action: Action, t_ms: int) -> tuple[list[CardEmission], Optional[ConnectionEmission]]:
+        if not self.is_active_at(action, t_ms):
+            return [], None
+        start, end = self.window(action)
+        radius = (t_ms - start) / max(1, end - start)
         return [CardEmission(
             side=action.actor.side, position=action.actor.position,
             kind="pulse", color=resolve_color(action),
@@ -330,19 +413,121 @@ class PulsePrimitive(Primitive):
         )], None
 
 
+class ZapPrimitive(Primitive):
+    """Element-color cycle on the target — visual language for elemental triggers.
+
+    Each element has a signature color (FIRE=red, WATER=cyan, NATURE=green,
+    VOLT=yellow, VOID=magenta). The target tile flashes the actor's element
+    color so chains read as "this is a FIRE trigger" at a glance.
+    """
+
+    name = "zap"
+
+    def applies_to(self, action: Action) -> bool:
+        # Fires on any cascade trigger (reactive action with `reason` set).
+        # Top-level actions are covered by color_flash; zap is the chain
+        # read.
+        return action.target is not None and bool(action.reason)
+
+    def window(self, action: Action) -> tuple[int, int]:
+        return ZAP_WINDOW
+
+    def emit(self, action: Action, t_ms: int) -> tuple[list[CardEmission], Optional[ConnectionEmission]]:
+        if not self.is_active_at(action, t_ms) or action.target is None:
+            return [], None
+        # We don't carry Element on the action wire — derive from a hint or
+        # default to the kind color. Adapter sets vis_overrides.color to
+        # element color for cascade triggers; respect that.
+        color = resolve_color(action)
+        return [CardEmission(
+            side=action.target.side, position=action.target.position,
+            kind="zap", color=color, intensity=0.6,
+        )], None
+
+
 class GlowPrimitive(Primitive):
-    """Persistent legendary-card glow (V1.x — stub, orthogonal to actions)."""
+    """Persistent legendary-card glow — orthogonal to actions, always-on for
+    legendary cards on the team.
+
+    Unlike action-driven primitives, glow doesn't need an Action to fire — it
+    paints whenever the registry asks. We achieve this by claiming `applies_to`
+    for every action and emitting a glow on every legendary card on the field.
+    The renderer dedupes by (side, position, kind).
+    """
 
     name = "glow"
 
     def applies_to(self, action: Action) -> bool:
-        return False  # Stub — real behavior: always-on on legendary cards, not action-gated
+        # We need a hook into the frame to know which positions are legendary;
+        # since primitives don't see the frame, we emit on the actor + target
+        # if their species/rarity is encoded in the action `reason`. Practical
+        # impl: the frame builder calls `glow.emit_persistent(card_states)`
+        # outside the per-action tick. So this Primitive only fires the
+        # action-bound glow trail (a brief sparkle on legendary actors).
+        return True
 
     def window(self, action: Action) -> tuple[int, int]:
-        return (0, ACTION_BEAT_MS)
+        return GLOW_WINDOW
 
     def emit(self, action: Action, t_ms: int) -> tuple[list[CardEmission], Optional[ConnectionEmission]]:
-        return [], None
+        # Action-bound glow: the renderer adds the persistent legendary glow
+        # via emit_persistent (below). The action tick contributes a faint
+        # action-trail glow on the actor for the first 200ms.
+        if t_ms >= 200:
+            return [], None
+        return [CardEmission(
+            side=action.actor.side, position=action.actor.position,
+            kind="glow", color="white", intensity=0.3,
+        )], None
+
+    @staticmethod
+    def emit_persistent(side: Side, position: int) -> CardEmission:
+        """Frame-builder helper — emit a steady glow for one legendary card."""
+        return CardEmission(
+            side=side, position=position,
+            kind="glow", color="yellow", intensity=0.4,
+            extra={"persistent": True},
+        )
+
+
+class HitPausePrimitive(Primitive):
+    """One-shot pause-the-loop hint scaled by damage% of target HP.
+
+    Doesn't paint anything; emits an `extra["pause_ms"]` hint at t=0 that the
+    playback loop reads and uses to stretch the next frame. Big hits feel
+    weighty because the world freezes for a beat.
+    """
+
+    name = "hit_pause"
+
+    def applies_to(self, action: Action) -> bool:
+        if action.kind != ActionKind.DAMAGE or action.target is None:
+            return False
+        amount = action.amount or 0
+        if amount <= 0:
+            return False
+        # Need to compare against target hp_max — we don't have it on the wire,
+        # but we can use absolute amount as a proxy: ≥10 damage = pause.
+        # When the frame builder consumes this it can refine using hp_max.
+        return amount >= 10
+
+    def window(self, action: Action) -> tuple[int, int]:
+        return HIT_PAUSE_WINDOW
+
+    def emit(self, action: Action, t_ms: int) -> tuple[list[CardEmission], Optional[ConnectionEmission]]:
+        if t_ms != 0 or action.target is None:
+            return [], None
+        amount = action.amount or 0
+        # Map 10..30 damage → 60..180 ms pause (linear, clamped).
+        lo_dmg, hi_dmg = 10, 30
+        lo_ms, hi_ms = HIT_PAUSE_MS_RANGE
+        clamped = max(lo_dmg, min(hi_dmg, amount))
+        pct = (clamped - lo_dmg) / (hi_dmg - lo_dmg) if hi_dmg > lo_dmg else 0.0
+        pause_ms = int(lo_ms + pct * (hi_ms - lo_ms))
+        return [CardEmission(
+            side=action.target.side, position=action.target.position,
+            kind="hit_pause", extra={"pause_ms": pause_ms},
+        )], None
 
 
 # ---------------------------------------------------------------------------
@@ -376,18 +561,33 @@ class PrimitiveRegistry:
 
     @classmethod
     def default(cls) -> "PrimitiveRegistry":
+        """V1 ship set — 10 primitives, ordered for paint correctness.
+
+        Order matters: intent (telegraph) paints first so the actor highlight
+        sits behind the strike effects. hit_pause emits a hint and paints
+        nothing, so its position is cosmetic. glow goes last so its persistent
+        border doesn't get overdrawn by transient flashes.
+        """
+        return cls([
+            IntentPrimitive(),
+            ColorFlashPrimitive(),
+            ConnectionLinePrimitive(),
+            OverlayIconPrimitive(),
+            HpTickPrimitive(),
+            ZapPrimitive(),
+            ShakePrimitive(),
+            PulsePrimitive(),
+            HitPausePrimitive(),
+            GlowPrimitive(),
+        ])
+
+    @classmethod
+    def minimal(cls) -> "PrimitiveRegistry":
+        """Just the original 4 — useful for snapshot tests that pre-date the
+        V1 expansion. Don't use this in production playback."""
         return cls([
             ColorFlashPrimitive(),
             ConnectionLinePrimitive(),
             OverlayIconPrimitive(),
             HpTickPrimitive(),
         ])
-
-    @classmethod
-    def with_v1x_preview(cls) -> "PrimitiveRegistry":
-        """Default + stubbed V1.x primitives — opt-in for testing forward-compat."""
-        reg = cls.default()
-        reg.add(ShakePrimitive())
-        reg.add(PulsePrimitive())
-        reg.add(GlowPrimitive())
-        return reg

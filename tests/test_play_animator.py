@@ -1,10 +1,13 @@
 """Tests for daimon.play.animator + primitives.
 
 Coverage matrix:
-  - Default registry has exactly the 4 V1 ship primitives
+  - Default registry ships the 10 V1 primitives in paint order
+  - `minimal()` returns the original 4 (for legacy snapshot tests)
   - Each primitive's applies_to / window / emit is correct
   - Animator.tick() collects emissions in registry order
-  - Custom registry is honored (opt-in V1.x primitives)
+  - Animator hoists hit_pause emissions into snapshot.pause_ms
+  - Animator emits cues at t_ms==0 with HIT→KO promotion
+  - Custom registry is honored
   - Pluggability — adding a custom primitive adds its emissions
 """
 
@@ -21,13 +24,17 @@ from daimon.play.primitives import (
     ColorFlashPrimitive,
     ConnectionEmission,
     ConnectionLinePrimitive,
+    Cue,
     GlowPrimitive,
+    HitPausePrimitive,
     HpTickPrimitive,
+    IntentPrimitive,
     OverlayIconPrimitive,
     Primitive,
     PrimitiveRegistry,
     PulsePrimitive,
     ShakePrimitive,
+    ZapPrimitive,
 )
 from daimon.play.schema import (
     Action,
@@ -73,27 +80,55 @@ def heal_action(sample_match) -> Action:
 # Registry basics
 # ---------------------------------------------------------------------------
 
-class TestRegistry:
-    def test_default_registry_has_four_primitives(self):
-        reg = PrimitiveRegistry.default()
-        assert reg.names() == ["color_flash", "connection_line", "overlay_icon", "hp_tick"]
-        assert len(reg) == 4
+EXPECTED_DEFAULT_NAMES = [
+    "intent",
+    "color_flash",
+    "connection_line",
+    "overlay_icon",
+    "hp_tick",
+    "zap",
+    "shake",
+    "pulse",
+    "hit_pause",
+    "glow",
+]
 
-    def test_v1x_preview_adds_three_more(self):
-        reg = PrimitiveRegistry.with_v1x_preview()
+
+class TestRegistry:
+    def test_default_registry_has_ten_primitives(self):
+        reg = PrimitiveRegistry.default()
+        assert reg.names() == EXPECTED_DEFAULT_NAMES
+        assert len(reg) == 10
+
+    def test_minimal_returns_original_four(self):
+        reg = PrimitiveRegistry.minimal()
         assert reg.names() == [
             "color_flash", "connection_line", "overlay_icon", "hp_tick",
-            "shake", "pulse", "glow",
         ]
-        assert len(reg) == 7
+        assert len(reg) == 4
 
     def test_add_and_remove(self):
         reg = PrimitiveRegistry.default()
-        reg.add(ShakePrimitive())
-        assert "shake" in reg.names()
-        reg.remove("shake")
-        assert "shake" not in reg.names()
-        assert len(reg) == 4
+        baseline = len(reg)
+
+        class _Sentinel(Primitive):
+            name = "sentinel"
+
+            def applies_to(self, action):
+                return False
+
+            def window(self, action):
+                return (0, 1)
+
+            def emit(self, action, t_ms):
+                return [], None
+
+        reg.add(_Sentinel())
+        assert "sentinel" in reg.names()
+        assert len(reg) == baseline + 1
+        reg.remove("sentinel")
+        assert "sentinel" not in reg.names()
+        assert len(reg) == baseline
 
 
 # ---------------------------------------------------------------------------
@@ -241,15 +276,22 @@ class TestHpTick:
 # ---------------------------------------------------------------------------
 
 class TestAnimator:
-    def test_default_animator_emits_from_four_primitives(self, damage_action):
+    def test_default_animator_emits_expected_kinds_mid_beat(self, damage_action):
+        # damage_action has amount=7 (below shake/hit_pause thresholds), no reason
+        # (so no zap), kind=DAMAGE (not buff/shield/heal so no pulse). At t=250
+        # only the original 4 primitives fire — intent capped at 200, glow trail
+        # capped at 200.
         animator = Animator()
         snap = animator.tick(damage_action, t_ms=250)
-        # At t=250 inside damage window: actor_flash, target_flash, connection, overlay_actor, overlay_target, hp_tick
         kinds = [e.kind for e in snap.card_emissions]
         assert kinds.count("color_flash") == 2
         assert kinds.count("overlay_icon") == 2
         assert kinds.count("hp_tick") == 1
         assert snap.connection is not None
+        # No hit_pause emission at t=250; pause_ms must remain 0
+        assert snap.pause_ms == 0
+        # Cues only fire at t=0
+        assert snap.cues == []
 
     def test_animator_no_emissions_after_beat(self, damage_action):
         animator = Animator()
@@ -307,10 +349,10 @@ class TestAnimator:
 
 
 # ---------------------------------------------------------------------------
-# V1.x stubs — shape only, since they're not wired into default
+# Promoted V1 primitives — shake, pulse, glow (now default-on)
 # ---------------------------------------------------------------------------
 
-class TestV1xStubs:
+class TestShake:
     def test_shake_fires_only_on_big_damage(self, damage_action):
         # damage_action has amount=7, below threshold 8
         prim = ShakePrimitive()
@@ -319,7 +361,7 @@ class TestV1xStubs:
         big_hit = damage_action.model_copy(update={"amount": 11})
         assert prim.applies_to(big_hit)
 
-    def test_shake_emits_offset(self):
+    def test_shake_emits_offset_cells(self):
         action = Action(
             action_id="test",
             actor=CardRef(side=Side.OPPONENT, position=0, card="Foo"),
@@ -331,8 +373,25 @@ class TestV1xStubs:
         cards, _ = prim.emit(action, t_ms=200)
         assert len(cards) == 1
         assert cards[0].kind == "shake"
-        assert "offset_px" in cards[0].extra
+        assert "offset_cells" in cards[0].extra
+        assert cards[0].extra["offset_cells"] in (-1, 0, 1)
 
+    def test_shake_inactive_outside_window(self):
+        action = Action(
+            action_id="test",
+            actor=CardRef(side=Side.OPPONENT, position=0, card="Foo"),
+            target=CardRef(side=Side.PLAYER, position=2, card="Bar"),
+            kind=ActionKind.DAMAGE,
+            amount=10,
+        )
+        prim = ShakePrimitive()
+        cards, _ = prim.emit(action, t_ms=50)   # before window starts (100)
+        assert cards == []
+        cards, _ = prim.emit(action, t_ms=400)  # after window ends (350)
+        assert cards == []
+
+
+class TestPulse:
     def test_pulse_fires_on_buff(self, buff_action):
         prim = PulsePrimitive()
         assert prim.applies_to(buff_action)
@@ -341,7 +400,168 @@ class TestV1xStubs:
         assert cards[0].kind == "pulse"
         assert 0.0 <= cards[0].extra["radius"] <= 1.0
 
-    def test_glow_currently_inactive(self, damage_action):
-        # Stub — always False for now
-        prim = GlowPrimitive()
+    def test_pulse_fires_on_heal(self, heal_action):
+        prim = PulsePrimitive()
+        assert prim.applies_to(heal_action)
+
+    def test_pulse_does_not_fire_on_damage(self, damage_action):
+        prim = PulsePrimitive()
         assert not prim.applies_to(damage_action)
+
+
+class TestGlow:
+    def test_glow_emits_action_trail_early_in_beat(self, damage_action):
+        prim = GlowPrimitive()
+        assert prim.applies_to(damage_action)
+        cards, _ = prim.emit(damage_action, t_ms=50)
+        assert len(cards) == 1
+        assert cards[0].kind == "glow"
+        assert cards[0].side == Side.OPPONENT  # actor side
+        assert cards[0].position == 0          # actor pos
+
+    def test_glow_action_trail_caps_at_200ms(self, damage_action):
+        prim = GlowPrimitive()
+        cards, _ = prim.emit(damage_action, t_ms=250)
+        assert cards == []
+
+    def test_glow_emit_persistent_helper(self):
+        emit = GlowPrimitive.emit_persistent(Side.PLAYER, 3)
+        assert emit.kind == "glow"
+        assert emit.side == Side.PLAYER
+        assert emit.position == 3
+        assert emit.extra.get("persistent") is True
+
+
+# ---------------------------------------------------------------------------
+# New V1 primitives — intent, zap, hit_pause
+# ---------------------------------------------------------------------------
+
+class TestIntent:
+    def test_intent_fires_on_targeted_action(self, damage_action):
+        prim = IntentPrimitive()
+        assert prim.applies_to(damage_action)
+
+    def test_intent_skips_untargeted(self, buff_action):
+        prim = IntentPrimitive()
+        assert not prim.applies_to(buff_action)
+
+    def test_intent_emits_on_actor_in_first_window(self, damage_action):
+        prim = IntentPrimitive()
+        cards, _ = prim.emit(damage_action, t_ms=50)
+        assert len(cards) == 1
+        assert cards[0].kind == "intent"
+        assert cards[0].side == damage_action.actor.side
+        assert cards[0].position == damage_action.actor.position
+
+    def test_intent_intensity_fades(self, damage_action):
+        prim = IntentPrimitive()
+        early, _ = prim.emit(damage_action, t_ms=0)
+        late, _ = prim.emit(damage_action, t_ms=180)
+        assert early[0].intensity > late[0].intensity
+
+    def test_intent_silent_outside_window(self, damage_action):
+        prim = IntentPrimitive()
+        cards, _ = prim.emit(damage_action, t_ms=300)
+        assert cards == []
+
+
+class TestZap:
+    def test_zap_fires_only_on_cascade(self, damage_action):
+        # damage_action has reason=None — top-level action
+        prim = ZapPrimitive()
+        assert not prim.applies_to(damage_action)
+        cascade = damage_action.model_copy(update={"reason": "trigger:ON_HIT"})
+        assert prim.applies_to(cascade)
+
+    def test_zap_emits_on_target_during_window(self, damage_action):
+        cascade = damage_action.model_copy(update={"reason": "trigger:ON_HIT"})
+        prim = ZapPrimitive()
+        cards, _ = prim.emit(cascade, t_ms=150)
+        assert len(cards) == 1
+        assert cards[0].kind == "zap"
+        assert cards[0].side == cascade.target.side
+        assert cards[0].position == cascade.target.position
+
+    def test_zap_silent_outside_window(self, damage_action):
+        cascade = damage_action.model_copy(update={"reason": "trigger:ON_HIT"})
+        prim = ZapPrimitive()
+        cards, _ = prim.emit(cascade, t_ms=400)
+        assert cards == []
+
+
+class TestHitPause:
+    def test_hit_pause_fires_on_big_damage(self, damage_action):
+        prim = HitPausePrimitive()
+        assert not prim.applies_to(damage_action)  # amount=7 below threshold
+        big = damage_action.model_copy(update={"amount": 15})
+        assert prim.applies_to(big)
+
+    def test_hit_pause_skips_non_damage(self, buff_action):
+        prim = HitPausePrimitive()
+        assert not prim.applies_to(buff_action)
+
+    def test_hit_pause_emits_pause_ms_at_t0(self, damage_action):
+        big = damage_action.model_copy(update={"amount": 15})
+        prim = HitPausePrimitive()
+        cards, _ = prim.emit(big, t_ms=0)
+        assert len(cards) == 1
+        assert cards[0].kind == "hit_pause"
+        assert cards[0].extra["pause_ms"] >= 60
+        assert cards[0].extra["pause_ms"] <= 180
+
+    def test_hit_pause_silent_after_t0(self, damage_action):
+        big = damage_action.model_copy(update={"amount": 15})
+        prim = HitPausePrimitive()
+        cards, _ = prim.emit(big, t_ms=10)
+        assert cards == []
+
+    def test_hit_pause_scales_with_damage(self, damage_action):
+        small = damage_action.model_copy(update={"amount": 10})
+        big = damage_action.model_copy(update={"amount": 30})
+        prim = HitPausePrimitive()
+        small_cards, _ = prim.emit(small, t_ms=0)
+        big_cards, _ = prim.emit(big, t_ms=0)
+        assert big_cards[0].extra["pause_ms"] > small_cards[0].extra["pause_ms"]
+
+
+# ---------------------------------------------------------------------------
+# Animator hoisting + cues — the snapshot-level integration
+# ---------------------------------------------------------------------------
+
+class TestSnapshotPauseAndCues:
+    def test_pause_ms_hoisted_into_snapshot(self, damage_action):
+        big = damage_action.model_copy(update={"amount": 20})
+        animator = Animator()
+        snap = animator.tick(big, t_ms=0)
+        assert snap.pause_ms > 0
+        # Hit-pause emissions should NOT be in card_emissions (they're hoisted)
+        assert all(e.kind != "hit_pause" for e in snap.card_emissions)
+
+    def test_no_pause_when_action_below_threshold(self, damage_action):
+        # damage_action has amount=7, below hit_pause threshold of 10
+        animator = Animator()
+        snap = animator.tick(damage_action, t_ms=0)
+        assert snap.pause_ms == 0
+
+    def test_cues_emitted_at_t0_only(self, damage_action):
+        animator = Animator()
+        at_zero = animator.tick(damage_action, t_ms=0)
+        later = animator.tick(damage_action, t_ms=200)
+        assert Cue.HIT in at_zero.cues
+        assert later.cues == []
+
+    def test_cue_promoted_to_ko_when_target_dies(self, damage_action):
+        target_key = f"{damage_action.target.side.value}/{damage_action.target.position}"
+        ko_action = damage_action.model_copy(update={
+            "amount": 99,
+            "hp_after": {target_key: 0},
+        })
+        animator = Animator()
+        snap = animator.tick(ko_action, t_ms=0)
+        assert Cue.KO in snap.cues
+        assert Cue.HIT not in snap.cues
+
+    def test_buff_cue_for_buff_action(self, buff_action):
+        animator = Animator()
+        snap = animator.tick(buff_action, t_ms=0)
+        assert Cue.BUFF in snap.cues
