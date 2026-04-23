@@ -112,6 +112,8 @@ NORMAL element gets 1 epic, no legendary. Phase 4f executes the promotion.)*
 
 **Pull rate ≠ pool composition** — pull rates are weighted by `manifest.json::rarity_weights` (already locked at 60/25/10/4/1). Pool composition is how many *unique* cards exist at each rarity.
 
+**Per-archetype detail**: see §23.2 for the full archetype × rarity matrix (measured from disk `monster-pivot @ 2026-04-23`, validates the 200 total).
+
 ### Why 6 legendaries (revised 2026-04-23)
 
 Originally V1 shipped with 2 legendary "set-defining icons" (`world_eater` + `voidking_morr`). Santiago's 2026-04-23 design lock (§22) supersedes that: **every strategic archetype gets exactly 1 legendary, and that legendary is a rule-changer** — a card that changes how the engine resolves things while in play. This makes legendary tier mechanically meaningful (not just "bigger numbers") and gives each archetype a true apex card.
@@ -726,18 +728,15 @@ The hierarchy resolves bottom-up at evaluation time: legendaries' rule mutations
 
 ### NORMAL (element, not archetype)
 
-**Distinctness lock**: NORMAL is **support and counter splash** — never the win condition, never the cluster spine. NORMAL cards carry `archetype: null` (§2.0) and exist to be *picked up by* the strategic clusters, not to define one.
+**Distinctness lock**: NORMAL is **support splash** (revised 2026-04-23 by §23.3 — counter cards moved to elemental rares; NORMAL is now support-only) — never the win condition, never the cluster spine. NORMAL cards carry `archetype: null` (§2.0) and exist to be *picked up by* the strategic clusters, not to define one.
 
-**The 15-card NORMAL split** (locked 2026-04-23): the 15 NORMAL cards in V1 split into:
-- **7 support** — utility heals, stat buffs, basic shields, generic value generators (existing 8C are mostly here; 4U skews here too)
-- **5 counter** — designated archetype counters (Phase 4e-counters, in flight): each one is built to specifically punish a strategic archetype's signature pattern (e.g. a counter that strips burn stacks punishes INFERNO; a counter with shield-pierce punishes BULWARK)
-- **3 tech** — toolbox cards with niche disruption value (e.g. SILENCE-on-low-HP, single-target STUN priority, generic dispel)
+**The 15-card NORMAL split** (locked 2026-04-23, **REVISED 2026-04-23 by §23.5**): the 15 NORMAL cards in V1 are **all support** — utility heals, stat buffs, shields, taunts, generic value generators. The earlier "7 support / 5 counter / 3 tech" split was reversed in §23.3 (counters live as 6 elemental rares re-flavored in place, not as NORMAL splash) and §23.4 (tech cards deferred from V1). The full audit of the 15 NORMAL support cards is in §23.5.
 
 **Anti-pattern guard**: do NOT promote a NORMAL card to legendary. The "1 legendary per strategic archetype" rule (§22) explicitly excludes NORMAL — it has no archetype to anchor.
 
 ### Distinctness tooling (Phase 5 sim harness)
 
-The Phase-5 balance sim must include a **distinctness audit**: for each archetype-defining op (APPLY_BURN_STACK, THORNS, ON_HEAL_RECEIVED, GRANT_EXTRA_ACTION, SACRIFICE_SELF, ON_ALLY_DEATH, `team.distinct_elements` gates), the sim asserts the op appears ONLY on cards labelled with the corresponding archetype (with NORMAL allowed as the exception for counter cards that strip those ops). A drift gate fails CI if a future card author splashes a signature op outside its cluster.
+The Phase-5 balance sim must include a **distinctness audit**: for each archetype-defining op (APPLY_BURN_STACK, THORNS, ON_HEAL_RECEIVED, GRANT_EXTRA_ACTION, SACRIFICE_SELF, ON_ALLY_DEATH, `team.distinct_elements` gates), the sim asserts the op appears ONLY on cards labelled with the corresponding archetype. The audit's allow-list lives in `tests/test_phase4_distribution.py` and explicitly enumerates the 6 designated counter cards (§23.3) that are PERMITTED to use disruption ops on signature triggers (e.g. `abyss_warden` carries `APPLY_SILENCE` to suppress REVENANT's `ON_ALLY_DEATH` cascade). The 6 counters are the *only* off-cluster sites where signature-disrupting ops are tolerated; everywhere else, a drift gate fails CI if a future card author splashes a signature op outside its cluster.
 
 ---
 
@@ -815,7 +814,7 @@ A single PR that implements:
 7. Tests (per existing convention): one happy-path test per op, one re-entry-cap test for THORNS and ON_HEAL_RECEIVED, one Q2 contract test for SACRIFICE_SELF, one extra-action-cap test
 8. Doc update: this section marked "shipped"
 
-Phase 4f-pool follows Phase 4f-engine in a separate commit (retunes existing cards to use the new primitives where appropriate; adds the 5 NORMAL counters; promotes the 4 epics to legendary per §22).
+Phase 4f-pool follows Phase 4f-engine in a separate commit (retunes existing cards to use the new primitives where appropriate; promotes the 4 epics to legendary per §22). The counter-card slice ships earlier as Phase 4f-counters per §23.8 (was originally lumped into 4f-pool here as "5 NORMAL counters" — superseded by §23.3 to 6 elemental rare re-flavors with zero engine dependency, allowing it to ship ahead of 4f-engine).
 
 ---
 
@@ -918,9 +917,11 @@ All 6 V1 legendaries can cohabit one team (deckbuilding allows 6-card teams = ex
 | Any pair involving L3 trickle | Trickle never cascades, never triggers ANY mutation. The cascade-break (§22.2 L3) is the engine guard. |
 | All 6 alive | Maximum-mutation state. Engine remains deterministic; cascade caps (re-entry caps in §21.5; ON_ALLY_DEATH cap of 8 in §22.2 L5) prevent any pathological loop. Phase 5 sim harness must include "all-6-legendary mirror match" as a regression test for cap behavior. |
 
-### 22.4 — Phase 4f deliverables
+### 22.4 — Phase 4f deliverables (SUPERSEDED by §23.8)
 
-Phase 4f ships in two commits:
+The original two-commit plan (4f-engine + 4f-pool with NORMAL-counter authoring inside 4f-pool) is **superseded by §23.8**, which restructures Phase 4f into three commits (4f-counters + 4f-engine + 4f-pool) and reverses the NORMAL-counter design to the elemental-rare-counter design (§23.3). The 4 epic→legendary promotions remain as listed below; only the counter authoring + commit grouping change.
+
+Original deliverable list (kept here for traceability — see §23.8 for the live list):
 
 **4f-engine** (per §21.6): the 4 new ops + 3 new whens + 4 state primitives + condition DSL extensions + caps + tests.
 
@@ -932,8 +933,8 @@ Phase 4f ships in two commits:
    - `tempest_apex` epic → legendary, same retune + L4 mutation tag
 2. Confirm `voidking_morr` and `world_eater` mutation tags (L5, L6) wired correctly
 3. Re-author existing INFERNO cards to use APPLY_BURN_STACK where they currently use APPLY_BURN (Phase 2 status)
-4. Add 5 NORMAL counter cards (Phase 4e-counters merged into 4f for one shipset)
-5. Update `tests/test_phase4_distribution.py` for new rarity histogram (98C/60U/28R/8E/6L)
+4. ~~Add 5 NORMAL counter cards~~ → **superseded by §23.3**: counters are 6 elemental rares re-flavored in place, shipped in the new 4f-counters commit ahead of 4f-engine.
+5. Update `tests/test_phase4_distribution.py` for new rarity histogram (98C/60U/28R/8E/6L) — extended in §23.8 to also assert per-archetype matrix.
 6. Add legendary-mutation tests: one per L1–L6, plus the "all-6 alive" regression test from §22.3
 
 **4f-pool fix-forward of `archetype: null`**: the existing `archetype: null` on NORMAL JSONs (set in commit `40e28f8`) is the CORRECT value per §2.0. No JSON change needed — the lock is the §2.0 documentation, not a data migration. The forward-fix is purely the doc lock + the §20 NORMAL anti-pattern guard.
@@ -946,5 +947,157 @@ Phase 4f ships in two commits:
 
 ---
 
-*End of Phase 4 (a/b/c/d/e-engine/e-pool) charter. Phase 4f (engine vocab v2 + pool retune + legendary promotions) implements §20/§21/§22; Phase 5 (balance via simulation) follows.*
+## §23 — Card-design completion (locked 2026-04-23)
+
+### 23.1 — Principle
+
+Charter §1–§22 set the *framework*. §23 closes the remaining open authoring questions before Phase 4f implementation begins. Every subsection here either **locks** an answer Santiago asked for ("answer all those questions with your best instinct"), or **explicitly reverses** an earlier-charter decision that disk reality (Phase 4e-counters WIP, the 200-card pool lock, the actual archetype × rarity matrix) makes untenable. Reversals are called out by section so the doc reads coherently end-to-end.
+
+**Method note**: every count in §23.2 was computed from the live `daimon/catalog/v1_alpha/` JSONs on `monster-pivot @ 2026-04-23`, not from prior-section prose. The table is a *measurement*, not an *assertion*. Future drift is caught by `tests/test_phase4_distribution.py` (extended in Phase 4f to assert the per-archetype matrix below).
+
+### 23.2 — Per-archetype rarity distribution (LOCKED — measured + projected post-promotion)
+
+The **post-Phase 4f** pool (after the 4 epic→legendary promotions in §22.4 land):
+
+| Archetype | C | U | R | E | L | Total | Notes |
+|---|---|---|---|---|---|---|---|
+| INFERNO | 13 | 6 | 0 | 1 | 1 | 21 | `magma_tyrant` epic→legendary; 1 epic anchor remains (`solar_phoenix`) |
+| BULWARK | 13 | 7 | 0 | 1 | 1 | 22 | `worldroot_sentinel` epic→legendary; 1 epic anchor remains (`bulwark_patriarch`) |
+| TIDAL | 13 | 7 | 0 | 1 | 1 | 22 | `tide_empress` epic→legendary; 1 epic anchor remains (`coral_augur`) |
+| STORMCHAIN | 13 | 7 | 0 | 1 | 1 | 22 | `tempest_apex` epic→legendary; 1 epic anchor remains (`arc_predator`) |
+| REVENANT | 13 | 7 | 0 | 1 | 1 | 22 | unchanged — `voidking_morr` was already L; `crypt_wraith` is the epic anchor |
+| FLUX | 10 | 10 | 0 | 2 | 1 | 23 | unchanged — `world_eater` was already L; `prism_chimera` + `rainbow_drake` are the 2 epics |
+| **null** (NORMAL element + untagged elemental rares) | 23 | 16 | 28 | 1 | 0 | 68 | NORMAL element = 15 cards (8C/4U/2R/1E); the other 53 null cards are element-flavored utility (15C non-NORMAL + 12U non-NORMAL + 26R non-NORMAL) |
+| **TOTAL** | **98** | **60** | **28** | **8** | **6** | **200** | matches §3 |
+
+**Why every strategic-archetype rare slot is 0**: by current authoring convention, the `archetype` field is set ONLY on epics and legendaries. Commons and uncommons inherit archetype-coding *from their evolution-line parent* (the rare/epic ancestor), but the field is unset on the JSON to keep the per-card schema lean. Rares carry `archetype: null` because they're authored as element-flavored mid-tier filler, not as cluster anchors. **This is intentional and load-bearing**: it makes "is this card archetype X?" a tooling-time inference (line-of-evolution lookup), not a per-card metadata burden, and it keeps the soft-priority cluster model (§2.0) honest — a rare that splashes into multiple archetypes isn't lying about its archetype field, because it doesn't claim one. Phase 5 distinctness audit (§20) operates on signature-op presence, not on `archetype` field reads, so this convention is forward-compatible.
+
+**Lock-text justification — proximity antibody**: a future reader might "fix" rares by adding `archetype` tags to align them with epic anchors. Don't. The null-rare convention is what enables the counter-card design in §23.3 (counters live at rare tier with `archetype: null`, free to fight any cluster without claiming membership in one). Adding archetype tags to rares would force a binary decision per card that the soft-cluster model (§2.0) explicitly rejects. Not a bug, feature.
+
+### 23.3 — Counter-card design (LOCKED — REVERSES §20 row 2)
+
+**Reversal**: §20 specified "5 counter — designated archetype counters" living in the NORMAL element. **§23 supersedes that**: counters live as **6 elemental rares re-flavored in place** (one per strategic archetype, FLUX included), keeping `archetype: null` and using only existing engine vocabulary.
+
+**Why the reversal**:
+1. **The 200-card pool is locked.** Adding 5 NORMAL counter cards would require trimming 5 cards elsewhere, re-running the distribution lock test, re-balancing the elemental matchup math, and re-doing the Phase 4e-pool audit. Re-flavoring 6 existing rares is a zero-net-card-count operation.
+2. **All necessary engine ops already exist.** A NORMAL-counter design (the original §20 plan) needed ~10 new ops/whens (CLEANSE_BURN_STACKS, REMOVE_SHIELD, APPLY_HEAL_BLOCK, etc.). The elemental-rare-counter design uses `APPLY_SILENCE`, `APPLY_POISON`, `BUFF_DEF`, `DEBUFF_DEF`, `ADD_SHIELD`, `BUFF_SPD`, `DAMAGE`, `HEAL`, `DEBUFF_ATK`, `ON_BATTLE_START`, `ON_LOW_HP`, `ON_OPENING_ATTACK`, `ON_ROUND_START`, `ON_ATTACK` — every one of those is already in `daimon/engine/types.py` and `combat.py`. Phase 4e-counters runs with **zero engine changes**.
+3. **Counters at rare tier reach thoughtful deckbuilders.** A counter at common dilutes the gacha pull rate; at rare it sits in the band where players are intentionally tuning a loadout against an expected meta. This is the standard TCG move (MTG sideboard rares, Hearthstone tech rares).
+4. **NORMAL stays compositionally pure as support.** §20 row 1 ("7 support") becomes "all 15 NORMAL are support / utility." NORMAL is the no-archetype splashable element; loading it with counter logic would re-introduce hidden archetype gates by another name.
+5. **FLUX gets a counter too.** §20 had 5 counters covering 5 archetypes (FLUX intentionally uncountered). The 6-rare design covers all 6 strategic archetypes, including FLUX (`stormhare` race-burst cracks FLUX before its `team.distinct_elements` gates assemble).
+
+**The 6 counters** (re-flavored from existing rares; full mechanical specs in `scripts/author_phase4e_counters.py`):
+
+| Card | Element | Counters | Mechanic |
+|---|---|---|---|
+| `forest_warden` | NATURE | INFERNO | `ON_BATTLE_START BUFF_DEF ALL_ALLIES 3` + `ON_LOW_HP HEAL SELF 5` (out-lasts BURN tick clock) |
+| `maelstrom_serpent` | WATER | BULWARK | `ON_OPENING_ATTACK DEBUFF_DEF ALL_ENEMIES 4` + `ON_ATTACK DAMAGE LOWEST_HP_ENEMY 3` (cracks shield walls, kills the squishy back-line) |
+| `mindroot` | VOID | TIDAL | `ON_BATTLE_START APPLY_POISON ALL_ENEMIES 3r` + `ON_ATTACK DAMAGE LOWEST_HP_ENEMY 3` (DOT competes with heal cycle) |
+| `bulwarthog` | NATURE | STORMCHAIN | `ON_ROUND_START BUFF_DEF ALL_ALLIES 1` + `ON_ROUND_START ADD_SHIELD SELF 3` (round-start triggers fire under STUN; stacks across rounds, single SILENCE doesn't undo prior rounds) |
+| `abyss_warden` | VOID | REVENANT | `ON_BATTLE_START APPLY_SILENCE ALL_ENEMIES 3r` + `ON_ATTACK DEBUFF_ATK ALL_ENEMIES 3` (SILENCE suppresses ON_DEATH/ON_ALLY_DEATH per `combat.py::_fire_triggers_for_unit` — keystone anti-REVENANT) |
+| `stormhare` | VOLT | FLUX | `ON_OPENING_ATTACK DAMAGE LOWEST_HP_ENEMY 4` + `ON_BATTLE_START BUFF_SPD ALL_ALLIES 1` (race-burst kills FLUX squishies before distinct_elements gates fire) |
+
+**Counter-coverage tagging**: counters carry their counter-target in `scripts/author_phase4e_counters.py::EXPECTED_SLOTS` as the single source of truth. Card JSONs do NOT add a new `counters` field in V1 — the script + tests are the audit surface. **Lock-text justification**: adding a JSON `counters` field would tempt the engine to *read* it (e.g. "fire harder when facing target archetype"), reintroducing archetype-as-gate logic that §2.0 explicitly forbids. Counter status is *implementation* (mechanic chosen to punish a pattern), not *engine state*. Not a bug, feature.
+
+**WIP status (as of 2026-04-23)**: `scripts/author_phase4e_counters.py` and `tests/test_phase4e_counters.py` are on disk but UNCOMMITTED. The 6 card JSONs and `manifest.json` (version bump 0.4.4 → 0.4.5) carry the retunes. Test status: **8 of 9 pass**. The single failure is `TestForestWardenAntiInferno::test_low_hp_self_heal_fires` — the test's bruiser two-shots forest_warden (HP 24 → 12 → 0), skipping past the 25%-of-24 = 6 HP threshold without ever lingering inside the LOW_HP window. The mechanic is correctly authored on the card; the *test fixture* picks an attacker that's too brutal. Fix-up belongs to Phase 4f-pool: rebalance the bruiser's atk to ~6 so forest_warden lands in 5–6 HP after the first strike, triggering ON_LOW_HP before the second strike. **This test fix is the only unfinished work in Phase 4e-counters.**
+
+### 23.4 — Tech cards: DEFERRED from V1 (REVERSES §20 row 3)
+
+**Reversal**: §20 specified "3 tech — toolbox cards with niche disruption value (e.g. SILENCE-on-low-HP, single-target STUN priority, generic dispel)." **§23 defers this entirely to V1.1+.**
+
+**Why deferred**:
+1. **The 6-counter design (§23.3) absorbs the disruption surface.** SILENCE lives on `abyss_warden`; AoE soft-control lives on the 6 counters; targeted disruption (POISON, DEBUFF_DEF) lives on the 6 counters. Adding 3 more "toolbox" cards would duplicate function without adding coverage.
+2. **Tech cards optimize for a meta that doesn't exist yet.** "Toolbox" cards are valuable in a known meta where players slot them as answers to specific dominant strategies. V1 has no meta — it ships, then Phase 5 sim + early-player-data establishes one. Authoring tech cards now would be guessing at the meta.
+3. **The 200-card pool lock.** Adding 3 NORMAL tech cards would require trimming 3 cards elsewhere — same constraint as §23.3.
+4. **NORMAL stays support-only.** Cleaner identity: NORMAL = "splash any deck, never the win condition" (§20). Tech cards are by design situational; they live somewhere else (likely a future "set 2" expansion designed against an established meta).
+
+**V1.1+ disposition**: when Phase 5 sim or early gameplay surfaces a specific dominant pattern that the 6 counters don't address, V1.1 ships the tech card(s) needed to address it. Open-ended pre-design is rejected. (Charter §20 row 3 is now "0 tech — see §23.4.")
+
+### 23.5 — Updated NORMAL element split (REVISES §20 row 1)
+
+The locked NORMAL split is **15 support — full audit**:
+
+| Card | Rarity | Mechanic | Splash use |
+|---|---|---|---|
+| `pebbler` | C | `ON_TURN_END ADD_SHIELD RANDOM_ALLY 1` | universal pad — sticks 5+ shields across a 5-round match |
+| `runic_whelp` | C | `ON_BATTLE_START BUFF_DEF ALL_ALLIES 1` | small upfront DR for any cluster |
+| `cloth_sprite` | C | `ON_TURN_END HEAL RANDOM_ALLY 1` | trickle heal — 5 heals across the match |
+| `page_slime` | C | `ON_TURN_END HEAL SELF 2` | self-sustain bait, ties up enemy attacks |
+| `brass_mole` | C | `ON_BATTLE_START BUFF_ATK SINGLE_ALLY 2` | single-target ATK pad |
+| `mossback_ox` | C | `ON_BATTLE_START APPLY_TAUNT SELF 5` | taunt body, soaks enemy actions |
+| `quill_cat` | C | `ON_BATTLE_START DEBUFF_DEF ALL_ENEMIES 1` | small AoE shred — softens any opponent |
+| `grove_pup` | C | `ON_TURN_END BUFF_DEF RANDOM_ALLY 1` | trickle DR — accumulates over the match |
+| `stoneward` | U | `ON_BATTLE_START ADD_SHIELD ALL_ALLIES 2` | team-wide shield burst |
+| `rune_owl` | U | `ON_BATTLE_START BUFF_SPD ALL_ALLIES 1` | tempo splash for any cluster (light SPD bump per §20 SPD value band) |
+| `wrought_bear` | U | `ON_DAMAGE_TAKEN APPLY_TAUNT SELF 1` (Phase 4f-engine: reactive taunt — see §21.2 ON_DAMAGE_TAKEN) | reactive taunt — pulls fire when hit |
+| `mendicant_sphinx` | U | `ON_TURN_END HEAL RANDOM_ALLY 3` | sustained heal trickle, larger than `cloth_sprite` |
+| `aegis_lion` | R | `ON_BATTLE_START ADD_SHIELD ALL_ALLIES 3` + `ON_BATTLE_START BUFF_DEF SELF 2` | team-shield + self-pad |
+| `loremaster_ape` | R | `ON_BATTLE_START BUFF_ATK ALL_ALLIES 3` + `ON_TURN_END BUFF_SPD RANDOM_ALLY 3` | team ATK opener + tempo trickle |
+| `concord_phoenix` | E | `ON_BATTLE_START HEAL ALL_ALLIES 5` + `ON_ALLY_DEATH BUFF_ATK ALL_ALLIES 4` | team heal opener + REVENANT-flavored cascade — splashes into anything |
+
+**No retirements, no replacements**: the 15 NORMAL cards as authored in Phase 4e-pool (commit `40e28f8`) all serve as support. The pre-summary plan to retire 8 of them was based on the now-reversed §20 row-2/row-3 design. **Confirmed no NORMAL cards need re-authoring for §23 lock.**
+
+**Stat-band validation**: spot-checked all 15 against §4 budgets — within band. Phase 4f-pool does NOT need to retune NORMAL cards; the only Phase 4f-pool work on NORMAL is `wrought_bear` migrating its trigger from `ON_TAKE_DAMAGE` (Phase 2 shipped) to `ON_DAMAGE_TAKEN` (Phase 4f-engine, semantically distinct per §21.2 — fires only on damage that landed, not on shield-absorbed damage). One-line edit.
+
+### 23.6 — Epic→legendary promotion strategy (LOCKED — confirms §22.4)
+
+**Strategy**: **rewrite-in-place** for all 4 promotions. The card_id, species, name, and existing flavor stay; the card JSON gets a full retune of `rarity`, `atk/def/hp/spd` (legendary envelope from §4), `triggers` (replaced with the §22 mutation contract — see below), and `art` path (`art/epic/X.png` → `art/legendary/X.png`).
+
+**Why rewrite-in-place vs. retire-and-author-new**:
+1. **Card identity continuity**: existing players (Santiago + early access) who pulled `magma_tyrant` epic during testing keep "the same card" — it just leveled up. Retiring the epic would mean their card_id vanishes from collection and Santiago's V1 testing tracks die.
+2. **No species lore drift**: the 4 promoted cards already have flavor + lineage that fits the §22 mutation. `magma_tyrant` *should* burn-on-every-hit; `worldroot_sentinel` *should* radiate THORNS to allies; etc. The flavor was ahead of the mechanic.
+3. **No art commission needed**: `art/epic/magma_tyrant.png` can be re-used at `art/legendary/magma_tyrant.png` (the legendary frame is post-process; the art itself is the same). Saves 4 art slots.
+4. **Manifest stays at 200**: retire-and-author would require careful per-element re-balancing. In-place keeps every per-element/per-archetype count (§23.2) stable.
+
+**The 4 mechanical-rewrite contracts** (per §22.2 mutations):
+
+- **`magma_tyrant`** (FIRE/INFERNO, epic → L1): triggers replaced with the L1 mutation tag. New stat band: legendary 38–46. Mutation: "while alive, every damage instance any ally deals also applies 1 burn stack." Engine binding: §22.2 L1.
+- **`worldroot_sentinel`** (NATURE/BULWARK, epic → L2): triggers replaced with the L2 mutation tag. Mutation: "while alive, every alive ally has THORNS 2." Engine binding: §22.2 L2.
+- **`tide_empress`** (WATER/TIDAL, epic → L3): triggers replaced with the L3 mutation tag. Mutation: "every heal heals everyone for 1 (cascade-broken)." Engine binding: §22.2 L3.
+- **`tempest_apex`** (VOLT/STORMCHAIN, epic → L4): triggers replaced with the L4 mutation tag. Mutation: "extra-action cap raised 1→2 per ally per round." Engine binding: §22.2 L4.
+
+**Mutation-tag schema** (NEW — locked here): legendary cards carry a new optional field `rule_change: <mutation_id>` where `mutation_id ∈ {L1, L2, L3, L4, L5, L6}`. The `triggers` array on a legendary MAY be empty (the mutation IS the card's mechanical contribution) or MAY carry secondary triggers that operate within global rules (e.g. an ON_BATTLE_START stat buff that has nothing to do with the mutation). Engine reads `rule_change` at battle start and registers the corresponding mutation flag on the team. The 6 V1 mutations are hard-coded in `combat.py`; the field is an enum-style key, not a free-form spec — V2 expansions add new mutation IDs by editing `combat.py` (locked dispatch table), not by adding spec fields to JSONs. This keeps the cards JSON-side declarative ("which rule do I change?") and the engine-side imperative ("how is rule L1 implemented?").
+
+**`voidking_morr` and `world_eater`** (already legendary in V1): Phase 4f-pool adds the `rule_change: L5` and `rule_change: L6` fields respectively. Their existing triggers stay (they were authored against the §22 mutations from the start of the legendary tier).
+
+### 23.7 — Engine readiness summary
+
+| Need | Phase 4e-counters (§23.3) | Phase 4f-engine (§21.6) | Phase 4f-pool (§23.6 + §22.4) |
+|---|---|---|---|
+| Ops used | all already in `EffectOp` enum | adds `APPLY_BURN_STACK`, `THORNS`, `GRANT_EXTRA_ACTION`, `SACRIFICE_SELF` | uses §21 ops + new `rule_change` field reader |
+| Whens used | all already in `TriggerWhen` enum | adds `ON_HEAL_RECEIVED`, `ON_DAMAGE_TAKEN`, `ON_EXTRA_ACTION_GRANTED` | uses §21 whens |
+| State primitives | none new | adds `burn_stacks`, `shield_count`, `extra_action_used_this_round`, mutation flags on team | uses §21 primitives |
+| Tests | 8/9 pass; 1 fix-up (test bug, not engine bug) | 4 happy-path + 2 re-entry-cap + Q2 contract + extra-action-cap | one mutation test per L1–L6 + all-6 regression |
+| Net engine code change for §23.3 | **zero lines** | new ops/whens/primitives | new `rule_change` dispatcher |
+
+**Critical sequencing**: §23.3 (Phase 4e-counters) can ship **before** Phase 4f-engine. §23.6 (epic→legendary promotions) must ship **after** Phase 4f-engine because the mutation contracts depend on the new ops/primitives the engine PR adds.
+
+### 23.8 — Updated Phase 4f deliverable list (SUPERSEDES §22.4)
+
+Phase 4f ships in **three commits** (was two in §22.4):
+
+**4f-counters** (new — extracted from §22.4 item 4): commit the existing WIP — 6 card JSONs + `scripts/author_phase4e_counters.py` + `tests/test_phase4e_counters.py` + manifest 0.4.4 → 0.4.5 + the test fix-up for `test_low_hp_self_heal_fires` (rebalance bruiser stats to land forest_warden in the LOW_HP window). **Zero engine code change.**
+
+**4f-engine** (per §21.6, unchanged from §22.4): the 4 new ops + 3 new whens + 4 state primitives + condition DSL extensions + caps + tests + new `rule_change` field reader on `cards/loader.py` + new mutation-flag dispatch in `combat.py`.
+
+**4f-pool** (revised from §22.4):
+1. Promote 4 epics to legendary per §23.6 (rewrite-in-place: rarity flip, stat retune to legendary band, triggers replaced with mutation contract, `rule_change: Lx` field added, art path move).
+2. Add `rule_change: L5` to `voidking_morr` and `rule_change: L6` to `world_eater` (existing legendaries — wire them to the mutation dispatcher).
+3. Migrate `wrought_bear` (NORMAL U) from `ON_TAKE_DAMAGE` → `ON_DAMAGE_TAKEN` (one-line edit per §21.2 semantic distinction).
+4. Re-author existing INFERNO cards that currently use `APPLY_BURN` (Phase 2 status) to use `APPLY_BURN_STACK` where the design intent was stack-based (per §22.4 item 3 — unchanged).
+5. Update `tests/test_phase4_distribution.py` to assert the §23.2 per-archetype × rarity matrix (extends current rarity-only assertion).
+6. Add legendary-mutation tests: one per L1–L6 + the "all-6 alive" regression test from §22.3.
+
+**Removed from §22.4 deliverable list**: "Add 5 NORMAL counter cards" — superseded by §23.3 (counters are 6 elemental rares, already drafted as Phase 4e-counters WIP, ship in the 4f-counters commit).
+
+### 23.9 — Open follow-ups (deferred beyond V1 unless Phase 5 sim flags them)
+
+- **Tech cards (§23.4)**: re-evaluate after V1 sim + early-player-data — only ship in V1.1+ if a specific dominant pattern emerges that the 6 counters don't address.
+- **Counter-coverage gaps**: §23.3's 6 counters cover the 6 strategic archetypes 1:1. If a future expansion adds a 7th archetype (per §22.5), it needs a 7th counter — likely from the existing 22 untagged elemental rares (re-flavor like Phase 4e-counters did the first 6). Mutation precedes content (§22.5); counter precedes content equivalently.
+- **Per-archetype rare authoring**: §23.2 shows zero rares with strategic-archetype tags. If post-V1 design wants archetype-tagged rares (e.g. "BULWARK rare anchors"), the convention shift goes through a §23 amendment that explicitly justifies why; default is to keep rares null-archetype per §23.2.
+- **Mutation-tag schema (`rule_change` field)**: V1 hard-codes 6 mutation IDs in `combat.py`. V2+ expansion mutations need either (a) new IDs in the same dispatch table (preferred, simple) or (b) a JSON-side mutation spec language (rejected for V1 — opens too much engine surface; revisit only if V2 design demands it).
+- **Counter card stat retunes**: Phase 5 sim must verify the 6 counters actually beat their target archetype meaningfully without dominating non-target matchups. If `forest_warden` counters INFERNO too hard (>70% win rate) or too soft (<55%), retune the trigger value (still within rare value band per `RARE_VALUE_BAND_*` in `author_phase4e_counters.py`).
+
+---
+
+*End of Phase 4 (a/b/c/d/e-engine/e-pool) charter. Phase 4f (4f-counters + 4f-engine + 4f-pool, per §23.8) implements §20/§21/§22/§23; Phase 5 (balance via simulation) follows.*
 
