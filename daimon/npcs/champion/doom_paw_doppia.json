@@ -3,14 +3,14 @@
   "name": "Doom-paw Doppia",
   "tier": "champion",
   "rank": 5,
-  "flavor": "The wall the legends fall on.",
-  "bio": "Final boss of the V1 alpha roster. Voltcat Apex anchor + BOTH epics + BOTH rares + Anvilram. Every card on her bench has a trigger. Beating her is a graduation.",
+  "flavor": "A mouth on each side.",
+  "bio": "world_eater (atk=14 hp=42, ON_BATTLE_START \u00d72 + ON_ATTACK) eats the field whole. worldroot_colossus (def=14 hp=42) walls the answer-shots. crypt_wraith epic + nullhound + echo_lich + moss_titan round out the cross-element bruiser core. Designed for total board control \u2014 no individual unit gets to live.",
   "loadout": [
-    "voltcat_apex",
-    "mindroot",
-    "bulwarthog",
-    "stormhare",
-    "tidewyrm",
-    "thornpup"
+    "world_eater",
+    "crypt_wraith",
+    "worldroot_colossus",
+    "moss_titan",
+    "nullhound",
+    "echo_lich"
   ]
 }

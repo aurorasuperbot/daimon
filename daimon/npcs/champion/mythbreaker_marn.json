@@ -3,14 +3,14 @@
   "name": "Mythbreaker Marn",
   "tier": "champion",
   "rank": 5,
-  "flavor": "Cracked one before, crack one again.",
-  "bio": "First Champion. Voltcat Apex hits a random enemy on top of every attack; Mindroot debuffs your ATK on opening; Stormhare guarantees turn order. Three-trigger pressure cooker.",
+  "flavor": "Old kings die loudly.",
+  "bio": "voidking_morr (ON_BATTLE_START + ON_ALLY_DEATH + ON_DEATH) is the deepest legendary in the pool. crypt_wraith epic + four VOID rares (echo_lich, nullhound, riftwraith, mindroot) turn every death into a wave of payoffs. The most synergistic champion in the field.",
   "loadout": [
-    "voltcat_apex",
-    "mindroot",
-    "stormhare",
-    "glimmerowl",
-    "dashmouse",
-    "thornpup"
+    "voidking_morr",
+    "crypt_wraith",
+    "echo_lich",
+    "nullhound",
+    "riftwraith",
+    "aegis_lion"
   ]
 }

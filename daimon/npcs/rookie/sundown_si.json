@@ -3,14 +3,14 @@
   "name": "Sundown Si",
   "tier": "rookie",
   "rank": 1,
-  "flavor": "Burn brighter, end sooner.",
-  "bio": "Aggressive opener; if she doesn't kill you in three rounds she folds. Blade Foxling first, no apologies.",
+  "flavor": "Old eye, slow hand.",
+  "bio": "Si trains by lamplight. The team leans VOID for spookiness but no triggers will land \u2014 these are all vanilla apprentices. A tutorial-tier introduction to the VOID element ring (weak vs FIRE).",
   "loadout": [
-    "emberpup",
-    "dashmouse",
+    "whisperling",
+    "duskmoth",
+    "shadepup",
     "iron_boar",
-    "glimmerowl",
-    "mistling",
-    "geodeling"
+    "geodeling",
+    "mistling"
   ]
 }

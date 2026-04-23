@@ -3,14 +3,14 @@
   "name": "Storm-warden Wynn",
   "tier": "elite",
   "rank": 4,
-  "flavor": "Two epics, no apology.",
-  "bio": "Bridge fight to Champion tier. Bulwarthog AND Mindroot on the same bench: tank-all on opening, ATK debuff on your team, ally-death buffs Bulwarthog, speed support behind. Pick one to kill first; you'll be wrong.",
+  "flavor": "Two skies, one stride.",
+  "bio": "FLUX epic. prism_chimera anchors an all-elements team where every monster fires ON_BATTLE_START. echo_lich rare adds ON_ALLY_DEATH AND ON_BATTLE_START AND ON_ATTACK \u2014 a triple-trigger payoff.",
   "loadout": [
-    "bulwarthog",
-    "mindroot",
-    "stormhare",
-    "thornpup",
-    "glimmerowl",
-    "dashmouse"
+    "prism_chimera",
+    "echo_lich",
+    "prism_grove",
+    "shade_prismatic",
+    "spectral_charge",
+    "tide_synth"
   ]
 }

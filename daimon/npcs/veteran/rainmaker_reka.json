@@ -3,14 +3,14 @@
   "name": "Rainmaker Reka",
   "tier": "veteran",
   "rank": 3,
-  "flavor": "Tide and wall.",
-  "bio": "Built her career on attrition. Tidewyrm heals every round, Anvilram refunds the damage, the rest of the team eats your clock.",
+  "flavor": "She brought the weather.",
+  "bio": "TIDAL COMMITTED. Two rare anchors \u2014 tidewyrm + glacier_kraken \u2014 stack ON_ROUND_START effects. Brineprince uncommon supplies the ON_ATTACK pressure. Stalls hard, then closes.",
   "loadout": [
     "tidewyrm",
-    "thornpup",
-    "mistling",
-    "iron_boar",
-    "glimmerowl",
-    "geodeling"
+    "glacier_kraken",
+    "brineprince",
+    "tide_chanter",
+    "seapup",
+    "brineling"
   ]
 }

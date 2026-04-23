@@ -3,14 +3,14 @@
   "name": "Sparring Sam",
   "tier": "rookie",
   "rank": 1,
-  "flavor": "Match #1 is always free.",
-  "bio": "The first NPC every player fights. Trained on every common, master of none. No triggers, no surprises -- just six bodies and a smile.",
+  "flavor": "Trains with what's at hand.",
+  "bio": "Sam grabbed the first six cards he saw and signed up. There's no plan, no archetype, no triggers \u2014 just six honest monsters that hit until something falls over. Use this fight to learn how slot order matters.",
   "loadout": [
-    "sproutling",
     "iron_boar",
     "emberpup",
     "mistling",
     "dashmouse",
-    "geodeling"
+    "geodeling",
+    "sproutling"
   ]
 }

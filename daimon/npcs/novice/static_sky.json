@@ -3,14 +3,14 @@
   "name": "Static Sky",
   "tier": "novice",
   "rank": 2,
-  "flavor": "Lightning never asks.",
-  "bio": "Storm-chaser turned trainer. Stormhare's BUFF_SPD-all crashes the speed math; Glimmerowl piles on. First Novice with a rare on the bench.",
+  "flavor": "Hair on end.",
+  "bio": "STORMCHAIN with one rare (voltcat_apex atk=14, the 'occasional rare' the novice rule allows). galelord + zapdrake uncommons BUFF_SPD the team; stoneward supplies the only DEF wall.",
   "loadout": [
-    "stormhare",
-    "dashmouse",
-    "glimmerowl",
-    "emberpup",
+    "plasma_kit",
+    "zapling",
     "iron_boar",
-    "mistling"
+    "voltcat_apex",
+    "galelord",
+    "stoneward"
   ]
 }

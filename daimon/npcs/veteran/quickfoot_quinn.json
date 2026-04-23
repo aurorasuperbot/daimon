@@ -3,14 +3,14 @@
   "name": "Quickfoot Quinn",
   "tier": "veteran",
   "rank": 3,
-  "flavor": "First step's the only one that matters.",
-  "bio": "Glass cannon enthusiast. Stacked his bench for one purpose: every monster moves first. If they survive the opening exchange, he loses; they usually don't.",
+  "flavor": "First to strike.",
+  "bio": "STORMCHAIN COMMITTED. Two rare anchors \u2014 arc_serpent and stormhare \u2014 both spd>=11. Three uncommons (shock_runner, plasma_hound, boltrunner) stack ON_KILL + ON_OPENING_ATTACK chains. If you don't out-tempo, you lose the opening exchange.",
   "loadout": [
+    "arc_serpent",
     "stormhare",
-    "dashmouse",
-    "glimmerowl",
-    "iron_boar",
-    "emberpup",
-    "mistling"
+    "shock_runner",
+    "plasma_hound",
+    "boltrunner",
+    "stormpup"
   ]
 }

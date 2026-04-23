@@ -4,13 +4,13 @@
   "tier": "rookie",
   "rank": 1,
   "flavor": "Walks the long path.",
-  "bio": "Patient gardener-turned-trainer. Her team is built like a hedge: thick, low, and refuses to move. The Anvilram on the bench is the only trigger you'll see.",
+  "bio": "Patient gardener-turned-trainer. Her team is a hedge: thick, low and refuses to move. No triggers will fire. You'll have to chip through. Watch how high HP + low SPD plays out across 5 rounds.",
   "loadout": [
     "iron_boar",
     "geodeling",
-    "thornpup",
-    "mistling",
-    "sproutling",
-    "emberpup"
+    "coralcub",
+    "mossback_ox",
+    "pebbler",
+    "sproutling"
   ]
 }

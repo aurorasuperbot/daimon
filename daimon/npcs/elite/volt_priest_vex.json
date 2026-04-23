@@ -3,14 +3,14 @@
   "name": "Volt-priest Vex",
   "tier": "elite",
   "rank": 4,
-  "flavor": "Discharge cathedral.",
-  "bio": "Hybrid void-volt build. Mindroot debuffs your ATK on opening, Stormhare BUFF_SPD-all guarantees they swing first, Glimmerowl pads it further. Anvilram backstops.",
+  "flavor": "Sermon by induction.",
+  "bio": "STORMCHAIN epic. arc_predator (atk=13 spd=11, ON_KILL + ON_ATTACK) snowballs on every kill. arc_serpent + tempest_eagle + storm_celestial back it up \u2014 three rares plus the epic = relentless tempo. Burst it down before the third kill compounds the chain.",
   "loadout": [
-    "mindroot",
-    "stormhare",
-    "glimmerowl",
-    "dashmouse",
-    "thornpup",
-    "emberpup"
+    "arc_predator",
+    "arc_serpent",
+    "tempest_eagle",
+    "storm_celestial",
+    "arc_lancer",
+    "plasma_hound"
   ]
 }

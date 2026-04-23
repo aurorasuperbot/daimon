@@ -3,14 +3,14 @@
   "name": "Stormrider Sven",
   "tier": "veteran",
   "rank": 3,
-  "flavor": "Carries the squad on lightning.",
-  "bio": "Speed-stack specialist. Stormhare BUFF_SPD-all + Glimmerowl self-SPD = his whole team moves before yours does. If the round cap doesn't save you, nothing will.",
+  "flavor": "Rides the front.",
+  "bio": "Tempo VOLT \u2014 tempest_eagle + plasma_djinn double rare anchors (both atk>=11 spd>=10). arc_lancer keys off ON_EXTRA_ACTION_GRANTED for a chain reaction. Mid-veteran power \u2014 2 rares + 3 uncommons.",
   "loadout": [
-    "stormhare",
+    "tempest_eagle",
+    "plasma_djinn",
+    "arc_lancer",
     "glimmerowl",
-    "dashmouse",
-    "emberpup",
-    "geodeling",
-    "iron_boar"
+    "spark_serpent",
+    "arc_pup"
   ]
 }

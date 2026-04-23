@@ -3,14 +3,14 @@
   "name": "Mind-eater Mox",
   "tier": "elite",
   "rank": 4,
-  "flavor": "You forgot what you came to do.",
-  "bio": "Void-aligned. Mindroot ON_BATTLE_START debuffs ATK on your whole team and ON_ATTACK pings your lowest-HP card for free. Stormhare layers speed on top. Surgical pressure.",
+  "flavor": "Feeds on the gap.",
+  "bio": "REVENANT epic. crypt_wraith (ON_ALLY_DEATH + ON_DEATH) turns every fallen unit into a payoff. mindroot + abyss_warden rares plus three REVENANT supports build a death-chain that punishes any kill order.",
   "loadout": [
+    "crypt_wraith",
     "mindroot",
-    "stormhare",
-    "glimmerowl",
-    "dashmouse",
-    "emberpup",
-    "iron_boar"
+    "abyss_warden",
+    "shadebishop",
+    "wraith_prince",
+    "wraithling"
   ]
 }

@@ -3,14 +3,14 @@
   "name": "Rust-priest Rhea",
   "tier": "veteran",
   "rank": 3,
-  "flavor": "Plate, paint, pray.",
-  "bio": "Defensive synergy queen. Anvilram damage shield + Tidewyrm round-start heal = every swing you land gets refunded twice. Bring a clock.",
+  "flavor": "Burn the joints loose.",
+  "bio": "INFERNO COMMITTED. blazewolf rare anchors with raw atk=11. Two uncommons (magma_warden ON_KILL + ash_strider ON_ATTACK) compound trigger density. Squishy team \u2014 race them before the burns stack.",
   "loadout": [
-    "thornpup",
-    "tidewyrm",
-    "iron_boar",
-    "mistling",
-    "glimmerowl",
-    "dashmouse"
+    "blazewolf",
+    "magma_warden",
+    "ash_strider",
+    "ashpup",
+    "brimling",
+    "ignis_kit"
   ]
 }

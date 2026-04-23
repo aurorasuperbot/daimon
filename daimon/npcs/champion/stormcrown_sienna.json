@@ -3,14 +3,14 @@
   "name": "Stormcrown Sienna",
   "tier": "champion",
   "rank": 5,
-  "flavor": "Three speed buffs. Three.",
-  "bio": "Speed cathedral. Voltcat Apex self-SPD, Stormhare all-allies SPD, Glimmerowl self-SPD -- her ENTIRE bench moves before yours does after round 1. Mindroot debuffs you on top.",
+  "flavor": "She walks in fire.",
+  "bio": "magma_tyrant (atk=14 hp=30) is the cleanest stat-anchor in the pool. solar_phoenix epic + molten_drake + ashen_phoenix + inferno_lynx stack four FIRE rares of pure burn pressure. Every kill costs you HP via phoenix ON_DEATH revenge.",
   "loadout": [
-    "voltcat_apex",
-    "stormhare",
-    "glimmerowl",
-    "dashmouse",
-    "emberpup",
-    "mindroot"
+    "magma_tyrant",
+    "solar_phoenix",
+    "concord_phoenix",
+    "rainbow_drake",
+    "ashen_phoenix",
+    "inferno_lynx"
   ]
 }

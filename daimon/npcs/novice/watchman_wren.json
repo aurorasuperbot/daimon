@@ -3,14 +3,14 @@
   "name": "Watchman Wren",
   "tier": "novice",
   "rank": 2,
-  "flavor": "Defends what doesn't move.",
-  "bio": "Border-town guard. Anvilram up front means damage shields stack every time you swing. Glimmerowl's BUFF_SPD makes her counter-strikes land first.",
+  "flavor": "Stands in the gate.",
+  "bio": "Introduces BULWARK. Wren's team blooms tiny ON_BATTLE_START shields and grinds DEF on hits. One uncommon thornpup anchors the wall.",
   "loadout": [
+    "barkpup",
+    "ironseed",
+    "mossling",
     "thornpup",
     "iron_boar",
-    "mistling",
-    "glimmerowl",
-    "geodeling",
-    "dashmouse"
+    "geodeling"
   ]
 }

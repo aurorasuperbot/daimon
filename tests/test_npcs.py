@@ -171,14 +171,48 @@ def test_champion_tier_significantly_stronger_than_rookie():
     )
 
 
-def test_legendary_appears_only_in_champion_tier():
-    """voltcat_apex (the only legendary in v1_alpha) must be Champion-only."""
+def test_legendaries_appear_only_in_champion_tier():
+    """All legendaries in the catalog must be Champion-tier only.
+
+    This is the policy expression of the champion tier rule: "L anchor +
+    E + tight synergy." Resolved dynamically against the catalog so it
+    survives catalog re-balances (legendary count changed across phases:
+    1 in early v1_alpha → 6 in the post-Phase-4i 200-card pool).
+    """
+    cat = load_catalog()
+    legendary_ids = {c.card_id for c in cat.cards if c.rarity == "legendary"}
+    assert legendary_ids, "expected catalog to contain >=1 legendary"
+    offenders = []
     for n in list_npcs():
-        if "voltcat_apex" in n.loadout:
-            assert n.tier == "champion", (
-                f"NPC {n.npc_id!r} (tier {n.tier!r}) has the legendary "
-                f"voltcat_apex -- legendary should be Champion-tier only"
-            )
+        if n.tier == "champion":
+            continue
+        bad = set(n.loadout) & legendary_ids
+        if bad:
+            offenders.append(f"{n.npc_id!r} (tier {n.tier!r}): {sorted(bad)}")
+    assert not offenders, (
+        "legendaries leaked outside champion tier:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_epics_only_appear_in_elite_or_champion_tier():
+    """Epics belong to the elite "E anchor" rule and champion "L + E" rule.
+
+    Anything below elite seeing an epic violates the difficulty curve.
+    Resolved dynamically so it survives catalog re-balances.
+    """
+    cat = load_catalog()
+    epic_ids = {c.card_id for c in cat.cards if c.rarity == "epic"}
+    assert epic_ids, "expected catalog to contain >=1 epic"
+    offenders = []
+    for n in list_npcs():
+        if n.tier in ("elite", "champion"):
+            continue
+        bad = set(n.loadout) & epic_ids
+        if bad:
+            offenders.append(f"{n.npc_id!r} (tier {n.tier!r}): {sorted(bad)}")
+    assert not offenders, (
+        "epics leaked below elite tier:\n  " + "\n  ".join(offenders)
+    )
 
 
 def test_rookie_tier_has_no_rares_or_higher():

@@ -3,14 +3,14 @@
   "name": "Tide-priest Telos",
   "tier": "elite",
   "rank": 4,
-  "flavor": "Drowns you in patience.",
-  "bio": "Bulwarthog tank-all + Tidewyrm round-start heal + Anvilram damage shield = nothing dies. Bring real triggers or hope for the round cap.",
+  "flavor": "Read the current.",
+  "bio": "TIDAL epic. coral_augur opens at full HP and only triggers if kept full \u2014 Telos' team layers heals to keep her there. leviathan_prime (atk=12 def=10 hp=38) is the wall behind her.",
   "loadout": [
-    "bulwarthog",
-    "tidewyrm",
-    "thornpup",
-    "mistling",
-    "iron_boar",
-    "glimmerowl"
+    "coral_augur",
+    "leviathan_prime",
+    "maelstrom_serpent",
+    "tide_chanter",
+    "abyssbreaker",
+    "brineling"
   ]
 }

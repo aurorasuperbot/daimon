@@ -3,14 +3,14 @@
   "name": "Bramble Beth",
   "tier": "veteran",
   "rank": 3,
-  "flavor": "Roots that fight back.",
-  "bio": "Pure-nature partisan. Iron Boar holds, Anvilram retaliates, Tidewyrm heals the whole hedge between rounds.",
+  "flavor": "Roots over rocks.",
+  "bio": "BULWARK COMMITTED. moss_titan rare anchors a NATURE wall that thickens every round. Bramble_warden + mossbear spread ON_BATTLE_START and ON_TAKE_DAMAGE buffs across the team.",
   "loadout": [
-    "iron_boar",
-    "thornpup",
-    "geodeling",
-    "tidewyrm",
-    "glimmerowl",
-    "sproutling"
+    "moss_titan",
+    "bramble_warden",
+    "mossbear",
+    "barkpup",
+    "mossling",
+    "brambleling"
   ]
 }

@@ -3,14 +3,14 @@
   "name": "Spark-kid Sora",
   "tier": "rookie",
   "rank": 1,
-  "flavor": "Tag, you're hit.",
-  "bio": "Twelve years old, never lost to another rookie, will not stop talking about it. Leads with Dashmouse, hides Glimmerowl in the back to swing speed once the fight gets real.",
+  "flavor": "Loud and harmless.",
+  "bio": "Sora wants to go FAST and doesn't care about defense. Every card rolls high SPD but folds in 1-2 hits. Focus the priority targets before they unload.",
   "loadout": [
     "dashmouse",
+    "charge_chick",
+    "sparkling",
     "emberpup",
-    "iron_boar",
-    "glimmerowl",
-    "geodeling",
+    "whisperling",
     "mistling"
   ]
 }

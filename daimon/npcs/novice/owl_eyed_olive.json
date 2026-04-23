@@ -3,14 +3,14 @@
   "name": "Owl-eyed Olive",
   "tier": "novice",
   "rank": 2,
-  "flavor": "Knows the round before you do.",
-  "bio": "Tournament regular -- never won, never finished outside the top 16. Glimmerowl ON_BATTLE_START speed buff means she usually swings first.",
+  "flavor": "Sees the strike before it lands.",
+  "bio": "Introduces STORMCHAIN. VOLT speedsters anchored on tempest_eagle (atk=11 spd=10, the 'occasional rare' the novice rule allows). plasma_hound + stoneward + geodeling supply tempo and a wall to survive the rookie tank matchup.",
   "loadout": [
-    "glimmerowl",
-    "thornpup",
-    "dashmouse",
-    "iron_boar",
-    "emberpup",
-    "mistling"
+    "plasma_kit",
+    "stormpup",
+    "geodeling",
+    "tempest_eagle",
+    "plasma_hound",
+    "stoneward"
   ]
 }

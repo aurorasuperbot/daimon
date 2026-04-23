@@ -3,14 +3,14 @@
   "name": "Tidepool Tom",
   "tier": "rookie",
   "rank": 1,
-  "flavor": "Slow is smooth.",
-  "bio": "Old fisherman, fights like one. Opens with Shellpup and dares you to finish before the round cap.",
+  "flavor": "Floats wherever.",
+  "bio": "Tom fishes more than he trains. Mostly water vanillas with no bite \u2014 but enough HP to take a few rounds off your own clock. The geodeling on the bench is the only defensive anchor.",
   "loadout": [
     "mistling",
-    "thornpup",
+    "tidepup",
+    "coralcub",
     "geodeling",
     "iron_boar",
-    "sproutling",
     "emberpup"
   ]
 }

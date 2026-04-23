@@ -1229,7 +1229,15 @@ def test_match_npc_writes_state_file_with_npc_name_as_opponent(
     opp = data["data"]["participants"]["opponent"]
     assert opp["name"] == "Mythbreaker Marn"
     assert opp["rank"] == "champion"
-    # And the opponent loadout carries the NPC's actual cards (not "opponent")
-    assert any(card["species"] == "voltcat_apex"
-               for card in opp["loadout"]), \
-        "Mythbreaker's loadout should include voltcat_apex"
+    # And the opponent loadout carries the NPC's actual cards (not "opponent").
+    # Resolve "actual cards" from the on-disk NPC roster so this test stays
+    # correct across re-tier passes -- it asserts the state file's loadout
+    # matches what the loader would produce for that npc_id.
+    from daimon.npcs.loader import get_npc
+    npc = get_npc("mythbreaker_marn")
+    expected_species = list(npc.loadout)
+    actual_species = [card["species"] for card in opp["loadout"]]
+    assert actual_species == expected_species, (
+        f"Opponent loadout {actual_species!r} should match the on-disk "
+        f"roster loadout {expected_species!r} for mythbreaker_marn"
+    )

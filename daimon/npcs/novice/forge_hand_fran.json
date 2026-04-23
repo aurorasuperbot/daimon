@@ -3,14 +3,14 @@
   "name": "Forge-hand Fran",
   "tier": "novice",
   "rank": 2,
-  "flavor": "Hammered every plate herself.",
-  "bio": "Smith. Builds tanks the way she builds armor: layer, rivet, repeat. Loadout reads like a wall with a couple of spotters.",
+  "flavor": "Stoke the bellows.",
+  "bio": "Introduces INFERNO. Burns hot early but runs out of HP. The magmite uncommon supplies the only real punch beyond vanilla.",
   "loadout": [
-    "thornpup",
-    "iron_boar",
-    "glimmerowl",
-    "geodeling",
-    "mistling",
-    "sproutling"
+    "ashpup",
+    "brimling",
+    "cinder_serpent",
+    "magmite",
+    "emberpup",
+    "iron_boar"
   ]
 }

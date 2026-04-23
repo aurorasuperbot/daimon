@@ -3,14 +3,14 @@
   "name": "Iron-shield Ira",
   "tier": "elite",
   "rank": 4,
-  "flavor": "Stand. Then stand more.",
-  "bio": "First Elite. Bulwarthog opens with shield-all + gains DEF every time an ally dies. Anvilram refunds your damage. Tidewyrm heals. You will run out of swings before they run out of HP.",
+  "flavor": "Patience in plate.",
+  "bio": "BULWARK epic. bulwark_patriarch (def=11 hp=30, ON_ROUND_START + ON_TAKE_DAMAGE) leads a NATURE fortress that healed and re-thorned before you could push damage. worldroot_colossus on the bench has ON_DEATH revenge \u2014 don't kill it last.",
   "loadout": [
-    "bulwarthog",
+    "bulwark_patriarch",
+    "worldroot_colossus",
+    "moss_titan",
     "thornpup",
-    "iron_boar",
-    "tidewyrm",
-    "geodeling",
-    "mistling"
+    "barkguard",
+    "ironseed"
   ]
 }

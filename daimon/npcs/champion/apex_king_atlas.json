@@ -3,14 +3,14 @@
   "name": "Apex-king Atlas",
   "tier": "champion",
   "rank": 5,
-  "flavor": "Speed and shield. Pick one.",
-  "bio": "Voltcat in front behind a Bulwarthog tank-all opening. By round 2 he's faster than you AND he's shielded. Anvilram refunds anything you sneak through.",
+  "flavor": "Speed and spear.",
+  "bio": "tempest_apex (atk=14 spd=14) is the fastest legendary alive. arc_predator epic doubles the kill-chain. pyrotyrant rare adds FIRE finisher coverage so even WATER walls melt. Four rares + epic + legendary \u2014 tries to end the match before round 2.",
   "loadout": [
-    "voltcat_apex",
-    "bulwarthog",
-    "thornpup",
-    "stormhare",
-    "glimmerowl",
-    "iron_boar"
+    "tempest_apex",
+    "arc_predator",
+    "storm_celestial",
+    "plasma_djinn",
+    "pyrotyrant",
+    "stormhare"
   ]
 }
