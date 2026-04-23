@@ -32,6 +32,19 @@ These exist in code — design must conform, not reshape:
 
 Each archetype = **win condition + signature mechanic + tempo profile + element home**. Players build loadouts *around* an archetype; cards are designed *to support* their archetype.
 
+### 2.0 — Soft-priority cluster model (locked 2026-04-23)
+
+Archetype is a **soft cluster**, not an engine-enforced exclusivity. Specifically:
+
+1. **`archetype` is metadata, not gate.** The engine never reads `card.archetype` to permit or forbid an op, target, condition, or trigger. There is no code path that says "REVENANT cards can fire ON_ALLY_DEATH; others cannot." Every card in the catalog has access to every op in the engine. (Implementation invariant: `grep -n "card\.archetype" daimon/engine/` should return zero matches forever.)
+2. **Card design — not engine — enforces the playstyle.** What makes a card "INFERNO" is that its stats, triggers, and condition gates make it *optimally played* inside an INFERNO loadout. A REVENANT card fired ON_ATTACK with HEAL would technically work; it just wouldn't compound and would be a weak choice in a REVENANT shell.
+3. **Cross-archetype splash is legal and sometimes good.** Players are explicitly free (and sometimes rewarded) to pull a single off-archetype card into their shell — e.g. a REVENANT loadout splashing one TIDAL healer to pre-pad HP for the late-game ally-death cascade. The cluster boundary is a gradient, not a fence.
+4. **The `archetype` field still exists on every card, as a labelled cluster identifier.** This drives gacha display, deckbuilding hints, balance-sim grouping, and the future "archetype completion" collection meta. It does NOT drive combat.
+5. **NORMAL element carries `archetype: null`.** NORMAL is element-coloured filler, intentionally archetype-less, designed to splash into any of the 6 strategic clusters without distorting them. The `null` is meaningful — it is the canonical "no cluster" sentinel, distinct from any string archetype name. Engine and tooling must treat `null` as "no cluster," not as an unknown/error case.
+6. **Forward-fix policy.** Earlier commits (specifically `40e28f8` Phase 4e-pool) wrote `"archetype": null` on NORMAL JSONs. That is the correct *value*. The earlier session momentarily considered code-enforced exclusivity; this section locks the contrary policy. Any later commit that introduces archetype-as-gate logic in the engine is a regression and must be rolled back, not patched.
+
+The six archetypes below are the **soft clusters**. Read each entry as "this card *cluster* is built around this win condition," not "this is an exclusive class."
+
 ### A1 — INFERNO (FIRE · aggro snowball)
 - **Win condition**: kill enemies before turn 4; chain damage triggers compound
 - **Mechanic**: `ON_ATTACK → DAMAGE`, `ON_KILL → BUFF_ATK SELF`, **BURN** keyword (DoT on `ON_TURN_END`)
@@ -89,22 +102,32 @@ Aggressive curve — keeps gacha pulls feeling differentiated:
 | Common | 98 | 49% | 60% | ~16 each |
 | Uncommon | 60 | 30% | 25% | ~10 each |
 | Rare | 28 | 14% | 10% | ~4-5 each |
-| Epic | 12 | 6% | 4% | 2 each (the Phase-3 archetype anchor pair) |
-| Legendary | 2 | 1% | 1% | cross-archetype set icons |
+| Epic | 8 | 4% | 4% | 1 anchor per strategic archetype + FLUX gets 2 + 1 NORMAL |
+| Legendary | 6 | 3% | 1% | exactly 1 rule-changer per strategic archetype |
 
-*(Revised 2026-04-22 after Phase 3: bumped epic count 10→12 so every
-archetype gets exactly 2 anchors; commons dropped 100→98 to keep the
-total at 200.)*
+*(Revised 2026-04-22 after Phase 3: bumped epic count 10→12; commons dropped 100→98.
+Revised 2026-04-23 after legendary-rule-changer lock (§22): legendary count 2→6
+(one per strategic archetype), epic count 12→8. Net: 4 epics promoted to legendary.
+NORMAL element gets 1 epic, no legendary. Phase 4f executes the promotion.)*
 
 **Pull rate ≠ pool composition** — pull rates are weighted by `manifest.json::rarity_weights` (already locked at 60/25/10/4/1). Pool composition is how many *unique* cards exist at each rarity.
 
-### Why only 2 legendaries
-Rather than "1 legendary per archetype" (6 total), we make legendaries scarce *set-defining icons* that transcend archetype boundaries. Each is a meta-defining card every player wants regardless of strategy:
+### Why 6 legendaries (revised 2026-04-23)
 
-- **L1 — World-Eater**: the apex FLUX card. Trigger requires 4+ distinct elements in the team. Mythic dragon-class entity. Power level: highest in the set.
-- **L2 — Voidking Morr**: the apex REVENANT. Already exists in current 67. Wins games that "shouldn't be winnable" through ON_DEATH compounding.
+Originally V1 shipped with 2 legendary "set-defining icons" (`world_eater` + `voidking_morr`). Santiago's 2026-04-23 design lock (§22) supersedes that: **every strategic archetype gets exactly 1 legendary, and that legendary is a rule-changer** — a card that changes how the engine resolves things while in play. This makes legendary tier mechanically meaningful (not just "bigger numbers") and gives each archetype a true apex card.
 
-Epic tier carries the "archetype boss" role — each archetype gets 1-2 epics that anchor its identity (its flagship card; the build-around). Because epics are 5% of pool but 4% of pulls, they hit the right "you'll see your archetype's flagship reasonably often" feel.
+The 6 legendaries (one per strategic archetype):
+
+- **L1 — `magma_tyrant`** (INFERNO) — *all damage you deal also applies 1 burn stack*
+- **L2 — `worldroot_sentinel`** (BULWARK) — *all your allies have THORNS 2*
+- **L3 — `tide_empress`** (TIDAL) — *when any ally is healed, all allies heal for 1*
+- **L4 — `tempest_apex`** (STORMCHAIN) — *extra-action cap raised 1→2 per unit per round*
+- **L5 — `voidking_morr`** (REVENANT) — *all `ON_ALLY_DEATH` triggers fire twice*
+- **L6 — `world_eater`** (FLUX) — *all `team.distinct_elements` references count as +2*
+
+Full mechanical specs and engine-binding contracts: §22.
+
+Epic tier still carries the "archetype boss" role — each strategic archetype gets exactly 1 epic anchor (the flagship build-around), FLUX gets 2 (its dual-host nature warrants double coverage at epic), NORMAL gets 1 (`concord_phoenix`) — totalling 8 epics.
 
 ---
 
@@ -634,3 +657,294 @@ The counter-card slice (re-flavoring 5-6 rares as designated archetype counters)
 ---
 
 *End of Phase 4 (a/b/c/d/e-engine/e-pool). Phase 4e-counters and Phase 4f (legendary promotion) come next, then Phase 5 (balance via simulation).*
+
+---
+
+## §20 — Archetype distinctiveness charter (locked 2026-04-23)
+
+**Purpose.** Lock down what makes each archetype *uniquely itself* — the mechanic, primitive, or trigger pattern that NO other archetype gets. This is the design contract that prevents archetypes from collapsing into each other ("INFERNO is just BULWARK with smaller HP and more attack"). Every card author, balance-tuner, and future content pack must respect these distinctness contracts.
+
+**Three-tier rule hierarchy** (referenced throughout this doc and §22):
+
+1. **Global rules** — defaults the engine applies to every match. E.g. extra-action cap = 1 per unit per round; THORNS damage is real; `team.distinct_elements` counts each element once.
+2. **Card effects** — operations a single card applies via its triggers. E.g. `magma_tyrant`'s ON_ATTACK APPLY_BURN_STACK adds a burn stack to its target on hit.
+3. **Legendary rule-changers** — the apex tier (§22). A legendary's *passive identity* mutates a global rule for the duration the legendary is alive on its team. E.g. `magma_tyrant`'s passive: while alive, every damage instance ANY of your allies deals also applies 1 burn stack.
+
+The hierarchy resolves bottom-up at evaluation time: legendaries' rule mutations layer onto globals before any card effect resolves. Two competing legendary mutations stack independently (additive in the +N case; multiplicative in the ×N case; documented per-card in §22).
+
+### A1 — INFERNO (FIRE · aggro snowball)
+
+**Distinctness lock**: INFERNO owns **burn stacks** (the `unit.burn_stacks` primitive, §21). No other archetype's card design uses APPLY_BURN_STACK. INFERNO ALSO owns **ON_KILL → BUFF_ATK SELF** as the canonical snowball pattern; other archetypes may use ON_KILL for flavor effects but the canonical attack-compounding belongs to INFERNO.
+
+**What "uniquely INFERNO" means**: a player who pulls 6 INFERNO cards should feel like they're playing tempo-aggro — every kill makes the killer hit harder, every attack adds another tick of burn DOT to the target. The win condition is "kill 3 enemies before turn 4 and let the burn ticks finish the rest."
+
+**Anti-pattern guard**: do NOT author APPLY_BURN_STACK on a NATURE/WATER/VOLT/VOID/NORMAL card to "give them flavor." Burn is INFERNO's signature; spreading it dilutes the cluster identity.
+
+### A2 — BULWARK (NATURE · tank/control wall)
+
+**Distinctness lock**: BULWARK owns **THORNS** (the new op, §21) and **TAUNT** target-redirection. Where INFERNO converts attacks into compounded offense, BULWARK converts incoming attacks into outgoing reflected damage + shield/heal generation. Win condition: outlast — survive long enough that the enemy exhausts its triggers and runs out of ways to kill you, then mop up.
+
+**What "uniquely BULWARK" means**: enemies attacking a BULWARK loadout should feel a *cost* to attacking, not just damage applied to the BULWARK. Every swing into a thorns/taunt wall should feel like the attacker is fighting the wall as much as the wall is fighting them.
+
+**Anti-pattern guard**: do NOT author THORNS on non-BULWARK cards. Reflective damage as a non-BULWARK keyword would muddy the cluster.
+
+### A3 — TIDAL (WATER · sustain combo)
+
+**Distinctness lock**: TIDAL owns **`ON_HEAL_RECEIVED` triggers** (§21) and **LIFESTEAL**. The defining pattern: heals chain into more heals, and damage you deal returns as healing. The cluster's win condition is value generation — every turn TIDAL is alive, the team net-gains HP relative to incoming damage.
+
+**What "uniquely TIDAL" means**: a TIDAL loadout under pressure should *grow stronger as the pressure mounts* (because incoming damage triggers chain-heals via ON_HEAL_RECEIVED → ON_HEAL_RECEIVED → ...).
+
+**Anti-pattern guard**: do NOT author ON_HEAL_RECEIVED on non-TIDAL cards. Heal-chain mechanics as a generic op would let any archetype splash a single TIDAL card and steal the heal-chain identity.
+
+### A4 — STORMCHAIN (VOLT · burst combo)
+
+**Distinctness lock**: STORMCHAIN owns **`GRANT_EXTRA_ACTION` + `ON_EXTRA_ACTION_GRANTED` + `ON_OPENING_ATTACK`** (§21) and the SPD-buff CHAIN keyword. Where INFERNO snowballs damage and TIDAL snowballs sustain, STORMCHAIN snowballs *action economy* — one buffed unit grants extra actions that grant more actions in compounding cascades.
+
+**What "uniquely STORMCHAIN" means**: a successful STORMCHAIN turn looks like a single explosive round where 3+ enemies die in sequence to chained extra-action attacks. The build-around is fragile (low HP) but the upside is overwhelming when the chain lands.
+
+**Anti-pattern guard**: do NOT author GRANT_EXTRA_ACTION on non-STORMCHAIN cards. Action-economy manipulation as a splashable op would devalue STORMCHAIN's identity.
+
+### A5 — REVENANT (VOID · sacrifice/recursion)
+
+**Distinctness lock**: REVENANT owns **`SACRIFICE_SELF`**, **`ON_ALLY_DEATH` compound triggers**, and the canonical SUMMON/RESURRECT keywords (when those land in V1.1+). Where INFERNO snowballs from kills, REVENANT snowballs from *deaths on its own team* — ally deaths are not losses, they are ammunition.
+
+**What "uniquely REVENANT" means**: REVENANT plays *better when behind*. A REVENANT loadout with 2 dead allies should feel scarier than a REVENANT loadout with 6 alive allies, because the dead-ally compound triggers have begun to fire.
+
+**`SACRIFICE_SELF` ↔ `ON_ALLY_DEATH` contract** (Q2 resolution, locked 2026-04-23): when a unit fires SACRIFICE_SELF, it counts as both an ON_DEATH event for itself AND an ON_ALLY_DEATH event for every other unit on the same team. This is the canonical resolution for REVENANT's compound-trigger identity — without it, REVENANT cannot self-engineer cascades.
+
+**Anti-pattern guard**: do NOT author SACRIFICE_SELF or ON_ALLY_DEATH triggers on non-REVENANT cards. Death-as-resource is the cluster's spine.
+
+### A6 — FLUX (HYBRID · diversity-scaler / buffer)
+
+**Distinctness lock** (revised 2026-04-23 per Santiago directive): FLUX is the **buffer/diversity-scaler archetype**. Its cards' triggers scale by **`team.distinct_elements`** (the team-wide primitive, §21). Cards reward composition diversity rather than specializing in any single element. Where the other archetypes win by element-purity, FLUX wins by element-spread.
+
+**What "uniquely FLUX" means**: a 6-element rainbow loadout should feel mechanically distinct from a 6-FIRE INFERNO loadout. FLUX cards in a mono-element shell underperform deliberately (their buffs gate on `>= 2`, `>= 3`, `>= 4` distinct elements). FLUX cards in a 4-element rainbow shell unlock cascading buffs that mono-element cards can't access.
+
+**FLUX is NOT element-locked**: FLUX cards exist across all 5 ring elements (and CAN exist on NORMAL, though no NORMAL FLUX cards ship in V1). Their host element drives elemental matchup math; their FLUX trigger only fires once `team.distinct_elements` clears the gate.
+
+**Anti-pattern guard**: do NOT author FLUX-style `team.distinct_elements >= N` gates on non-FLUX cards. Diversity-scaling is the cluster's spine; spreading it dilutes the identity.
+
+### NORMAL (element, not archetype)
+
+**Distinctness lock**: NORMAL is **support and counter splash** — never the win condition, never the cluster spine. NORMAL cards carry `archetype: null` (§2.0) and exist to be *picked up by* the strategic clusters, not to define one.
+
+**The 15-card NORMAL split** (locked 2026-04-23): the 15 NORMAL cards in V1 split into:
+- **7 support** — utility heals, stat buffs, basic shields, generic value generators (existing 8C are mostly here; 4U skews here too)
+- **5 counter** — designated archetype counters (Phase 4e-counters, in flight): each one is built to specifically punish a strategic archetype's signature pattern (e.g. a counter that strips burn stacks punishes INFERNO; a counter with shield-pierce punishes BULWARK)
+- **3 tech** — toolbox cards with niche disruption value (e.g. SILENCE-on-low-HP, single-target STUN priority, generic dispel)
+
+**Anti-pattern guard**: do NOT promote a NORMAL card to legendary. The "1 legendary per strategic archetype" rule (§22) explicitly excludes NORMAL — it has no archetype to anchor.
+
+### Distinctness tooling (Phase 5 sim harness)
+
+The Phase-5 balance sim must include a **distinctness audit**: for each archetype-defining op (APPLY_BURN_STACK, THORNS, ON_HEAL_RECEIVED, GRANT_EXTRA_ACTION, SACRIFICE_SELF, ON_ALLY_DEATH, `team.distinct_elements` gates), the sim asserts the op appears ONLY on cards labelled with the corresponding archetype (with NORMAL allowed as the exception for counter cards that strip those ops). A drift gate fails CI if a future card author splashes a signature op outside its cluster.
+
+---
+
+## §21 — Engine vocabulary v2 (locked 2026-04-23)
+
+**Status**: design lock for Phase 4f-engine implementation. All net-new surface area in this section is NOT YET in code; this section specifies what Phase 4f must build before any new cards bind to it.
+
+**Three categories of additions**:
+- **State primitives** — new fields the engine reads/writes on units and teams
+- **New `when` events** — new trigger fire-points
+- **New `op` effects** — new operations triggers can perform
+
+Existing v1 surface (Phase 2 shipped) is documented in §7 and unchanged. This section is purely additive.
+
+### 21.1 — State primitives (new)
+
+| Primitive | Type | Lifetime | Purpose | Owners (cluster identity per §20) |
+|---|---|---|---|---|
+| `unit.burn_stacks` | `int ≥ 0` | persists across rounds; consumed (zeroed) on ON_TURN_END after dealing `1 × stack_count` damage | INFERNO's signature DOT primitive — distinct from `APPLY_BURN` (the shipped Phase-2 status, which sets duration). Stacks accumulate; they don't refresh. | INFERNO |
+| `unit.shield_count` | `int ≥ 0` | persists across rounds; decremented on damage absorption | BULWARK shield-stacking primitive. Each shield_count point absorbs one damage instance fully (not value-based). Distinct from existing shield-value mechanic (which absorbs N damage). Allows "wall of three small shields" patterns. | BULWARK |
+| `unit.extra_action_used_this_round` | `bool` | reset to `False` at round start | Prevents GRANT_EXTRA_ACTION double-stacking per unit per round under default rules. The cap is `1` by default; `tempest_apex`'s legendary mutation raises it to `2` (§22 L4). | STORMCHAIN |
+| `team.distinct_elements` | `int ∈ [0, 6]` | computed live from alive units' elements | Already exists in Phase-2 condition DSL (§7). Documented here for completeness — FLUX's signature gate. NORMAL counts as 1 distinct element when computing this value. `world_eater`'s legendary mutation adds +2 to this read for FLUX cards on its team (§22 L6). | FLUX |
+
+**Implementation requirements**:
+- All four primitives must be visible to the condition DSL (`daimon/engine/conditions.py` whitelist additions)
+- `unit.burn_stacks` and `unit.extra_action_used_this_round` must round-trip through match serialization (the existing `UnitState` dataclass extends — same pattern as `low_hp_fired` / `has_attacked`)
+- All numeric primitives clamp at 0 (no negative stacks)
+
+### 21.2 — New `when` events
+
+| Event | Fires on | Fires when | Owner cluster | Notes |
+|---|---|---|---|---|
+| `ON_HEAL_RECEIVED` | the healed unit | every time a HEAL op resolves on this unit (any source — self-heal, ally-heal, LIFESTEAL heal-back) | TIDAL | Fires AFTER the heal is applied. Subject to SILENCE suppression like all triggers. Re-entrancy: if an ON_HEAL_RECEIVED trigger itself heals, the second heal fires another ON_HEAL_RECEIVED — capped at 4 nested heals per single source-heal event (engine-enforced re-entry cap). |
+| `ON_DAMAGE_TAKEN` | the damaged unit | every time damage > 0 is applied to this unit (post-shield, post-element-mult, post-DEF) | BULWARK (THORNS resolution site) | Distinct from existing `ON_TAKE_DAMAGE` (Phase 2 — fires on shield-application path). `ON_DAMAGE_TAKEN` fires AFTER the unit's HP actually drops. Shielded-to-zero damage does NOT fire ON_DAMAGE_TAKEN. *Naming note*: `ON_TAKE_DAMAGE` ≠ `ON_DAMAGE_TAKEN`. The first fires on the damage *attempt* (pre-shield); the second fires only on damage that *landed*. Both ship; document carefully. |
+| `ON_ALLY_DEATH` | every other unit on the dying unit's team | a teammate's HP drops to 0 OR a teammate fires SACRIFICE_SELF | REVENANT | Already exists in Phase 3 (used by `voidking_morr`). Documented here for the Q2 SACRIFICE_SELF contract: SACRIFICE_SELF fires both ON_DEATH (for self) and ON_ALLY_DEATH (for every teammate). |
+| `ON_KILL` | the attacker | a damage instance from this unit drops the target's HP to 0 | INFERNO | Already exists in Phase 2. Documented here because `magma_tyrant`'s legendary mutation (§22 L1) extends "damage you deal" to "every kill applies 1 extra burn stack to all enemies." |
+| `ON_EXTRA_ACTION_GRANTED` | the unit being granted an extra action | GRANT_EXTRA_ACTION resolves on this unit and `extra_action_used_this_round = False` | STORMCHAIN | Fires AFTER the flag is set to True. The granted unit will act again immediately after current resolution unwinds. Re-entry: if this trigger grants another extra action, the cap (§22 L4: `1` by default, `2` under `tempest_apex`) gates it. |
+
+### 21.3 — New `op` effects
+
+| Op | Targets | Value semantics | Owner cluster | Engine binding |
+|---|---|---|---|---|
+| `APPLY_BURN_STACK` | any unit | adds `value` to `target.burn_stacks` (additive, not refresh) | INFERNO | At ON_TURN_END for the unit holding stacks: deals `burn_stacks × 1` damage (real damage, element-neutral, post-DEF) and zeros stacks. Burn-stack damage fires ON_DAMAGE_TAKEN normally. |
+| `APPLY_TAUNT` | any unit | sets target's TAUNT status for `value` rounds | BULWARK | Already shipped Phase 2; documented here because `worldroot_sentinel`'s legendary mutation references THORNS-on-allies, which is the BULWARK identity. No engine change required for TAUNT. |
+| `THORNS` | self | sets passive `thorns_value` on this unit; on every ON_DAMAGE_TAKEN, attacker takes `thorns_value` real damage (element-neutral, no DEF reduction — thorns bypasses defense) | BULWARK | Real damage per Q1 resolution (Santiago 2026-04-23: "yeah it's real damage for sure"). Thorns damage CAN trigger the attacker's ON_DAMAGE_TAKEN, which can in turn trigger THIS unit's THORNS again — re-entry capped at 2 reflections per source-attack to prevent infinite loops. Thorns is bypassed by SILENCE on the THORNS-bearer. |
+| `GRANT_EXTRA_ACTION` | any unit (typically ally) | grants target one extra action this round if `target.extra_action_used_this_round == False` AND extra-action cap not yet reached for this unit | STORMCHAIN | Sets `extra_action_used_this_round = True` on success, then fires `ON_EXTRA_ACTION_GRANTED` on target. The default per-unit per-round cap is 1; `tempest_apex` legendary (§22 L4) raises the cap to 2 for all allies on its team. The target acts immediately after current trigger resolution (depth-first, before the next unit in initiative order). |
+| `SACRIFICE_SELF` | self | sets `self.hp = 0`; fires ON_DEATH for self AND ON_ALLY_DEATH for every alive teammate (Q2 lock) | REVENANT | Cannot be SILENCED (the op IS the unit's contribution). Counts as a "death by own action" — does not credit any opponent with ON_KILL. |
+
+### 21.4 — Condition DSL extensions
+
+The Phase 2 condition DSL (§7) extends to read the new state primitives. Additions to the whitelist:
+
+- `self.burn_stacks` — int read of own burn stacks (rare; mostly read by enemies via `target.burn_stacks` — but DSL doesn't currently expose `target.*`. Future-extend if needed.)
+- `self.shield_count` — int read of own shield count
+- `self.extra_action_used_this_round` — bool read
+
+NO new operators, no function calls, no subscripts. Same restricted-eval AST whitelist.
+
+### 21.5 — Cross-cutting invariants
+
+1. **Re-entrancy caps are mandatory.** Any new trigger that can fire a same-class trigger via cascade (ON_HEAL_RECEIVED → ON_HEAL_RECEIVED, THORNS → THORNS) MUST carry an engine-enforced depth cap (4 for heal chains, 2 for thorns reflections). Caps live in `combat.py` constants, not in card design.
+2. **All new ops respect SILENCE.** SILENCE on the trigger-bearing unit suppresses ALL triggers on that unit, including the new ones. Exception: SACRIFICE_SELF (the op IS the contribution; suppressing it would deny the player agency).
+3. **All new ops respect the existing trigger value cap (`MAX_TRIGGER_VALUE = 999`)** and the per-card trigger count cap (`MAX_TRIGGERS_PER_CARD = 8`). No op-specific overrides.
+4. **All new state primitives serialize.** Match replay must round-trip burn_stacks, shield_count, extra_action_used_this_round losslessly.
+
+### 21.6 — What Phase 4f-engine ships
+
+A single PR that implements:
+1. `UnitState` dataclass extension: `burn_stacks: int = 0`, `shield_count: int = 0`, `extra_action_used_this_round: bool = False`
+2. `TriggerWhen` enum extension: `ON_HEAL_RECEIVED`, `ON_DAMAGE_TAKEN`, `ON_EXTRA_ACTION_GRANTED`
+3. `EffectOp` enum extension: `APPLY_BURN_STACK`, `THORNS`, `GRANT_EXTRA_ACTION`, `SACRIFICE_SELF`
+4. `combat.py` dispatch + re-entry caps + round-start reset for `extra_action_used_this_round` + ON_TURN_END burn_stacks tick
+5. `conditions.py` whitelist: 3 new self attrs
+6. `cards/loader.py`: accept new op/when names
+7. Tests (per existing convention): one happy-path test per op, one re-entry-cap test for THORNS and ON_HEAL_RECEIVED, one Q2 contract test for SACRIFICE_SELF, one extra-action-cap test
+8. Doc update: this section marked "shipped"
+
+Phase 4f-pool follows Phase 4f-engine in a separate commit (retunes existing cards to use the new primitives where appropriate; adds the 5 NORMAL counters; promotes the 4 epics to legendary per §22).
+
+---
+
+## §22 — Legendary rule-changer principle (locked 2026-04-23)
+
+### 22.1 — Principle
+
+**Legendaries change the rules. Epics and below apply effects.**
+
+The default rules of DAIMON combat — extra-action caps, damage-to-burn-stack conversion, ally-death trigger counts, distinct-element counts, heal-cascade behavior, thorns existence — are **global defaults** the engine applies everywhere. Cards from common through epic *operate within* those defaults: a common HEAL trigger heals N HP within the heal-cascade re-entry cap; an epic ON_OPENING_ATTACK alpha-strike fires its ON_OPENING_ATTACK once per match per the global one-shot rule.
+
+Legendaries are different. **A legendary's passive identity is to mutate one global rule for the duration the legendary is alive on its team.** The mutation is *not* a one-time trigger that fires and resolves; it is a *standing modification* to how the engine resolves all events on the legendary's team while the legendary is alive. When the legendary dies, the rule snaps back to default.
+
+This is what makes legendary tier mechanically meaningful instead of just "epic but with bigger numbers." It is also why there are exactly 6 legendaries (one per strategic archetype, §3): rule mutations are precious. A legendary's rule mutation must be carefully scoped, must respect the cluster identity (§20), and must combine cleanly with other legendaries' mutations on the same team (mutations layer additively unless explicitly noted).
+
+**Anti-pattern**: an epic with a "legendary-shaped" effect (e.g. "+1 to extra-action cap for self once per match"). Epics MUST stay within global rules. If a design wants rule-mutation behavior, that design belongs at legendary tier.
+
+### 22.2 — The 6 V1 legendary rule-changes (accepted 2026-04-23)
+
+All 6 are accepted as-proposed. Balance testing deferred to Phase 5 sim harness per Santiago's 2026-04-23 directive: *"we'll do thorough balance testing later of each archetype to see what is broken, but for now we can move forward with this."* Any of the 6 mutations may be retuned post-Phase-5 based on sim outcomes; the *principle* (§22.1) is the lock, not the specific values.
+
+#### L1 — `magma_tyrant` (INFERNO) — "every hit burns"
+
+**Mutation**: while `magma_tyrant` is alive on your team, **every damage instance any of your allies deals also applies 1 burn stack to the damaged target**.
+
+**Rule it changes**: APPLY_BURN_STACK is normally an explicit op (only triggered by cards that author it). Under this mutation, it becomes a global side-effect of every damage instance.
+
+**Stacking**: if multiple INFERNO cards deal damage in the same round, each adds 1 stack via the mutation, on top of any explicit APPLY_BURN_STACK ops they ALSO carry. A `magma_tyrant` + `solar_phoenix` combo where solar_phoenix attacks 3 times in a turn = 3 mutation-applied stacks plus any explicit stacks from solar_phoenix's own triggers.
+
+**Engine binding**: `combat.py::_apply_damage` checks for any alive ally with the `magma_tyrant` rule-mutation flag and adds `target.burn_stacks += 1` after damage application. Does NOT consume MAX_TRIGGERS_PER_CARD on the dealer.
+
+**Combat with other legendaries on same team**: stacks linearly. If a future expansion adds a 2nd "every hit burns" legendary, both apply +1 → +2 per damage. Within V1: only `magma_tyrant` carries this mutation.
+
+#### L2 — `worldroot_sentinel` (BULWARK) — "all allies have THORNS 2"
+
+**Mutation**: while `worldroot_sentinel` is alive on your team, **every alive unit on your team has THORNS 2** (reflects 2 real damage on every ON_DAMAGE_TAKEN, per §21.3).
+
+**Rule it changes**: THORNS is normally a per-card trigger (a unit must explicitly carry a THORNS op via its triggers). Under this mutation, THORNS 2 is granted as a passive to every ally — including non-BULWARK allies (a TIDAL healer on a BULWARK shell suddenly reflects 2).
+
+**Stacking**: if a unit ALREADY has explicit THORNS X via its own triggers, the mutation adds +2 (not max-refresh). A BULWARK card with intrinsic THORNS 3 + `worldroot_sentinel` alive = THORNS 5.
+
+**Engine binding**: `combat.py::_apply_damage` checks the mutation flag; if active, applies +2 to every ally's effective `thorns_value` lookup. The 2-reflection re-entry cap (§21.5) still applies — `worldroot_sentinel` does NOT bypass loop protection.
+
+#### L3 — `tide_empress` (TIDAL) — "every heal heals everyone"
+
+**Mutation**: while `tide_empress` is alive on your team, **whenever any ally is healed by any source, every other alive ally heals for 1 HP**.
+
+**Rule it changes**: HEAL is normally single-target. Under this mutation, every HEAL op silently triggers a team-wide +1 trickle.
+
+**Stacking**: trickle does NOT itself trigger trickle (engine breaks the cascade — the +1 trickle counts as a system-level heal, not a HEAL op, and does NOT fire ON_HEAL_RECEIVED). This is INTENTIONAL — without the cascade-break, `tide_empress` would deadlock the heal-chain re-entry cap (§21.5). Without this guard the mutation could stack into infinite trickles. Lock-text justification: **proximity antibody** — if a future reader looks at this mutation and thinks "the trickle should also trigger ON_HEAL_RECEIVED, that's more elegant" — it's not. The cap is the only thing keeping `tide_empress` from being an infinite loop. Not a bug, feature.
+
+**Engine binding**: `combat.py::_apply_heal` checks the mutation flag; if active, after the primary heal resolves and after the heal's ON_HEAL_RECEIVED fires, applies a silent `+1` to every alive ally (no triggers, no events).
+
+#### L4 — `tempest_apex` (STORMCHAIN) — "extra-action cap raised 1→2"
+
+**Mutation**: while `tempest_apex` is alive on your team, **the per-unit per-round extra-action cap is 2 (raised from default 1) for every ally on your team**.
+
+**Rule it changes**: `unit.extra_action_used_this_round` (§21.1) is normally a strict bool; under default rules, once True, no further GRANT_EXTRA_ACTION lands on that unit this round. Under this mutation, the gating becomes "GRANT_EXTRA_ACTION lands if extra-action count on this unit this round < 2."
+
+**Engine binding**: replace `unit.extra_action_used_this_round: bool` with `unit.extra_actions_used_this_round: int`; default-cap check uses `< 1` (default) or `< 2` (mutation active). Per §21.6 Phase 4f-engine ships the int version directly to avoid an interim refactor — the bool is a documentation simplification only.
+
+**Combat math**: STORMCHAIN can now cascade: A grants extra to B (B now at 1); B's extra-action attacks; B grants extra to C (C now at 1); C's extra-action attacks; in a future round, C grants extra to A (A now at 2 — under default rules this would fail, under mutation it succeeds). Single-round cap stays 2 per unit even with mutation; cascade depth across rounds is unbounded.
+
+#### L5 — `voidking_morr` (REVENANT) — "ON_ALLY_DEATH triggers fire twice"
+
+**Mutation**: while `voidking_morr` is alive on your team, **every `ON_ALLY_DEATH` trigger on every alive ally fires twice instead of once**.
+
+**Rule it changes**: ON_ALLY_DEATH is normally a single-fire trigger per ally death event. Under this mutation, every fire counts as two — the trigger's effect resolves twice in immediate sequence.
+
+**Stacking**: the doubling is multiplicative, NOT additive. If a future expansion legendary adds "ON_ALLY_DEATH triggers fire ×3 instead of ×1" (hypothetical), and both are alive: the rule resolves to ×3 (the higher mutation wins, not 1+2+3 stacking). Lock-text justification — **proximity antibody**: a future reader might naturally assume mutations stack additively (×6 from "+1 + ×3"). They do not. Multiplier-style mutations override; +N-style mutations stack additively. This split is intentional to keep mutation interaction predictable. Not a bug, feature.
+
+**Engine binding**: `combat.py::_fire_triggers_for_unit` for ON_ALLY_DEATH events checks the mutation flag and resolves the trigger's effect block twice if active. The 2nd fire respects SILENCE (re-checks silence state between fires — if the first fire's effect SILENCEs the unit, the 2nd fire is suppressed).
+
+**Re-entrancy**: if the 2nd fire causes another ally to die (e.g. SACRIFICE_SELF as part of the trigger), THAT death's ON_ALLY_DEATH fires for surviving allies — also doubled. Engine-enforced cascade depth cap = 8 nested ON_ALLY_DEATH fires per source event (otherwise REVENANT can deadlock the round on a 6-card team-wipe cascade).
+
+#### L6 — `world_eater` (FLUX) — "distinct_elements counts +2"
+
+**Mutation**: while `world_eater` is alive on your team, **every read of `team.distinct_elements` returns the actual count + 2** for FLUX cards on your team.
+
+**Rule it changes**: `team.distinct_elements` (§21.1) is normally a live count of unique elements among alive units. Under this mutation, condition-DSL reads of the value get +2 added before comparison.
+
+**Scope**: ONLY FLUX cards' condition gates see the +2. Non-FLUX condition gates (which would not exist in V1 — only FLUX cards use this gate per §20 anti-pattern guard, but a future expansion might) see the un-mutated count. This scope-narrowing is the whole point: `world_eater` is a FLUX-team enabler, not a global cheat-mode.
+
+**Stacking**: a 4-element team becomes effectively 6 distinct for FLUX condition resolution. A `>= 6` gate (which exists nowhere in V1 but is reachable in expansion) would land on a 4-distinct team. A `>= 4` gate lands on a 2-distinct team. Mono-element team (1 distinct) becomes effectively 3 — which clears `>= 2` and `>= 3` gates, unlocking FLUX cards in mono-element shells specifically when `world_eater` is present.
+
+**Engine binding**: `conditions.py` evaluation context checks the FLUX-card flag (passed in by the caller in `_fire_triggers_for_unit`) and the mutation flag, and adds +2 to the `team.distinct_elements` value passed into the eval context for FLUX-card condition evaluation.
+
+**Lock-text justification — proximity antibody**: a future reader might "fix" this to apply universally (FLUX and non-FLUX). Don't. The narrowed scope is what keeps the mutation cluster-coherent — FLUX is the diversity-scaler archetype; `world_eater`'s mutation supercharges that archetype's identity, NOT every card's identity. Not a bug, feature.
+
+### 22.3 — Mutation interaction matrix (V1)
+
+All 6 V1 legendaries can cohabit one team (deckbuilding allows 6-card teams = exactly the legendary count). Their mutations interact as follows:
+
+| Pair | Interaction |
+|---|---|
+| L1 `magma_tyrant` × L2 `worldroot_sentinel` | INFERNO burn stacks accumulate on attackers (via L1) AND attackers take THORNS 2 reflection (via L2). Stacks; both apply. |
+| L1 × L3 `tide_empress` | The +1 trickle (L3) does NOT count as a damage instance, so does NOT trigger L1. Independent. |
+| L4 `tempest_apex` × L5 `voidking_morr` | Doubled extra-action grants (L4 raises cap 1→2; L5 doubles ON_ALLY_DEATH). Independent rule domains. |
+| L5 × L6 `world_eater` | A FLUX trigger that fires on ON_ALLY_DEATH (none exist in V1 but legal) would fire ×2 (L5) and read distinct_elements +2 (L6). Independent. |
+| Any pair involving L3 trickle | Trickle never cascades, never triggers ANY mutation. The cascade-break (§22.2 L3) is the engine guard. |
+| All 6 alive | Maximum-mutation state. Engine remains deterministic; cascade caps (re-entry caps in §21.5; ON_ALLY_DEATH cap of 8 in §22.2 L5) prevent any pathological loop. Phase 5 sim harness must include "all-6-legendary mirror match" as a regression test for cap behavior. |
+
+### 22.4 — Phase 4f deliverables
+
+Phase 4f ships in two commits:
+
+**4f-engine** (per §21.6): the 4 new ops + 3 new whens + 4 state primitives + condition DSL extensions + caps + tests.
+
+**4f-pool**: 
+1. Promote 4 epics to legendary per §3 (the V1 distribution shift):
+   - `magma_tyrant` epic → legendary, retune stats to legendary envelope (§4 budget 38–46), add the L1 mutation tag
+   - `worldroot_sentinel` epic → legendary, same retune + L2 mutation tag
+   - `tide_empress` epic → legendary, same retune + L3 mutation tag
+   - `tempest_apex` epic → legendary, same retune + L4 mutation tag
+2. Confirm `voidking_morr` and `world_eater` mutation tags (L5, L6) wired correctly
+3. Re-author existing INFERNO cards to use APPLY_BURN_STACK where they currently use APPLY_BURN (Phase 2 status)
+4. Add 5 NORMAL counter cards (Phase 4e-counters merged into 4f for one shipset)
+5. Update `tests/test_phase4_distribution.py` for new rarity histogram (98C/60U/28R/8E/6L)
+6. Add legendary-mutation tests: one per L1–L6, plus the "all-6 alive" regression test from §22.3
+
+**4f-pool fix-forward of `archetype: null`**: the existing `archetype: null` on NORMAL JSONs (set in commit `40e28f8`) is the CORRECT value per §2.0. No JSON change needed — the lock is the §2.0 documentation, not a data migration. The forward-fix is purely the doc lock + the §20 NORMAL anti-pattern guard.
+
+### 22.5 — Open follow-ups
+
+- Phase 5 sim harness must validate the "rule-changes layer cleanly" claim empirically (run all 6-legendary mirror, confirm no infinite loops, no determinism breaks, no NaN HP).
+- Future expansions adding a 7th archetype must extend §22 with the 7th legendary's mutation BEFORE authoring any cards in that cluster. Mutation precedes content.
+- If sim shows any of L1–L6 over-/under-powered, retune the *specific* mutation values (e.g. L1 stacks → 2 instead of 1; L4 cap → 3 instead of 2). The §22.1 *principle* does not retune — only the values.
+
+---
+
+*End of Phase 4 (a/b/c/d/e-engine/e-pool) charter. Phase 4f (engine vocab v2 + pool retune + legendary promotions) implements §20/§21/§22; Phase 5 (balance via simulation) follows.*
+
