@@ -4,38 +4,34 @@
   "element": "NATURE",
   "atk": 5,
   "def": 13,
-  "hp": 22,
+  "hp": 21,
   "spd": 5,
   "triggers": [
     {
-      "when": "ON_BATTLE_START",
-      "op": "ADD_SHIELD",
+      "when": "ON_ROUND_START",
+      "op": "BUFF_DEF",
       "target": "ALL_ALLIES",
-      "value": 3
+      "value": 1
     },
     {
-      "when": "ON_ALLY_DEATH",
-      "op": "BUFF_DEF",
+      "when": "ON_ROUND_START",
+      "op": "ADD_SHIELD",
       "target": "SELF",
-      "value": 2
+      "value": 3
     }
   ],
   "name": "Bulwarthog",
-  "flavor": "Stand behind me.",
+  "flavor": "When the storm strikes, the herd shoulders together.",
   "rarity": "rare",
   "art": "art/rare/bulwarthog.png",
   "moves": [
     {
-      "name": "Aegis Charge",
-      "when": "ON_ATTACK"
-    },
-    {
       "name": "Rallying Roar",
-      "when": "ON_BATTLE_START"
+      "when": "ON_ROUND_START"
     },
     {
-      "name": "Vengeful Plate",
-      "when": "ON_ALLY_DEATH"
+      "name": "Plate of Calm",
+      "when": "ON_ROUND_START"
     }
   ]
 }

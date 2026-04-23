@@ -4,17 +4,34 @@
   "element": "VOLT",
   "atk": 6,
   "def": 4,
-  "hp": 22,
+  "hp": 21,
   "spd": 11,
   "triggers": [
-    { "when": "ON_BATTLE_START", "op": "BUFF_SPD", "target": "ALL_ALLIES", "value": 1 }
+    {
+      "when": "ON_OPENING_ATTACK",
+      "op": "DAMAGE",
+      "target": "LOWEST_HP_ENEMY",
+      "value": 4
+    },
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "ALL_ALLIES",
+      "value": 1
+    }
   ],
   "name": "Stormhare",
-  "flavor": "Carries the team on lightning feet.",
+  "flavor": "Faster than the rainbow can assemble.",
   "rarity": "rare",
   "art": "art/rare/stormhare.png",
   "moves": [
-    {"name": "Thunderdash", "when": "ON_ATTACK"},
-    {"name": "Rally Wind", "when": "ON_BATTLE_START"}
+    {
+      "name": "Thunderdash",
+      "when": "ON_OPENING_ATTACK"
+    },
+    {
+      "name": "Rally Wind",
+      "when": "ON_BATTLE_START"
+    }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "pack_id": "v1_alpha",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "schema_version": 2,
   "description": "DAIMON V1 alpha bundled creature pool. 200 monsters across 6 elements (5 ring + 1 outside) and 6 archetypes. Phase 4e introduced NORMAL as the splashable utility element (15 NORMAL cards, archetype=null) and trimmed 15 generic elementals (8 vanilla commons + 4 singleton uncommons + 2 generic rares + 1 redundant REVENANT epic) to keep the total at 200. Distribution: 98C/60U/28R/12E/2L. Per-element: FIRE=37 NATURE=36 NORMAL=15 VOID=39 VOLT=37 WATER=36. Phase 4f promotes 4 epics → legendary (one per archetype) and Phase 5 (sim balance) follows.",
   "rarity_weights": {

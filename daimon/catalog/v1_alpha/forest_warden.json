@@ -2,9 +2,9 @@
   "card_id": "forest_warden",
   "species": "forest_warden",
   "element": "NATURE",
-  "atk": 10,
-  "def": 10,
-  "hp": 32,
+  "atk": 9,
+  "def": 9,
+  "hp": 24,
   "spd": 5,
   "triggers": [
     {
@@ -14,14 +14,14 @@
       "value": 3
     },
     {
-      "when": "ON_ALLY_DEATH",
-      "op": "BUFF_ATK",
-      "target": "ALL_ALLIES",
-      "value": 3
+      "when": "ON_LOW_HP",
+      "op": "HEAL",
+      "target": "SELF",
+      "value": 5
     }
   ],
   "name": "Forest Warden",
-  "flavor": "Mourning, in this grove, is the same word as vengeance.",
+  "flavor": "Roots heal what the flame would kill.",
   "rarity": "rare",
   "art": "art/rare/forest_warden.png",
   "moves": [
@@ -30,8 +30,8 @@
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Roots Remember",
-      "when": "ON_ALLY_DEATH"
+      "name": "Sapwell Surge",
+      "when": "ON_LOW_HP"
     }
   ]
 }

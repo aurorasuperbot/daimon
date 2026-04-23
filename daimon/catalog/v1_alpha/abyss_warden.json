@@ -2,26 +2,26 @@
   "card_id": "abyss_warden",
   "species": "abyss_warden",
   "element": "VOID",
-  "atk": 10,
-  "def": 8,
-  "hp": 28,
+  "atk": 9,
+  "def": 7,
+  "hp": 24,
   "spd": 6,
   "triggers": [
     {
       "when": "ON_BATTLE_START",
-      "op": "DEBUFF_ATK",
+      "op": "APPLY_SILENCE",
       "target": "ALL_ENEMIES",
       "value": 3
     },
     {
-      "when": "ON_ALLY_DEATH",
-      "op": "DAMAGE",
+      "when": "ON_ATTACK",
+      "op": "DEBUFF_ATK",
       "target": "ALL_ENEMIES",
-      "value": 4
+      "value": 3
     }
   ],
   "name": "Abyss Warden",
-  "flavor": "Keeps a ledger of every grudge the dark ever swallowed.",
+  "flavor": "The warden silences echoes before they wake.",
   "rarity": "rare",
   "art": "art/rare/abyss_warden.png",
   "moves": [
@@ -31,7 +31,7 @@
     },
     {
       "name": "Ledger Closes",
-      "when": "ON_ALLY_DEATH"
+      "when": "ON_ATTACK"
     }
   ]
 }
