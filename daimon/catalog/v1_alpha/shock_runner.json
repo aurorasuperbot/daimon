@@ -9,9 +9,9 @@
   "triggers": [
     {
       "when": "ON_KILL",
-      "op": "BUFF_SPD",
-      "target": "ALL_ALLIES",
-      "value": 3
+      "op": "GRANT_EXTRA_ACTION",
+      "target": "RANDOM_ALLY",
+      "value": 1
     }
   ],
   "name": "Shock Runner",

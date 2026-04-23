@@ -9,9 +9,9 @@
   "triggers": [
     {
       "when": "ON_KILL",
-      "op": "BUFF_SPD",
+      "op": "GRANT_EXTRA_ACTION",
       "target": "SELF",
-      "value": 3
+      "value": 1
     }
   ],
   "name": "Boltrunner",

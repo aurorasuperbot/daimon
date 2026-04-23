@@ -8,10 +8,10 @@
   "spd": 6,
   "triggers": [
     {
-      "when": "ON_KILL",
-      "op": "DEBUFF_ATK",
-      "target": "ALL_ENEMIES",
-      "value": 2
+      "when": "ON_LOW_HP",
+      "op": "SACRIFICE_SELF",
+      "target": "SELF",
+      "value": 0
     }
   ],
   "name": "Voidling",

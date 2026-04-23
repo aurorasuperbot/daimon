@@ -9,8 +9,8 @@
   "triggers": [
     {
       "when": "ON_BATTLE_START",
-      "op": "BUFF_DEF",
-      "target": "ALL_ALLIES",
+      "op": "THORNS",
+      "target": "SELF",
       "value": 3
     }
   ],

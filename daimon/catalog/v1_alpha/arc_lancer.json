@@ -8,10 +8,10 @@
   "spd": 8,
   "triggers": [
     {
-      "when": "ON_ATTACK",
+      "when": "ON_EXTRA_ACTION_GRANTED",
       "op": "DAMAGE",
       "target": "LOWEST_HP_ENEMY",
-      "value": 4
+      "value": 5
     }
   ],
   "name": "Arc Lancer",

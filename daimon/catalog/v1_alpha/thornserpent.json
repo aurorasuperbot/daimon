@@ -8,9 +8,9 @@
   "spd": 5,
   "triggers": [
     {
-      "when": "ON_TAKE_DAMAGE",
-      "op": "DAMAGE",
-      "target": "RANDOM_ENEMY",
+      "when": "ON_BATTLE_START",
+      "op": "THORNS",
+      "target": "SELF",
       "value": 3
     }
   ],

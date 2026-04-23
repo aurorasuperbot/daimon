@@ -23,12 +23,12 @@ There is no assertion that the loadouts WIN against an arbitrary
 opponent \u2014 balancing is Phase 5 work; this is structural+plumbing
 coverage only.
 
-CATALOG GAP NOTE for L4: The V1 alpha catalog ships zero cards with the
-GRANT_EXTRA_ACTION op, so the L4 mutation (extra-action cap 1 \u2192 2) cannot
-currently fire end-to-end from pure-catalog matches. The L4 test therefore
-asserts only that the team flag is recognised (`_extra_action_cap` returns
-2) \u2014 the in-combat exercise of L4 will land in a future authoring pass
-that adds GRANT_EXTRA_ACTION cards to the pool.
+CATALOG GAP CLOSED in Phase 4h (charter \u00a724): the V1 alpha catalog now
+binds GRANT_EXTRA_ACTION (boltrunner, shock_runner) and ON_EXTRA_ACTION_GRANTED
+(arc_lancer), so the L4 mutation (extra-action cap 1 \u2192 2) is exercised
+end-to-end in `tests/test_phase4h_new_ops_synergies.py`. This file's L4
+test still asserts only the helper-level cap-raise (`_extra_action_cap`
+returns 2) \u2014 the in-combat exercise of L4 lives in the Phase 4h test file.
 """
 
 from __future__ import annotations
@@ -199,9 +199,9 @@ class TestMutationPlumbing:
         """L4 mutation: extra-action cap raised from 1 to 2 (charter \u00a722.2 L4).
         Without L4, _extra_action_cap returns 1; with L4 alive, returns 2.
 
-        CATALOG GAP: no V1 alpha catalog card has GRANT_EXTRA_ACTION, so the
-        cap is not currently consumed in real matches. The cap-RAISE itself
-        is wired and verifiable here regardless."""
+        Phase 4h note: GRANT_EXTRA_ACTION is now catalog-bound (boltrunner,
+        shock_runner), and the in-combat consumption of the raised cap is
+        exercised in `tests/test_phase4h_new_ops_synergies.py`."""
         team = self._build("showcase_l4_stormchain_tempo")
         assert _team_has_mutation(team, "L4") is True
         assert _extra_action_cap(team) == 2

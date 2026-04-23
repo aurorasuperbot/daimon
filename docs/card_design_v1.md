@@ -1099,5 +1099,65 @@ Phase 4f ships in **three commits** (was two in §22.4):
 
 ---
 
-*End of Phase 4 (a/b/c/d/e-engine/e-pool) charter. Phase 4f (4f-counters + 4f-engine + 4f-pool, per §23.8) implements §20/§21/§22/§23; Phase 5 (balance via simulation) follows.*
+## §24 — Phase 4h changelog: catalog/engine gap closure (2026-04-23)
+
+### 24.1 — Trigger
+
+Phase 4f-engine (commit `83475bf`) shipped 4 new ops + 3 new whens. Phase 4f-pool (commit `5fae1ef`) bound *some* of them: `APPLY_BURN_STACK` (5 INFERNO migrations), `ON_DAMAGE_TAKEN` (1 NORMAL migration on `wrought_bear`). Phase 4g (commit `a559a4e`) shipped 6 showcase loadouts and surfaced an audit gap: **3 of the 4 engine ops and 2 of the 3 engine whens had ZERO catalog cards using them**. The L4 showcase (`tempest_apex`-led STORMCHAIN tempo) explicitly flagged its mutation as "dormant from a pure-catalog match" because no card carried `GRANT_EXTRA_ACTION`.
+
+Untouched by Phase 4f-pool:
+- `THORNS` op — 0 catalog cards (only `worldroot_sentinel` L2 mutation grants it implicitly)
+- `GRANT_EXTRA_ACTION` op — 0 catalog cards
+- `SACRIFICE_SELF` op — 0 catalog cards
+- `ON_HEAL_RECEIVED` when — 0 catalog cards
+- `ON_EXTRA_ACTION_GRANTED` when — 0 catalog cards
+
+This violates the implicit charter promise that engine vocab is JSON-author-callable: the engine carried code paths the catalog could not invoke. Phase 4h closes this gap.
+
+### 24.2 — Method (REWRITES, not new cards)
+
+Per §23.6 precedent, in-place rewrite preserves the §23.2 per-archetype × rarity matrix and the 200-card pool lock. Adding net-new cards would force trimming elsewhere and a matrix re-balance. Rewriting 7 cards' triggers — keeping `card_id`, `species`, `name`, `flavor`, `rarity`, `archetype`, `element`, stats, and the count of triggers all unchanged — costs zero matrix cells and zero count drift.
+
+### 24.3 — The 7 in-place rewrites
+
+| Card | Cluster | Tier | Old trigger | New trigger | Why |
+|---|---|---|---|---|---|
+| `thornserpent` | BULWARK | U | `ON_TAKE_DAMAGE DAMAGE RANDOM_ENEMY 3` | `ON_BATTLE_START THORNS SELF 3` | Flavor was thorny; mechanic now uses the THORNS primitive (passive reflection) rather than a one-shot retaliation. Strictly stronger if the unit is hit ≥2× per match. |
+| `bramble_warden` | BULWARK | U | `ON_BATTLE_START BUFF_DEF ALL_ALLIES 3` | `ON_BATTLE_START THORNS SELF 3` | Two THORNS bearers in the BULWARK pool gives mono-BULWARK shells real reflection identity (independent of `worldroot_sentinel` L2 mutation). Loses the team-DEF buff, gains a 5-round reflection engine. |
+| `boltrunner` | STORMCHAIN | U | `ON_KILL BUFF_SPD SELF 3` | `ON_KILL GRANT_EXTRA_ACTION SELF 1` | "Runs faster after every name it crosses out" → "Acts again after every name it crosses out". L4 mutation (cap 1→2) now actually consumed in real matches. |
+| `shock_runner` | STORMCHAIN | U | `ON_KILL BUFF_SPD ALL_ALLIES 3` | `ON_KILL GRANT_EXTRA_ACTION RANDOM_ALLY 1` | "Tailwind for everyone behind" → "Hands off the next turn to a teammate". Cascade enabler. |
+| `arc_lancer` | STORMCHAIN | U | `ON_ATTACK DAMAGE LOWEST_HP_ENEMY 4` | `ON_EXTRA_ACTION_GRANTED DAMAGE LOWEST_HP_ENEMY 5` | "Picks the soft spark" — now fires on the EXTRA action specifically. Pairs with `boltrunner`/`shock_runner` for kill→extra→detonation chains. |
+| `voidling` | REVENANT | C | `ON_KILL DEBUFF_ATK ALL_ENEMIES 2` | `ON_LOW_HP SACRIFICE_SELF SELF 0` | "A removed life is a removed lesson" — now removes itself when wounded, fires ON_DEATH on self + ON_ALLY_DEATH cascade on every alive teammate (per §21.3 Q2 contract). Feeds L5 mutation doubling. |
+| `coral_augur` | TIDAL | E | `ON_TAKE_DAMAGE ADD_SHIELD SELF 3` (second of 2 triggers) | `ON_HEAL_RECEIVED ADD_SHIELD SELF 3` | When healed (by self-heal, ally heal, LIFESTEAL), gain shield. Pristine ON_ATTACK heal trigger preserved. Engine-side: L3 trickle does NOT fire ON_HEAL_RECEIVED per §22.2 L3 cascade-break, so this trigger only fires from real HEAL ops — clean separation. |
+
+**Trigger-budget audit**: every rewrite preserves the trigger COUNT on its card (uncommons stay at 1, the epic stays at 2). Tier caps from `test_phase4_distribution.py::TIER_TRIGGER_CAP` honored.
+
+### 24.4 — Showcase loadout impact
+
+- **L4 showcase (`showcase_l4_stormchain_tempo`)**: previously flagged "dormant from a pure-catalog match" (no GRANT_EXTRA_ACTION cards existed). Now explicitly demonstrates the L4 cap-raise: boltrunner ON_KILL → GRANT_EXTRA_ACTION self → arc_lancer ON_EXTRA_ACTION_GRANTED → DAMAGE chain, with the second extra-action grant landing under the L4 cap of 2 instead of being rejected at 1. Showcase description updated.
+- **L2 showcase (`showcase_l2_bulwark_thorns`)**: `bramble_warden` (now THORNS bearer) and existing engine L2 mutation (worldroot_sentinel grants +2 thorns to all allies) now stack — `bramble_warden` reflects 5 thorns (its own 3 + L2's 2) per ON_DAMAGE_TAKEN.
+- **L3 showcase (`showcase_l3_tidal_trickle`)**: `coral_augur`'s ON_HEAL_RECEIVED gives the team a heal-reactive shield engine on top of L3's team-wide trickle.
+- **L5 showcase (`showcase_l5_revenant_cascade`)**: `voidling` is NOT in the L5 loadout (which uses 6 specific REVENANT cards), but the SACRIFICE_SELF op is now catalog-callable for player-built REVENANT shells.
+- **L1 / L6 showcases**: unaffected (no cards in their loadouts touched).
+
+### 24.5 — Verification surface
+
+`tests/test_phase4h_new_ops_synergies.py` runs real `resolve_match` battles to verify each rewrite end-to-end:
+1. Per-card op verification — each rewritten card's new op fires in the combat log when the trigger condition hits.
+2. L4 catalog-bound test — STORMCHAIN team with rewritten boltrunner + arc_lancer demonstrates the kill → extra-action → arc_lancer detonation chain.
+3. L4 mutation activation in catalog match — adding `tempest_apex` to that team raises the cap, observable in log as `(used 2/2)`.
+4. L5 catalog-bound test — REVENANT team with rewritten `voidling` + ON_ALLY_DEATH listeners + `voidking_morr` shows the doubled cascade in real match log.
+5. THORNS reflection in BULWARK shell — rewritten `thornserpent`/`bramble_warden` reflect on attackers in catalog match.
+6. ON_HEAL_RECEIVED in TIDAL shell — `coral_augur` shielded after `tidewatcher`'s opening team-heal.
+7. Showcase-loadout regression — re-verifies all 6 Phase 4g loadouts still resolve cleanly post-rewrite.
+
+### 24.6 — Open items (deferred)
+
+- `ON_DAMAGE_TAKEN` catalog use is currently 1 (`wrought_bear`). 21 cards still use the older `ON_TAKE_DAMAGE` (pre-shield path). Per §21.2 these are semantically distinct — many of those 21 are intentionally pre-shield (e.g. ADD_SHIELD-on-take-damage cards want to fire even when fully-shielded). No mass migration; per-card audits are Phase 5 scope.
+- THORNS reflection cap (2 per source-attack, §21.5) and heal cascade cap (4 per source-heal) remain engine-enforced. Phase 5 sim should verify these caps don't cause balance pathologies in real match data.
+- `SACRIFICE_SELF` is currently bound to one common (`voidling`). Phase 5 sim may identify additional REVENANT cards where SACRIFICE_SELF makes flavor sense — additional in-place rewrites can land then.
+
+---
+
+*End of Phase 4 (a/b/c/d/e-engine/e-pool/f-counters/f-engine/f-pool/g/h) charter. Phase 5 (balance via simulation) follows.*
 

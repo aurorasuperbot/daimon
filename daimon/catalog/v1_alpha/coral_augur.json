@@ -15,7 +15,7 @@
       "condition": "self.hp == self.hp_max"
     },
     {
-      "when": "ON_TAKE_DAMAGE",
+      "when": "ON_HEAL_RECEIVED",
       "op": "ADD_SHIELD",
       "target": "SELF",
       "value": 3
@@ -32,8 +32,8 @@
       "when": "ON_ATTACK"
     },
     {
-      "name": "Shellward",
-      "when": "ON_TAKE_DAMAGE"
+      "name": "Tidewarded",
+      "when": "ON_HEAL_RECEIVED"
     }
   ]
 }
