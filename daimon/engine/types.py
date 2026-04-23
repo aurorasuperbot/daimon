@@ -77,6 +77,16 @@ class TriggerWhen(IntEnum):
     ON_KILL = 8              # fires on attacker when its attack KOs the target
     ON_LOW_HP = 9            # fires once when self.hp drops below 25% of card.hp
     ON_OPENING_ATTACK = 10   # fires on a unit's first attack of the match
+    # Phase 4f-engine additions (charter §21.2):
+    ON_HEAL_RECEIVED = 11           # fires on healed unit AFTER a HEAL op resolves;
+                                    # capped at 4 nested heals per source (charter §21.2)
+    ON_DAMAGE_TAKEN = 12            # fires on damaged unit when damage > 0 LANDS
+                                    # (post-shield, post-element, post-DEF). Distinct
+                                    # from ON_TAKE_DAMAGE which fires on the damage
+                                    # *attempt* (pre-shield); see charter §21.2 naming
+                                    # note. Shielded-to-zero damage does NOT fire this.
+    ON_EXTRA_ACTION_GRANTED = 13    # fires on the unit being granted an extra action
+                                    # AFTER the cap check passes and the counter increments
 
 
 class EffectOp(IntEnum):
@@ -102,6 +112,23 @@ class EffectOp(IntEnum):
     APPLY_TAUNT = 12     # value = duration in rounds
     APPLY_POISON = 13    # value = duration in rounds
     LIFESTEAL = 14       # value = damage dealt; attacker heals ceil(value/2)
+    # Phase 4f-engine additions (charter §21.3):
+    APPLY_BURN_STACK = 15    # value = stacks added to target.burn_stacks (additive,
+                             # not refresh). At ON_TURN_END for the holder: deals
+                             # `burn_stacks × 1` real damage (element-neutral, post-DEF)
+                             # then zeros stacks. Distinct from APPLY_BURN (status).
+    THORNS = 16              # value = thorns_value set on SELF (additive, max-stacks).
+                             # On every ON_DAMAGE_TAKEN, attacker takes `thorns_value`
+                             # real damage (element-neutral, BYPASSES DEF). 2-reflection
+                             # re-entry cap per source-attack (charter §21.5).
+    GRANT_EXTRA_ACTION = 17  # value ignored (acts as boolean op). Grants target one
+                             # extra action this round if extra_actions_used_this_round
+                             # < cap (default 1, raised to 2 by L4 mutation). Sets
+                             # the counter and fires ON_EXTRA_ACTION_GRANTED on success.
+    SACRIFICE_SELF = 18      # value ignored. Sets self.hp = 0; fires ON_DEATH for self
+                             # AND ON_ALLY_DEATH for every alive teammate. Cannot be
+                             # SILENCED (charter §21.5 exception). Does NOT credit any
+                             # opponent with ON_KILL.
 
 
 class TargetFilter(IntEnum):
@@ -146,6 +173,26 @@ class Trigger:
 # NO TEXT, NO NAME, NO FLAVOR, NO ART. The render layer owns all of that.
 # ---------------------------------------------------------------------------
 
+# Legendary rule-change mutation IDs (charter §22.2). The dispatch table for
+# what each mutation actually DOES lives in `daimon/engine/combat.py` — this
+# tuple is the closed-set whitelist the loader validates against. V2 expansion
+# adds new IDs by editing this tuple AND the dispatcher; no JSON-spec language
+# (rejected per charter §23.9).
+RULE_CHANGE_IDS: tuple[str, ...] = ("L1", "L2", "L3", "L4", "L5", "L6")
+
+
+# Strategic-archetype tags (charter §3). The engine treats archetype as
+# metadata almost everywhere — soft-priority cluster model per §2.0 — but the
+# L6 mutation (`world_eater`) needs to know which cards are FLUX at fire-time
+# to scope its `team.distinct_elements +2` effect (charter §22.2 L6). So the
+# field is engine-visible but engine-INERT for everything except L6 dispatch.
+# `None` is the legitimate default: commons + uncommons inherit archetype from
+# their evolution-line parent at the docs level (§23.2) but carry no JSON tag.
+ARCHETYPE_IDS: tuple[str, ...] = (
+    "INFERNO", "BULWARK", "TIDAL", "STORMCHAIN", "REVENANT", "FLUX",
+)
+
+
 @dataclass(frozen=True)
 class Card:
     card_id: str            # opaque identifier, unique within a pack
@@ -157,6 +204,17 @@ class Card:
     hp: int
     spd: int
     triggers: tuple[Trigger, ...] = ()
+    # Phase 4f-engine addition (charter §22 + §23.6): legendary rule-changer tag.
+    # When set, the card's team registers the corresponding global rule mutation
+    # while the card is alive. Validated at load-time against RULE_CHANGE_IDS.
+    # The triggers array MAY be empty for a legendary (mutation IS the contribution)
+    # or MAY carry secondary triggers that operate within global rules.
+    rule_change: Optional[str] = None
+    # Phase 4f-engine addition (charter §22.2 L6): strategic-archetype tag.
+    # Engine-INERT for L1–L5 (those mutations don't read it). The L6 dispatcher
+    # (`world_eater`) reads it to scope the +2 distinct-elements bonus to FLUX
+    # cards only. Validated at load-time against ARCHETYPE_IDS.
+    archetype: Optional[str] = None
 
     def __post_init__(self) -> None:
         for v, name in [(self.atk, "atk"), (self.defense, "def"),
@@ -167,6 +225,16 @@ class Card:
             raise ValueError("Card.species must be non-empty string")
         if not isinstance(self.element, Element):
             raise TypeError("Card.element must be Element enum")
+        if self.rule_change is not None and self.rule_change not in RULE_CHANGE_IDS:
+            raise ValueError(
+                f"Card.rule_change={self.rule_change!r} invalid; "
+                f"expected one of: {RULE_CHANGE_IDS}"
+            )
+        if self.archetype is not None and self.archetype not in ARCHETYPE_IDS:
+            raise ValueError(
+                f"Card.archetype={self.archetype!r} invalid; "
+                f"expected one of: {ARCHETYPE_IDS}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +258,27 @@ class UnitState:
     low_hp_fired: bool = False         # ON_LOW_HP fires at most once per match
     has_attacked: bool = False         # set after the unit's first attack;
                                        # gates ON_OPENING_ATTACK
+    # Phase 4f-engine state primitives (charter §21.1):
+    burn_stacks: int = 0               # INFERNO DOT: each stack deals 1 dmg at the
+                                       # holder's ON_TURN_END, then stacks zero. Stacks
+                                       # accumulate (additive); never refresh.
+    shield_count: int = 0              # BULWARK shield-stacking: each point absorbs
+                                       # one damage INSTANCE fully (distinct from the
+                                       # value-based `shield` field above which absorbs
+                                       # N damage). Allows "wall of three small shields"
+                                       # patterns without inflating shield value.
+    extra_actions_used_this_round: int = 0   # STORMCHAIN: counts extra actions granted
+                                             # to this unit this round. Default cap = 1;
+                                             # raised to 2 by L4 (`tempest_apex`)
+                                             # mutation. Reset at round start.
+                                             # Per charter §22.4 L4: int (not bool) so
+                                             # the cap raise can be a comparison change
+                                             # without a refactor.
+    thorns_value: int = 0              # BULWARK reflect: passive damage reflected to
+                                       # attackers on every ON_DAMAGE_TAKEN. Set by
+                                       # THORNS op (additive). Reflection is real damage,
+                                       # element-neutral, BYPASSES DEF. The 2-reflection
+                                       # re-entry cap (charter §21.5) lives in combat.py.
 
     @property
     def effective_atk(self) -> int:

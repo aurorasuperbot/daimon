@@ -63,6 +63,11 @@ _ALLOWED_ATTRS: FrozenSet[str] = frozenset({
     "self.def",
     "self.spd",
     "self.element",
+    # Phase 4f-engine additions (charter §21.4) — read-only access to the new
+    # state primitives. No new ops, no function calls, no subscripts.
+    "self.burn_stacks",
+    "self.shield_count",
+    "self.extra_actions_used_this_round",
     # team (the unit's own side)
     "team.distinct_elements",
     "team.alive_count",

@@ -18,16 +18,25 @@ Card JSON schema (V2 — monster pivot):
       {
         "when":  "ON_BATTLE_START|ON_ROUND_START|ON_ATTACK|ON_TAKE_DAMAGE|"
                  "ON_DEATH|ON_ALLY_DEATH|ON_TURN_END|ON_KILL|ON_LOW_HP|"
-                 "ON_OPENING_ATTACK",
+                 "ON_OPENING_ATTACK|ON_HEAL_RECEIVED|ON_DAMAGE_TAKEN|"
+                 "ON_EXTRA_ACTION_GRANTED",
         "op":    "BUFF_ATK|DEBUFF_ATK|BUFF_DEF|DEBUFF_DEF|HEAL|DAMAGE|"
                  "ADD_SHIELD|BUFF_SPD|APPLY_BURN|APPLY_STUN|APPLY_SILENCE|"
-                 "APPLY_TAUNT|APPLY_POISON|LIFESTEAL",
+                 "APPLY_TAUNT|APPLY_POISON|LIFESTEAL|APPLY_BURN_STACK|"
+                 "THORNS|GRANT_EXTRA_ACTION|SACRIFICE_SELF",
         "target":"SELF|ALL_ALLIES|ALL_ENEMIES|LOWEST_HP_ENEMY|HIGHEST_HP_ENEMY|RANDOM_ENEMY|RANDOM_ALLY",
         "value": int,
         "condition": "string?"   # optional DSL expression — see daimon/engine/conditions.py
                                  # parsed + validated at load time, evaluated at fire time
       }
   ],
+
+  // Phase 4f-engine: legendary rule-change tag (charter §22 + §23.6).
+  // When set, registers the corresponding global rule mutation on the card's
+  // team while the card is alive. Validated against RULE_CHANGE_IDS in
+  // engine/types.py. May co-exist with `triggers` (mutation = passive
+  // identity; triggers = secondary effects within global rules).
+  "rule_change": "L1|L2|L3|L4|L5|L6",  // optional, only meaningful at legendary tier
 
   // Render-only fields (NEVER read by engine):
   "name":   "string",
@@ -51,9 +60,11 @@ from typing import Any, Dict, Optional
 
 from daimon.engine.conditions import ConditionError, parse as parse_condition
 from daimon.engine.types import (
+    ARCHETYPE_IDS,
     Card,
     EffectOp,
     Element,
+    RULE_CHANGE_IDS,
     TargetFilter,
     Trigger,
     TriggerWhen,
@@ -165,6 +176,41 @@ def load_card_dict(d: Dict[str, Any]) -> Card:
         )
     triggers = tuple(_parse_trigger(t, i) for i, t in enumerate(triggers_raw))
 
+    # Phase 4f-engine: optional rule_change tag for legendary mutations.
+    # Validated against RULE_CHANGE_IDS at load time so an unknown ID breaks
+    # catalog load (not mid-match — engine determinism contract).
+    rule_change_raw = d.get("rule_change")
+    rule_change: Optional[str] = None
+    if rule_change_raw is not None:
+        if not isinstance(rule_change_raw, str):
+            raise ValueError(
+                f"rule_change must be string, got {type(rule_change_raw).__name__}"
+            )
+        if rule_change_raw not in RULE_CHANGE_IDS:
+            raise ValueError(
+                f"rule_change={rule_change_raw!r} invalid; "
+                f"expected one of: {RULE_CHANGE_IDS}"
+            )
+        rule_change = rule_change_raw
+
+    # Phase 4f-engine: optional archetype tag — engine-INERT for L1–L5; only
+    # the L6 dispatcher (`world_eater`) reads it. None is the default per
+    # charter §23.2 (commons + uncommons are untagged; rares are
+    # archetype-null by convention; only epics + legendaries carry the tag).
+    archetype_raw = d.get("archetype")
+    archetype: Optional[str] = None
+    if archetype_raw is not None:
+        if not isinstance(archetype_raw, str):
+            raise ValueError(
+                f"archetype must be string, got {type(archetype_raw).__name__}"
+            )
+        if archetype_raw not in ARCHETYPE_IDS:
+            raise ValueError(
+                f"archetype={archetype_raw!r} invalid; "
+                f"expected one of: {ARCHETYPE_IDS}"
+            )
+        archetype = archetype_raw
+
     return Card(
         card_id=card_id,
         species=species,
@@ -174,6 +220,8 @@ def load_card_dict(d: Dict[str, Any]) -> Card:
         hp=hp,
         spd=spd,
         triggers=triggers,
+        rule_change=rule_change,
+        archetype=archetype,
     )
 
 
