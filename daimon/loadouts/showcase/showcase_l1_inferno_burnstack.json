@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l1_inferno_burnstack",
+  "name": "L1 \u2014 Magma Tyrant Burnstack",
+  "demonstrates": "L1",
+  "flavor": "Hit it. Watch the embers travel up your arm.",
+  "description": "Mono-FIRE / mono-INFERNO bunker centered on magma_tyrant. The L1 mutation lets the tyrant counter-burn anyone who lands damage on it (burn_stacks +1 per hit), and the supporting INFERNO chassis (ash_strider, blazefiend, lava_skink, brimling commons) all have APPLY_BURN_STACK triggers of their own \u2014 turning a single attack window into multiple stacks of post-turn fire damage. The non-burn pieces (coalbreaker, ember_raptor, magma_warden) supply the raw ATK to actually kill targets before their burns finish ticking off.",
+  "loadout": [
+    "magma_tyrant",
+    "ash_strider",
+    "blazefiend",
+    "coalbreaker",
+    "ember_raptor",
+    "magma_warden"
+  ]
+}

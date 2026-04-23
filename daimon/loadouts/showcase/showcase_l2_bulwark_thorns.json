@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l2_bulwark_thorns",
+  "name": "L2 \u2014 Worldroot Sentinel Thorns",
+  "demonstrates": "L2",
+  "flavor": "Bring an axe. We brought bark.",
+  "description": "Mono-NATURE / mono-BULWARK bunker centered on worldroot_sentinel. The L2 mutation grants every ally on the team an effective +2 thorns_value (charter \u00a722.2 L2), so every incoming attack pays back 2 real damage to the attacker \u2014 no triggers required, no SILENCE bypass needed. Bulwark_patriarch and the four NATURE supports (mossbear, thornserpent, root_warden, bramble_warden) layer on extra defense, taunts, and shield-on-damage so the team eats hits long enough for thorns to grind the opposing damage dealers off the board.",
+  "loadout": [
+    "worldroot_sentinel",
+    "bulwark_patriarch",
+    "mossbear",
+    "thornserpent",
+    "root_warden",
+    "bramble_warden"
+  ]
+}

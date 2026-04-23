@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l4_stormchain_tempo",
+  "name": "L4 \u2014 Tempest Apex Tempo",
+  "demonstrates": "L4",
+  "flavor": "Faster than you. Twice. Then a third time, just to be sure.",
+  "description": "Mono-VOLT / mono-STORMCHAIN tempo shell centered on tempest_apex. The L4 mutation raises the per-round extra-action cap from 1 to 2 (charter \u00a722.2 L4), so when a future catalog card or arena modifier hands out GRANT_EXTRA_ACTION, this team can stack two of them in a single round instead of one. SUPPORTING-CARD GAP NOTE: V1 alpha catalog ships zero cards with the GRANT_EXTRA_ACTION op, so the L4 mutation is currently dormant from a pure-catalog match \u2014 the team flag is set on battle start, but no in-game event consumes it. This loadout still showcases the 'fast STORMCHAIN VOLT line' archetype, and its L4-readiness is verified by inspecting team mutation state. A future authoring pass (Phase 4h: action-grant cards) will add catalog support that makes this loadout's L4 effect visible in the combat log.",
+  "loadout": [
+    "tempest_apex",
+    "arc_predator",
+    "plasma_hound",
+    "arc_lancer",
+    "shock_runner",
+    "boltrunner"
+  ]
+}

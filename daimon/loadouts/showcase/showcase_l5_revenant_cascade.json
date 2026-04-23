@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l5_revenant_cascade",
+  "name": "L5 \u2014 Voidking Morr Cascade",
+  "demonstrates": "L5",
+  "flavor": "Bury one, hear two whispers; bury two, the army hears.",
+  "description": "Mono-VOID / mono-REVENANT graveyard-cycle shell centered on voidking_morr. The L5 mutation makes every ON_ALLY_DEATH trigger fire TWICE in immediate sequence (charter \u00a722.2 L5, capped by the engine's _ALLY_DEATH_CAP=8), so each ally death generates double the buff/debuff/silence value. The supporting REVENANT pieces are picked exclusively for ON_ALLY_DEATH triggers: shadebishop and voidking_morr itself BUFF_ATK on death; dirge_lich DEBUFF_DEFs the enemy team; crypt_wraith APPLY_SILENCEs an enemy on death; ghoul_imp pre-poisons targets so they die during ally-death cascades. The intended dynamic: opponent kills a small ally early, the team-wide on-death wave hits twice, the ATK swing-up snowballs the rest of the match.",
+  "loadout": [
+    "voidking_morr",
+    "crypt_wraith",
+    "shadebishop",
+    "dirge_lich",
+    "ghoul_imp",
+    "shadow_warden"
+  ]
+}

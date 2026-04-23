@@ -1,0 +1,12 @@
+{
+  "version": "v1_alpha",
+  "description": "Showcase loadouts for V1 legendary mutations L1-L6. One loadout per rule-changer, each authored to exercise its mutation in a real 6-card team drawn from the v1_alpha catalog. Used as documentation, regression evidence, and (eventually) as 'try this' starter teams for new players.",
+  "loadouts": [
+    {"loadout_id": "showcase_l1_inferno_burnstack",   "demonstrates": "L1", "name": "L1 \u2014 Magma Tyrant Burnstack"},
+    {"loadout_id": "showcase_l2_bulwark_thorns",      "demonstrates": "L2", "name": "L2 \u2014 Worldroot Sentinel Thorns"},
+    {"loadout_id": "showcase_l3_tidal_trickle",       "demonstrates": "L3", "name": "L3 \u2014 Tide Empress Trickle"},
+    {"loadout_id": "showcase_l4_stormchain_tempo",    "demonstrates": "L4", "name": "L4 \u2014 Tempest Apex Tempo"},
+    {"loadout_id": "showcase_l5_revenant_cascade",    "demonstrates": "L5", "name": "L5 \u2014 Voidking Morr Cascade"},
+    {"loadout_id": "showcase_l6_flux_mono_void",      "demonstrates": "L6", "name": "L6 \u2014 World Eater Mono-Void"}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l3_tidal_trickle",
+  "name": "L3 \u2014 Tide Empress Trickle",
+  "demonstrates": "L3",
+  "flavor": "Six healers, one tide. The math takes care of the rest.",
+  "description": "Mono-WATER / mono-TIDAL recovery shell centered on tide_empress. The L3 mutation makes every heal anywhere on the team trickle +1 HP to every other alive ally (charter \u00a722.2 L3), so a single coral_priest tap effectively heals the entire team. With five other dedicated healers (coral_augur epic, coral_priest, tide_chanter, tidewatcher, abyssbreaker uncommons), every round generates a flood of trickle events \u2014 the team is functionally HP-positive against most damage profiles.",
+  "loadout": [
+    "tide_empress",
+    "coral_augur",
+    "coral_priest",
+    "tide_chanter",
+    "tidewatcher",
+    "abyssbreaker"
+  ]
+}
