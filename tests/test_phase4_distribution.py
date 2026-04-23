@@ -1,24 +1,29 @@
-"""Phase 4d distribution-lock tests (V1, 2026-04-22).
+"""Phase 4d/4f distribution-lock tests (V1, 2026-04-23).
 
 Locks the V1 200-card pool composition. Every assertion here is a *gate*:
 adding/removing a card without updating the design doc + this file must
 make the test suite fail.
 
-Locked invariants (per `docs/card_design_v1.md` §3 + §4):
+Locked invariants (per `docs/card_design_v1.md` §3 + §4 + §23.2):
 
   total cards          == 200
-  rarity histogram     == {common: 98, uncommon: 60, rare: 28, epic: 12, legendary: 2}
+  rarity histogram     == {common: 98, uncommon: 60, rare: 28, epic: 8, legendary: 6}
+                          (Phase 4f-pool 2026-04-23: epic 12→8, legendary 2→6;
+                           4 epics promoted in-place, see §23.6)
   vanilla commons      <= 30% of common pool (29 of 98)
   per-element minimums (each of the 5 elements gets enough representation
                         that mono-element teams of 6 are buildable at every
                         rarity tier — i.e. ≥6 cards per element overall, and
                         ≥1 card per element per rarity tier where that tier
                         is element-bearing)
+  per-archetype × rarity matrix (§23.2) — locks the soft-cluster sizing so
+                        any future authoring drift requires explicit doc
+                        update before tests pass.
 
 The legendary/epic exact-set tests already live in
 `tests/test_phase3_anchors.py::TestCatalogLoad`. This file complements those
 with the bulk-tier (common/uncommon/rare) shape gates Phase 4 is responsible
-for, plus the total-count + vanilla-cap rules.
+for, plus the total-count + vanilla-cap + per-archetype matrix rules.
 
 Why a separate file? `test_phase3_anchors.py` is *integration* — it
 exercises individual anchor cards through the engine. This file is
@@ -52,8 +57,8 @@ V1_RARITY = {
     "common":    98,
     "uncommon":  60,
     "rare":      28,
-    "epic":      12,
-    "legendary":  2,
+    "epic":       8,   # Phase 4f-pool: 12→8 (4 promoted to legendary, §23.6)
+    "legendary":  6,   # Phase 4f-pool: 2→6  (one rule-changer per archetype, §22.2)
 }
 # Per-rarity vanilla cap (commons only — see card_design_v1.md §4)
 VANILLA_COMMON_CAP_PCT = 30
@@ -364,4 +369,151 @@ class TestUniqueness:
         orphans = on_disk - manifest_files
         assert not orphans, (
             f"Card JSONs on disk but missing from manifest: {sorted(orphans)}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 6. Per-archetype × rarity matrix lock — Phase 4f-pool extension (§23.2)
+#
+# The soft-cluster cards-per-archetype counts are LOCKED post-promotion. Any
+# future card add/remove/retag must update both this table and §23.2 in the
+# design doc — the assertion failure is the prompt to remember.
+#
+# The matrix below is the POST-PROMOTION steady state (§23.2 measured table).
+# `null` archetype covers NORMAL element + the 28 element-flavored utility
+# rares + the 1 NORMAL epic. See §23.2 lock-text for why rares are null by
+# convention (anti-pattern guard against archetype-as-engine-gate).
+# ---------------------------------------------------------------------------
+
+
+# Locked per-archetype × rarity counts. Tuple form because dicts of dicts get
+# noisy in failure output; we serialize to a (rarity, archetype, count) sort
+# for reporting.
+ARCHETYPE_MATRIX = {
+    # archetype:    {rarity: count}
+    "INFERNO":    {"common": 13, "uncommon":  6, "rare": 0, "epic": 1, "legendary": 1},
+    "BULWARK":    {"common": 13, "uncommon":  7, "rare": 0, "epic": 1, "legendary": 1},
+    "TIDAL":      {"common": 13, "uncommon":  7, "rare": 0, "epic": 1, "legendary": 1},
+    "STORMCHAIN": {"common": 13, "uncommon":  7, "rare": 0, "epic": 1, "legendary": 1},
+    "REVENANT":   {"common": 13, "uncommon":  7, "rare": 0, "epic": 1, "legendary": 1},
+    "FLUX":       {"common": 10, "uncommon": 10, "rare": 0, "epic": 2, "legendary": 1},
+    # `null` = NORMAL element (15) + element-flavored utility (53). All 28
+    # rares are archetype:null by §23.2 convention — anti-pattern guard.
+    None:         {"common": 23, "uncommon": 16, "rare": 28, "epic": 1, "legendary": 0},
+}
+
+
+class TestArchetypeMatrix:
+    """Locks the §23.2 per-archetype × rarity counts post-Phase-4f promotion.
+
+    This is the AUTHORING-CONTRACT level test: any soft-cluster reshuffle
+    (card retag, card add/remove with archetype effect) shows up here as a
+    matrix-cell drift. Failure prompts the design-doc update.
+    """
+
+    def test_matrix_matches_disk(self, cards_on_disk):
+        """Measure each (archetype, rarity) cell from disk and compare to the
+        locked table. Reports cell-level diffs on failure."""
+        measured: dict[tuple, int] = Counter()
+        for c in cards_on_disk:
+            arch = c.get("archetype")  # None for null/missing
+            rarity = c.get("rarity")
+            measured[(arch, rarity)] += 1
+
+        expected: dict[tuple, int] = {}
+        for arch, by_rarity in ARCHETYPE_MATRIX.items():
+            for rarity, n in by_rarity.items():
+                expected[(arch, rarity)] = n
+
+        # Every expected cell must match.
+        diffs: list[str] = []
+        for cell, n in expected.items():
+            arch, rarity = cell
+            actual_n = measured.get(cell, 0)
+            if actual_n != n:
+                diffs.append(
+                    f"  archetype={arch!r:12s} rarity={rarity:11s}: "
+                    f"expected {n}, got {actual_n}"
+                )
+        # Catch any unexpected (archetype, rarity) pair.
+        unexpected = sorted(
+            (cell, n) for cell, n in measured.items() if cell not in expected
+        )
+        if unexpected:
+            for cell, n in unexpected:
+                arch, rarity = cell
+                diffs.append(
+                    f"  archetype={arch!r:12s} rarity={rarity:11s}: "
+                    f"unexpected cell with {n} card(s)"
+                )
+        assert not diffs, (
+            "Per-archetype × rarity matrix drifted from §23.2 lock:\n"
+            + "\n".join(diffs)
+            + "\n\nIf this drift is intentional, update both:\n"
+            + "  1. ARCHETYPE_MATRIX in this file\n"
+            + "  2. §23.2 in docs/card_design_v1.md"
+        )
+
+    def test_matrix_totals_match_rarity_histogram(self):
+        """Sanity gate: matrix row+column sums must equal V1_RARITY totals.
+        Catches authoring drift in the matrix itself (not on disk)."""
+        # Column sums = per-rarity totals.
+        per_rarity: Counter = Counter()
+        for arch, by_rarity in ARCHETYPE_MATRIX.items():
+            for rarity, n in by_rarity.items():
+                per_rarity[rarity] += n
+        for rarity, expected_n in V1_RARITY.items():
+            assert per_rarity[rarity] == expected_n, (
+                f"ARCHETYPE_MATRIX column sum for {rarity}={per_rarity[rarity]} "
+                f"diverges from V1_RARITY[{rarity}]={expected_n}. "
+                f"Either ARCHETYPE_MATRIX or V1_RARITY is wrong — fix both."
+            )
+        # Total grand sum must equal V1_TOTAL.
+        grand = sum(per_rarity.values())
+        assert grand == V1_TOTAL, (
+            f"ARCHETYPE_MATRIX grand total {grand} != V1_TOTAL {V1_TOTAL}"
+        )
+
+    def test_only_legendaries_carry_rule_change_tag(self, cards_on_disk):
+        """rule_change is the legendary mutation marker; nothing else should
+        carry it. Catches accidental tagging of non-legendaries — the engine
+        wouldn't refuse it (rule_change is engine-active regardless of rarity)
+        but it'd be a balance-explosion landmine. Lock at distribution layer."""
+        violators = [
+            f"{c['card_id']} (rarity={c.get('rarity')}, "
+            f"rule_change={c.get('rule_change')})"
+            for c in cards_on_disk
+            if c.get("rule_change") is not None
+            and c.get("rarity") != "legendary"
+        ]
+        assert not violators, (
+            "Non-legendary cards carry rule_change tag (balance landmine):\n  "
+            + "\n  ".join(violators)
+        )
+
+    def test_all_six_legendaries_carry_expected_rule_change(self, cards_on_disk):
+        """Each of the 6 V1 legendaries must carry its locked mutation ID.
+        The engine dispatches off rule_change; a missing tag silently strips
+        the card's identity."""
+        expected = {
+            "magma_tyrant":       "L1",
+            "worldroot_sentinel": "L2",
+            "tide_empress":       "L3",
+            "tempest_apex":       "L4",
+            "voidking_morr":      "L5",
+            "world_eater":        "L6",
+        }
+        by_id = {c["card_id"]: c for c in cards_on_disk}
+        diffs: list[str] = []
+        for cid, want in expected.items():
+            c = by_id.get(cid)
+            if c is None:
+                diffs.append(f"  {cid}: missing from catalog")
+                continue
+            got = c.get("rule_change")
+            if got != want:
+                diffs.append(f"  {cid}: expected rule_change={want!r}, got {got!r}")
+        assert not diffs, (
+            "Legendary rule_change tags drifted from §22.2 lock:\n"
+            + "\n".join(diffs)
         )

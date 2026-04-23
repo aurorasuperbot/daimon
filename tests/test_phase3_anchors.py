@@ -104,6 +104,15 @@ def all_logs(result) -> str:
 # real loader, including condition validation. Fails loud if a JSON is busted.
 # ---------------------------------------------------------------------------
 
+# Phase-3 anchors: cards whose mechanical identity is the integration-test
+# subject. After Phase 4f-pool's epic→legendary promotions (§23.6), the 4
+# promoted cards (magma_tyrant, worldroot_sentinel, tide_empress, tempest_apex)
+# carry their identity via `rule_change` (the L1–L4 mutations) rather than
+# explicit triggers. That mutation behavior is exhaustively tested in
+# `tests/test_combat_phase4f.py::TestL{1,2,3,4,5,6}…`. We keep the 4 promoted
+# cards in this list to cover catalog-load + rule_change tagging, and loosen
+# the "anchor must have triggers" gate to "anchor must have triggers OR a
+# rule_change tag" — both forms of mechanical identity are valid.
 PHASE3_ANCHORS = [
     "voidking_morr", "world_eater",
     "magma_tyrant", "solar_phoenix",
@@ -112,6 +121,7 @@ PHASE3_ANCHORS = [
     "tempest_apex", "arc_predator",
     "crypt_wraith",                   # mourners_lich retired in Phase 4e
     "prism_chimera", "rainbow_drake",
+    "concord_phoenix",                # NORMAL epic anchor (Phase 4e)
 ]
 
 
@@ -120,7 +130,13 @@ class TestCatalogLoad:
         for cid in PHASE3_ANCHORS:
             c = anchor(cid)
             assert c.card_id == cid
-            assert c.triggers, f"{cid} has no triggers — that's not an anchor"
+            # Mechanical-identity gate: a Phase-3 anchor either has triggers
+            # (the original epic-anchor pattern) or carries a rule_change
+            # mutation tag (the Phase-4f legendary pattern). At least one.
+            assert c.triggers or c.rule_change, (
+                f"{cid} has neither triggers nor a rule_change tag — "
+                f"not a recognizable anchor"
+            )
 
     def test_all_anchors_in_manifest(self):
         manifest = json.loads(MANIFEST_PATH.read_text())
@@ -135,44 +151,59 @@ class TestCatalogLoad:
         for entry in manifest["cards"]:
             load_card(PACK_DIR / entry["file"])
 
-    def test_legendary_count_locked_at_two(self):
-        """V1 doc locks: exactly two legendaries — Voidking Morr + World-Eater.
+    def test_legendary_count_locked_at_six(self):
+        """V1 doc locks (post-Phase-4f, §22.2): exactly six legendaries —
+        one rule-changer per strategic archetype.
 
-        Phase 4a reconciled legacy scaffolded legendaries down to rare; from
-        that point forward the pack must never carry a third legendary without
-        an explicit design doc update.
+        Phase 4a reconciled legacy scaffolded legendaries down to rare. Phase
+        4f-pool (2026-04-23) promoted 4 epics to legendary in-place per §23.6,
+        bringing the count from 2 → 6. Adding a 7th legendary requires an
+        explicit design doc update (likely the §22.5 expansion-archetype
+        path) and a new mutation ID in `engine/types.py::RULE_CHANGE_IDS`.
         """
+        expected_legendaries = {
+            "magma_tyrant",       # L1 INFERNO     (Phase 4f-pool promotion)
+            "worldroot_sentinel", # L2 BULWARK     (Phase 4f-pool promotion)
+            "tide_empress",       # L3 TIDAL       (Phase 4f-pool promotion)
+            "tempest_apex",       # L4 STORMCHAIN  (Phase 4f-pool promotion)
+            "voidking_morr",      # L5 REVENANT    (V1 original legendary)
+            "world_eater",        # L6 FLUX        (V1 original legendary)
+        }
         manifest = json.loads(MANIFEST_PATH.read_text())
-        legendaries = sorted(
+        legendaries = {
             entry["card_id"] for entry in manifest["cards"]
             if entry["rarity"] == "legendary"
-        )
-        assert legendaries == ["voidking_morr", "world_eater"], (
-            f"Legendary set drifted from the V1 lock. Expected exactly "
-            f"['voidking_morr', 'world_eater']; got {legendaries}."
+        }
+        assert legendaries == expected_legendaries, (
+            f"Legendary set drifted from the V1 lock (§22.2).\n"
+            f"  Expected: {sorted(expected_legendaries)}\n"
+            f"  Got:      {sorted(legendaries)}\n"
+            f"  Missing:  {sorted(expected_legendaries - legendaries)}\n"
+            f"  Extra:    {sorted(legendaries - expected_legendaries)}"
         )
 
-    def test_epic_count_locked_at_twelve(self):
-        """V1 doc locks: exactly 12 epics.
+    def test_epic_count_locked_at_eight(self):
+        """V1 doc locks (post-Phase-4f, §3): exactly 8 epics.
 
         Phase 4a reconciled legacy scaffolded epics down to rare. Phase 4e
-        retired `mourners_lich` (REVENANT collapses to a single epic anchor —
-        crypt_wraith — symmetric with INFERNO/BULWARK/TIDAL/STORMCHAIN once
-        Phase 4f promotes their second epics to legendary) and added
-        `concord_phoenix` as the NORMAL element's epic anchor. Net count
-        unchanged at 12; composition swapped 1-for-1.
+        retired `mourners_lich` and added `concord_phoenix`. Phase 4f-pool
+        promoted 4 epics to legendary (one rule-changer per archetype, §23.6),
+        bringing the epic count 12 → 8: each strategic archetype keeps
+        exactly 1 epic anchor (its legendary peer was the promoted one);
+        FLUX keeps both its epics (per §3 — FLUX warrants double coverage at
+        epic); NORMAL keeps `concord_phoenix`.
 
-        Adding a 13th epic requires an explicit doc update + archetype
-        (or NORMAL) rationale.
+        Adding a 9th epic requires an explicit doc update + archetype rationale.
         """
         expected_epics = {
-            "magma_tyrant", "solar_phoenix",           # INFERNO
-            "worldroot_sentinel", "bulwark_patriarch", # BULWARK
-            "tide_empress", "coral_augur",             # TIDAL
-            "tempest_apex", "arc_predator",            # STORMCHAIN
-            "crypt_wraith",                            # REVENANT (mourners_lich retired Phase 4e)
-            "prism_chimera", "rainbow_drake",          # FLUX
-            "concord_phoenix",                         # NORMAL (Phase 4e)
+            "solar_phoenix",       # INFERNO (anchor; magma_tyrant promoted to L1)
+            "bulwark_patriarch",   # BULWARK (anchor; worldroot_sentinel promoted to L2)
+            "coral_augur",         # TIDAL   (anchor; tide_empress promoted to L3)
+            "arc_predator",        # STORMCHAIN (anchor; tempest_apex promoted to L4)
+            "crypt_wraith",        # REVENANT (mourners_lich retired Phase 4e)
+            "prism_chimera",       # FLUX
+            "rainbow_drake",       # FLUX
+            "concord_phoenix",     # NORMAL (Phase 4e)
         }
         manifest = json.loads(MANIFEST_PATH.read_text())
         epics = {
@@ -180,7 +211,7 @@ class TestCatalogLoad:
             if entry["rarity"] == "epic"
         }
         assert epics == expected_epics, (
-            f"Epic set drifted from the V1 anchor lock.\n"
+            f"Epic set drifted from the V1 anchor lock (§3, post-Phase-4f).\n"
             f"  Expected: {sorted(expected_epics)}\n"
             f"  Got:      {sorted(epics)}\n"
             f"  Missing:  {sorted(expected_epics - epics)}\n"
@@ -258,13 +289,25 @@ class TestVoidkingMorr:
 # ---------------------------------------------------------------------------
 
 class TestWorldEater:
-    def test_mono_team_no_flux_triggers(self):
-        # World-Eater alone in a NATURE-padded team → only 1 element →
-        # NONE of its 3 conditional triggers fire.
-        team_a = solo(anchor("world_eater"))   # all dummies NATURE; W-E is VOID
-        # 1 + 5 dummies = 2 elements (VOID + NATURE), so the >=2 trigger
-        # FIRES, but >=3 and >=4 do not. Use a single-element team to
-        # ensure mono — give World-Eater all-VOID dummies.
+    """world_eater carries `rule_change: L6` post-Phase-4f (§22.2 L6).
+
+    L6's effect: every read of `team.distinct_elements` returns the actual
+    count + 2 FOR FLUX CARDS. world_eater is FLUX, so its OWN gates always
+    see effective_distinct = actual + 2. This means:
+
+      mono-element team (1 distinct) → effective 3 → ≥2 ✓ ≥3 ✓ ≥4 ✗
+      4-element rainbow (4 distinct) → effective 6 → ≥2 ✓ ≥3 ✓ ≥4 ✓
+
+    The "mono team locks out FLUX" intuition was the pre-L6 model. L6 is
+    DESIGNED to unlock FLUX in mono shells specifically when world_eater is
+    on the team — see §22.2 L6 lock-text justification. Tests below assert
+    the post-L6 behavior.
+    """
+
+    def test_mono_team_l6_unlocks_lower_gates_only(self):
+        """Mono-VOID team: actual distinct=1, L6 effective=3.
+        ≥2 fires, ≥3 fires, ≥4 does NOT fire.
+        """
         team_a = solo(anchor("world_eater"),
                       elements=[Element.VOID] * (TEAM_SIZE - 1))
         attacker = Card(
@@ -274,13 +317,22 @@ class TestWorldEater:
         team_b = solo(attacker)
         result = resolve_match(team_a, team_b, SEED_ZERO)
         log = all_logs(result)
-        # No team buff (>=2 gate fails on a mono-VOID team)
-        assert "world_eater buffs ATK" not in log
-        # No AOE (>=3 gate)
-        assert "world_eater hits enemy for 8" not in log
+        # ≥2 gate fires (effective 3 ≥ 2): team-wide BUFF_ATK +3
+        assert "world_eater buffs ATK" in log, (
+            f"L6 should unlock ≥2 gate on mono team; not seen.\nLog:\n{log}"
+        )
+        # ≥4 gate does NOT fire (effective 3 < 4): no 8-dmg AOE on battle start.
+        # The 8-dmg AOE is the ONLY ON_BATTLE_START DAMAGE trigger world_eater
+        # carries — its presence/absence is the gate signal. Look for the
+        # specific "hits {tgt} for 8" pattern from that trigger.
+        assert "world_eater hits enemy for 8" not in log, (
+            f"L6-effective-3 should NOT clear ≥4 gate; AOE 8 fired anyway.\n"
+            f"Log:\n{log}"
+        )
 
-    def test_rainbow_team_unlocks_apex(self):
-        # 4-element rainbow team unlocks ALL three gates.
+    def test_rainbow_team_unlocks_all_gates(self):
+        """4-element rainbow team: actual distinct=4 (W-E is VOID + 4 ring
+        elements among dummies), L6 effective=6. All 3 gates fire."""
         rainbow_dummies = [
             Element.FIRE, Element.WATER, Element.NATURE,
             Element.VOLT, Element.NATURE,
@@ -293,23 +345,46 @@ class TestWorldEater:
         team_b = solo(attacker)
         result = resolve_match(team_a, team_b, SEED_ZERO)
         log = all_logs(result)
-        # >=2 gate: team-wide ATK buff fires
+        # ≥2 gate
         assert "world_eater buffs ATK" in log
-        # >=4 gate: 8-dmg AOE fires on battle start. Damage may be amplified by
-        # element multiplier (VOID vs NATURE is the ring, check final value).
+        # ≥4 gate: at least one damage line attributable to world_eater
         assert "world_eater" in log
-        # The "DAMAGE ALL_ENEMIES 8" trigger should hit our attacker. Whatever
-        # the multiplier ends up being, the line will contain "hits enemy for".
         assert log.count("hits enemy for") >= 1
 
 
 # ---------------------------------------------------------------------------
-# INFERNO — Magma Tyrant + Solar Phoenix.
+# INFERNO — Magma Tyrant (L1 mutation) + Solar Phoenix (epic anchor).
+#
+# magma_tyrant was promoted to legendary in Phase 4f-pool (§23.6). Its
+# mechanical identity is now the L1 mutation tag (rule_change="L1"), not
+# explicit triggers. The mutation behavior is exhaustively tested in
+# tests/test_combat_phase4f.py::TestL1MagmaTyrant. Here we exercise the
+# ACTUAL CATALOG CARD (loaded from disk) end-to-end through resolve_match
+# to prove the loader → engine → mutation-dispatch path works on the
+# shipping JSON — not just on synthetic test fixtures.
 # ---------------------------------------------------------------------------
 
 class TestMagmaTyrant:
-    def test_attack_applies_burn(self):
-        # Beefy enemy survives the first hit so we can see BURN tick on round 2.
+    def test_l1_mutation_tag_present(self):
+        """The promoted legendary must carry rule_change='L1' or its mutation
+        is silently stripped at resolve-time."""
+        c = anchor("magma_tyrant")
+        assert c.rule_change == "L1", (
+            f"magma_tyrant rule_change={c.rule_change!r} != 'L1' — "
+            f"L1 mutation will not dispatch"
+        )
+        # Per §23.6 lock: legendary promotion uses rewrite-in-place with
+        # mutation as identity, no secondary triggers.
+        assert c.triggers == (), (
+            f"magma_tyrant should have empty triggers (mutation IS the "
+            f"contribution per §23.6); got {c.triggers}"
+        )
+
+    def test_l1_mutation_dispatches_on_actual_card(self):
+        """End-to-end: load magma_tyrant from disk, attack a tank, observe
+        L1 mutation log line (burn_stack added on damage)."""
+        # Beefy NATURE tank that survives multiple FIRE hits so the L1
+        # mutation has chances to fire and the burn_stack tick can show.
         tank = Card(
             card_id="tank", species="tank", element=Element.NATURE,
             atk=2, defense=8, hp=60, spd=2,
@@ -318,9 +393,17 @@ class TestMagmaTyrant:
         team_b = solo(tank)
         result = resolve_match(team_a, team_b, SEED_ZERO)
         log = all_logs(result)
-        assert "applies BURN" in log
-        # Round 2 tick should fire
-        assert "burn hits tank" in log
+        # L1 mutation log format from combat.py::_apply_damage:
+        #   "L1 mutation: tank burn_stacks +1 (now N)"
+        assert "L1 mutation: tank burn_stacks +1" in log, (
+            f"L1 mutation did not dispatch on magma_tyrant's attacks.\n"
+            f"Full log:\n{log}"
+        )
+        # Burn-stack tick at ON_TURN_END proves the stack actually accrued
+        # and damaged the tank.
+        assert "burn_stacks tick: tank" in log, (
+            f"burn_stacks accrued via L1 but never ticked.\nFull log:\n{log}"
+        )
 
 
 class TestSolarPhoenix:
@@ -368,34 +451,52 @@ class TestSolarPhoenix:
 
 
 # ---------------------------------------------------------------------------
-# BULWARK — Worldroot Sentinel + Bulwark Patriarch.
+# BULWARK — Worldroot Sentinel (L2 mutation) + Bulwark Patriarch (epic anchor).
+#
+# worldroot_sentinel was promoted to legendary in Phase 4f-pool. Its identity
+# is now the L2 mutation (rule_change="L2": every alive ally has +2 thorns).
+# Engine binding is exhaustively tested in test_combat_phase4f.py::TestL2…;
+# here we exercise the actual catalog card end-to-end.
 # ---------------------------------------------------------------------------
 
 class TestWorldrootSentinel:
-    def test_taunt_applied_at_battle_start(self):
-        attacker = Card(
-            card_id="enemy", species="enemy", element=Element.NATURE,
-            atk=10, defense=5, hp=30, spd=8,
+    def test_l2_mutation_tag_present(self):
+        c = anchor("worldroot_sentinel")
+        assert c.rule_change == "L2", (
+            f"worldroot_sentinel rule_change={c.rule_change!r} != 'L2'"
         )
-        team_a = solo(anchor("worldroot_sentinel"))
-        team_b = solo(attacker)
-        result = resolve_match(team_a, team_b, SEED_ZERO)
-        log = all_logs(result)
-        assert "applies TAUNT" in log
+        assert c.triggers == (), (
+            f"worldroot_sentinel should have empty triggers per §23.6; "
+            f"got {c.triggers}"
+        )
 
-    def test_take_damage_adds_shield(self):
-        # Sentinel has def=10 → attacker must hit harder than that to land
-        # any damage at all (engine emits no log line for 0-damage attacks,
-        # and ON_TAKE_DAMAGE doesn't fire on a no-op hit).
-        attacker = Card(
-            card_id="enemy", species="enemy", element=Element.NATURE,
-            atk=18, defense=5, hp=30, spd=8,
+    def test_l2_mutation_grants_thorns_to_team(self):
+        """End-to-end: worldroot_sentinel + naked ally on team. An attacker
+        hits the team — both team members carry effective thorns 2 from L2
+        and reflect when struck. We assert at least one ally reflects."""
+        # Naked ally with NO intrinsic thorns — proves L2 grants the team-wide
+        # thorns (otherwise this card couldn't reflect anything).
+        naked = Card(
+            card_id="naked", species="naked", element=Element.NATURE,
+            atk=0, defense=0, hp=200, spd=1,
         )
-        team_a = solo(anchor("worldroot_sentinel"))
+        attacker = Card(
+            card_id="hitter", species="hitter", element=Element.NATURE,
+            atk=18, defense=5, hp=200, spd=99,
+        )
+        team_a = pair(anchor("worldroot_sentinel"), naked)
         team_b = solo(attacker)
         result = resolve_match(team_a, team_b, SEED_ZERO)
         log = all_logs(result)
-        assert "shields worldroot_sentinel for 4" in log
+        # THORNS reflect log format from combat.py:
+        #   "{tgt.card_id} thorns reflect {N} → {src.card_id}"
+        assert (
+            "worldroot_sentinel thorns reflect 2" in log
+            or "naked thorns reflect 2" in log
+        ), (
+            f"L2 mutation did not grant team-wide thorns 2.\n"
+            f"Full log:\n{log}"
+        )
 
 
 class TestBulwarkPatriarch:
@@ -440,35 +541,59 @@ class TestBulwarkPatriarch:
 
 
 # ---------------------------------------------------------------------------
-# TIDAL — Tide Empress + Coral Augur.
+# TIDAL — Tide Empress (L3 mutation) + Coral Augur (epic anchor).
+#
+# tide_empress was promoted to legendary in Phase 4f-pool. Its identity is
+# now the L3 mutation (rule_change="L3": every heal trickles +1 to all other
+# alive allies, cascade-broken). Engine binding is exhaustively tested in
+# test_combat_phase4f.py::TestL3…; here we exercise the actual catalog card.
 # ---------------------------------------------------------------------------
 
-class TestTideEmpress:
-    def test_lifesteal_damage_and_heal(self):
-        # Set up an enemy that lives several rounds so we get repeated
-        # lifesteal opportunities.
-        tank = Card(
-            card_id="tank", species="tank", element=Element.NATURE,
-            atk=4, defense=2, hp=80, spd=2,
-        )
-        team_a = solo(anchor("tide_empress"))
-        team_b = solo(tank)
-        result = resolve_match(team_a, team_b, SEED_ZERO)
-        log = all_logs(result)
-        # LIFESTEAL emits a "drains N hp" line on the attacker.
-        assert "tide_empress drains" in log
+from daimon.engine.types import EffectOp, TargetFilter, Trigger, TriggerWhen
 
-    def test_battle_start_team_heal(self):
-        attacker = Card(
-            card_id="enemy", species="enemy", element=Element.NATURE,
-            atk=4, defense=2, hp=30, spd=2,
+
+class TestTideEmpress:
+    def test_l3_mutation_tag_present(self):
+        c = anchor("tide_empress")
+        assert c.rule_change == "L3", (
+            f"tide_empress rule_change={c.rule_change!r} != 'L3'"
         )
-        team_a = solo(anchor("tide_empress"))
-        team_b = solo(attacker)
+        assert c.triggers == (), (
+            f"tide_empress should have empty triggers per §23.6; "
+            f"got {c.triggers}"
+        )
+
+    def test_l3_mutation_trickles_heal_to_allies(self):
+        """End-to-end: tide_empress + a healer ally on team. The healer's
+        self-heal should trigger the L3 trickle → tide_empress also gains
+        1 hp (the trickle). Asserts the actual catalog card carries L3
+        and dispatches it through the loader → engine path."""
+        # Healer that self-heals at battle start. The self-heal triggers L3,
+        # which trickles +1 to every OTHER alive ally (including tide_empress).
+        healer = Card(
+            card_id="healy", species="healy", element=Element.WATER,
+            atk=0, defense=0, hp=50, spd=99,
+            triggers=(Trigger(
+                when=TriggerWhen.ON_BATTLE_START,
+                op=EffectOp.HEAL,
+                target=TargetFilter.SELF,
+                value=5,
+            ),),
+        )
+        target = Card(
+            card_id="opp", species="opp", element=Element.NATURE,
+            atk=0, defense=0, hp=100, spd=1,
+        )
+        team_a = pair(anchor("tide_empress"), healer)
+        team_b = solo(target)
         result = resolve_match(team_a, team_b, SEED_ZERO)
         log = all_logs(result)
-        # ON_BATTLE_START HEAL ALL_ALLIES 3 — Tide Empress's first beat.
-        assert "tide_empress heals" in log
+        # L3 trickle log format from combat.py:
+        #   "L3 trickle: {ally.card_id} heals 1"
+        assert "L3 trickle: tide_empress heals 1" in log, (
+            f"L3 mutation did not trickle to tide_empress on healer's heal.\n"
+            f"Full log:\n{log}"
+        )
 
 
 class TestCoralAugur:
@@ -522,33 +647,68 @@ class TestCoralAugur:
 
 
 # ---------------------------------------------------------------------------
-# STORMCHAIN — Tempest Apex + Arc Predator.
+# STORMCHAIN — Tempest Apex (L4 mutation) + Arc Predator (epic anchor).
+#
+# tempest_apex was promoted to legendary in Phase 4f-pool. Its identity is
+# now the L4 mutation (rule_change="L4": extra-action cap raised 1→2 per
+# unit per round). Engine binding is exhaustively tested in
+# test_combat_phase4f.py::TestGrantExtraAction::test_extra_action_cap_l4_…;
+# here we exercise the actual catalog card.
 # ---------------------------------------------------------------------------
 
 class TestTempestApex:
-    def test_battle_start_team_spd_buff(self):
-        attacker = Card(
-            card_id="enemy", species="enemy", element=Element.NATURE,
-            atk=4, defense=2, hp=30, spd=2,
+    def test_l4_mutation_tag_present(self):
+        c = anchor("tempest_apex")
+        assert c.rule_change == "L4", (
+            f"tempest_apex rule_change={c.rule_change!r} != 'L4'"
         )
-        team_a = solo(anchor("tempest_apex"))
-        team_b = solo(attacker)
+        assert c.triggers == (), (
+            f"tempest_apex should have empty triggers per §23.6; "
+            f"got {c.triggers}"
+        )
+
+    def test_l4_mutation_raises_extra_action_cap(self):
+        """End-to-end: with tempest_apex on team, an ally with two
+        GRANT_EXTRA_ACTION self-triggers can grant 2 extra actions in one
+        round (cap raised from default 1 to 2). Without tempest_apex the
+        2nd grant would log a 'cap reached' line."""
+        # Ally with two ON_BATTLE_START GRANT_EXTRA_ACTION triggers — both
+        # target self. With L4 active, both should land (cap=2). Without L4,
+        # only the first lands (cap=1).
+        granter = Card(
+            card_id="grant", species="grant", element=Element.VOLT,
+            atk=0, defense=0, hp=100, spd=99,
+            triggers=(
+                Trigger(
+                    when=TriggerWhen.ON_BATTLE_START,
+                    op=EffectOp.GRANT_EXTRA_ACTION,
+                    target=TargetFilter.SELF,
+                    value=0,
+                ),
+                Trigger(
+                    when=TriggerWhen.ON_BATTLE_START,
+                    op=EffectOp.GRANT_EXTRA_ACTION,
+                    target=TargetFilter.SELF,
+                    value=0,
+                ),
+            ),
+        )
+        target = Card(
+            card_id="opp_l4", species="opp_l4", element=Element.NATURE,
+            atk=0, defense=0, hp=100, spd=1,
+        )
+        team_a = pair(anchor("tempest_apex"), granter)
+        team_b = solo(target)
         result = resolve_match(team_a, team_b, SEED_ZERO)
         log = all_logs(result)
-        assert "tempest_apex buffs SPD" in log
-
-    def test_opening_attack_aoe_fires(self):
-        attacker = Card(
-            card_id="enemy", species="enemy", element=Element.NATURE,
-            atk=4, defense=2, hp=80, spd=2,
+        # Extra-action grant log format from combat.py:
+        #   "... grants extra action to {tgt.card_id} (used X/Y)"
+        # With L4 alive, the cap shows "/2" instead of "/1", and the 2nd
+        # grant lands rather than logging "cap reached".
+        assert "(used 2/2)" in log, (
+            f"L4 mutation did not raise extra-action cap to 2.\n"
+            f"Full log:\n{log}"
         )
-        team_a = solo(anchor("tempest_apex"))
-        team_b = solo(attacker)
-        result = resolve_match(team_a, team_b, SEED_ZERO)
-        # ON_OPENING_ATTACK fires before basic attack on round 1; the AOE
-        # of 5 dmg to all enemies should land on the named enemy.
-        round1 = "\n".join(result.rounds[0].actions)
-        assert "tempest_apex hits enemy" in round1
 
 
 class TestArcPredator:

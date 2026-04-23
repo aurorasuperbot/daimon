@@ -9,7 +9,7 @@
   "triggers": [
     {
       "when": "ON_TAKE_DAMAGE",
-      "op": "APPLY_BURN",
+      "op": "APPLY_BURN_STACK",
       "target": "RANDOM_ENEMY",
       "value": 2
     }

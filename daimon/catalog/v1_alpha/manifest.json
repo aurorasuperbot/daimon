@@ -1,8 +1,8 @@
 {
   "pack_id": "v1_alpha",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "schema_version": 2,
-  "description": "DAIMON V1 alpha bundled creature pool. 200 monsters across 6 elements (5 ring + 1 outside) and 6 archetypes. Phase 4e introduced NORMAL as the splashable utility element (15 NORMAL cards, archetype=null) and trimmed 15 generic elementals (8 vanilla commons + 4 singleton uncommons + 2 generic rares + 1 redundant REVENANT epic) to keep the total at 200. Distribution: 98C/60U/28R/12E/2L. Per-element: FIRE=37 NATURE=36 NORMAL=15 VOID=39 VOLT=37 WATER=36. Phase 4f promotes 4 epics → legendary (one per archetype) and Phase 5 (sim balance) follows.",
+  "description": "DAIMON V1 alpha bundled creature pool. 200 monsters across 6 elements (5 ring + 1 outside) and 6 archetypes. Phase 4e introduced NORMAL as the splashable utility element (15 NORMAL cards, archetype=null) and trimmed 15 generic elementals (8 vanilla commons + 4 singleton uncommons + 2 generic rares + 1 redundant REVENANT epic) to keep the total at 200. Phase 4f-pool (this version) promoted 4 epics → legendary (`magma_tyrant` L1 INFERNO, `worldroot_sentinel` L2 BULWARK, `tide_empress` L3 TIDAL, `tempest_apex` L4 STORMCHAIN) wired to the Phase 4f-engine rule-change dispatcher; tagged the 2 existing legendaries with `rule_change` (`voidking_morr` L5 REVENANT, `world_eater` L6 FLUX); migrated 5 INFERNO cards from APPLY_BURN → APPLY_BURN_STACK (lava_skink, brimling, ashpup, blazefiend, ash_strider); migrated wrought_bear from ON_TAKE_DAMAGE → ON_DAMAGE_TAKEN (post-shield-landing semantic per charter §21.2). Distribution: 98C/60U/28R/8E/6L. Per-element unchanged (rewrite-in-place: FIRE=37 NATURE=36 NORMAL=15 VOID=39 VOLT=37 WATER=36). Phase 5 (sim balance) follows.",
   "rarity_weights": {
     "common": 60,
     "uncommon": 25,
@@ -343,7 +343,7 @@
     },
     {
       "card_id": "magma_tyrant",
-      "rarity": "epic",
+      "rarity": "legendary",
       "element": "FIRE",
       "file": "magma_tyrant.json"
     },
@@ -355,7 +355,7 @@
     },
     {
       "card_id": "worldroot_sentinel",
-      "rarity": "epic",
+      "rarity": "legendary",
       "element": "NATURE",
       "file": "worldroot_sentinel.json"
     },
@@ -367,7 +367,7 @@
     },
     {
       "card_id": "tide_empress",
-      "rarity": "epic",
+      "rarity": "legendary",
       "element": "WATER",
       "file": "tide_empress.json"
     },
@@ -379,7 +379,7 @@
     },
     {
       "card_id": "tempest_apex",
-      "rarity": "epic",
+      "rarity": "legendary",
       "element": "VOLT",
       "file": "tempest_apex.json"
     },

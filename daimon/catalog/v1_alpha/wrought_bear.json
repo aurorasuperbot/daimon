@@ -8,7 +8,7 @@
   "spd": 3,
   "triggers": [
     {
-      "when": "ON_TAKE_DAMAGE",
+      "when": "ON_DAMAGE_TAKEN",
       "op": "APPLY_TAUNT",
       "target": "SELF",
       "value": 3

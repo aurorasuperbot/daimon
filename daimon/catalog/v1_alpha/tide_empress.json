@@ -2,37 +2,21 @@
   "card_id": "tide_empress",
   "species": "tide_empress",
   "element": "WATER",
-  "atk": 10,
-  "def": 7,
-  "hp": 28,
-  "spd": 7,
-  "triggers": [
-    {
-      "when": "ON_ATTACK",
-      "op": "LIFESTEAL",
-      "target": "HIGHEST_HP_ENEMY",
-      "value": 6
-    },
-    {
-      "when": "ON_BATTLE_START",
-      "op": "HEAL",
-      "target": "ALL_ALLIES",
-      "value": 3
-    }
-  ],
+  "atk": 12,
+  "def": 9,
+  "hp": 36,
+  "spd": 8,
+  "triggers": [],
+  "rule_change": "L3",
   "name": "Tide Empress",
   "flavor": "The current never asks; it merely remembers everything it took.",
-  "rarity": "epic",
+  "rarity": "legendary",
   "archetype": "TIDAL",
-  "art": "art/epic/tide_empress.png",
+  "art": "art/legendary/tide_empress.png",
   "moves": [
     {
-      "name": "Brine Thirst",
-      "when": "ON_ATTACK"
-    },
-    {
-      "name": "Salt Blessing",
-      "when": "ON_BATTLE_START"
+      "name": "Coronal Trickle",
+      "when": "RULE_CHANGE_L3"
     }
   ]
 }

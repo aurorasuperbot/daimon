@@ -29,6 +29,7 @@
       "condition": "team.distinct_elements >= 4"
     }
   ],
+  "rule_change": "L6",
   "name": "World-Eater",
   "flavor": "It does not hate the world. It is merely hungry, and the world is here.",
   "rarity": "legendary",
