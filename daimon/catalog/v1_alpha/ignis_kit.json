@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "INFERNO",
   "canon": "TEOTL",
-  "art": "art/common/ignis_kit.png",
+  "art": "art/v1_alpha/ignis_kit/base.png",
   "moves": []
 }

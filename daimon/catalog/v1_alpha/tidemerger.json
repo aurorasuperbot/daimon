@@ -20,6 +20,6 @@
   "rarity": "common",
   "archetype": "SYNCRETIC",
   "canon": "KAMI",
-  "art": "art/common/tidemerger.png",
+  "art": "art/v1_alpha/tidemerger/base.png",
   "moves": []
 }

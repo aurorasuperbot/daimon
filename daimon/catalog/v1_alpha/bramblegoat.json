@@ -18,7 +18,7 @@
   "flavor": "Goat-horned forest-guardian; the hedge thickens where his hoof has passed.",
   "rarity": "uncommon",
   "canon": "OLYMPIAN",
-  "art": "art/uncommon/bramblegoat.png",
+  "art": "art/v1_alpha/bramblegoat/base.png",
   "moves": [
     {
       "name": "Aegipan's Hedge",

@@ -24,7 +24,7 @@
   "flavor": "Pulled from the wailing river — its scream poisons the ear and the year that hears it.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/mindroot.png",
+  "art": "art/v1_alpha/mindroot/base.png",
   "moves": [
     {
       "name": "Wailing-River Spring",

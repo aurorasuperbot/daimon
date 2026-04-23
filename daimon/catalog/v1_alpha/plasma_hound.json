@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
   "canon": "NETJER",
-  "art": "art/uncommon/plasma_hound.png",
+  "art": "art/v1_alpha/plasma_hound/base.png",
   "moves": []
 }

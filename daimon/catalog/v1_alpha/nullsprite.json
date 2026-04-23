@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "TEOTL",
-  "art": "art/common/nullsprite.png",
+  "art": "art/v1_alpha/nullsprite/base.png",
   "moves": []
 }

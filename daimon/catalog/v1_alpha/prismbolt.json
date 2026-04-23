@@ -20,6 +20,6 @@
   "rarity": "common",
   "archetype": "SYNCRETIC",
   "canon": "OLYMPIAN",
-  "art": "art/common/prismbolt.png",
+  "art": "art/v1_alpha/prismbolt/base.png",
   "moves": []
 }

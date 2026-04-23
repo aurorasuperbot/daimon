@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": null,
   "canon": "APOCRYPHA",
-  "art": "art/common/quill_cat.png",
+  "art": "art/v1_alpha/quill_cat/base.png",
   "moves": []
 }

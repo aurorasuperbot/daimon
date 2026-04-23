@@ -20,6 +20,6 @@
   "rarity": "common",
   "archetype": "SYNCRETIC",
   "canon": "TEOTL",
-  "art": "art/common/sunscale_drake.png",
+  "art": "art/v1_alpha/sunscale_drake/base.png",
   "moves": []
 }

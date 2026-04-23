@@ -26,7 +26,7 @@
   "rarity": "epic",
   "archetype": "BULWARK",
   "canon": "OLYMPIAN",
-  "art": "art/epic/bulwark_patriarch.png",
+  "art": "art/v1_alpha/bulwark_patriarch/base.png",
   "moves": [
     {
       "name": "Patient Aeons",

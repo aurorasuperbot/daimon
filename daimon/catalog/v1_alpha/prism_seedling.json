@@ -20,6 +20,6 @@
   "rarity": "common",
   "archetype": "SYNCRETIC",
   "canon": "TEOTL",
-  "art": "art/common/prism_seedling.png",
+  "art": "art/v1_alpha/prism_seedling/base.png",
   "moves": []
 }

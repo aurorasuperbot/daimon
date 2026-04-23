@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": null,
   "canon": "APOCRYPHA",
-  "art": "art/uncommon/mendicant_sphinx.png",
+  "art": "art/v1_alpha/mendicant_sphinx/base.png",
   "moves": []
 }

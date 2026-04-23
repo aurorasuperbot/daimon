@@ -24,7 +24,7 @@
   "flavor": "Torch-bearing hare of the witch-goddess; it crosses the crossroads and crosses again.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/haunt_hare.png",
+  "art": "art/v1_alpha/haunt_hare/base.png",
   "moves": [
     {
       "name": "Crossroads-Step",

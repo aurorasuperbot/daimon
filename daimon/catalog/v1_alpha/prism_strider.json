@@ -20,6 +20,6 @@
   "rarity": "uncommon",
   "archetype": "SYNCRETIC",
   "canon": "OLYMPIAN",
-  "art": "art/uncommon/prism_strider.png",
+  "art": "art/v1_alpha/prism_strider/base.png",
   "moves": []
 }

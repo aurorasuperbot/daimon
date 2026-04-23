@@ -24,7 +24,7 @@
   "flavor": "Dung-beetle who rolls the morning sun up from the underworld; the rebirth is in the rolling.",
   "rarity": "rare",
   "canon": "NETJER",
-  "art": "art/rare/bulwarthog.png",
+  "art": "art/v1_alpha/bulwarthog/base.png",
   "moves": [
     {
       "name": "Scarab's Summons",

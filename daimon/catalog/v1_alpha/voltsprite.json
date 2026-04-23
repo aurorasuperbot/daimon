@@ -18,7 +18,7 @@
   "flavor": "Squirrel of the world-ash; he carries insults up the trunk and curses back down.",
   "rarity": "uncommon",
   "canon": "AESIR",
-  "art": "art/uncommon/voltsprite.png",
+  "art": "art/v1_alpha/voltsprite/base.png",
   "moves": [
     {
       "name": "Trunk-Running Tongue",

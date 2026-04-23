@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "NETJER",
-  "art": "art/common/wraithling.png",
+  "art": "art/v1_alpha/wraithling/base.png",
   "moves": []
 }

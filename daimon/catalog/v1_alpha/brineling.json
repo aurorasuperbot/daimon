@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "TIDAL",
   "canon": "KAMI",
-  "art": "art/common/brineling.png",
+  "art": "art/v1_alpha/brineling/base.png",
   "moves": []
 }

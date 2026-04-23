@@ -20,6 +20,6 @@
   "rarity": "uncommon",
   "archetype": "TIDAL",
   "canon": "OLYMPIAN",
-  "art": "art/uncommon/tide_chanter.png",
+  "art": "art/v1_alpha/tide_chanter/base.png",
   "moves": []
 }

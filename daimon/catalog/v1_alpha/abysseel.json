@@ -18,7 +18,7 @@
   "flavor": "Waterfall-spirit who plays the fiddle; the salmon learn the tune and the boys do not return.",
   "rarity": "uncommon",
   "canon": "AESIR",
-  "art": "art/uncommon/abysseel.png",
+  "art": "art/v1_alpha/abysseel/base.png",
   "moves": [
     {
       "name": "Fossegrim's Coil",

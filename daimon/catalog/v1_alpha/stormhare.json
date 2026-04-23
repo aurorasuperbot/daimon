@@ -24,7 +24,7 @@
   "flavor": "Wind-hare of the northern moor; he runs ahead of the storm, and the storm follows.",
   "rarity": "rare",
   "canon": "AESIR",
-  "art": "art/rare/stormhare.png",
+  "art": "art/v1_alpha/stormhare/base.png",
   "moves": [
     {
       "name": "Storm-Outracing Dash",

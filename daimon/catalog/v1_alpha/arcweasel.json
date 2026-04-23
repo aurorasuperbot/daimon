@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "STORMCHAIN",
   "canon": "KAMI",
-  "art": "art/common/arcweasel.png",
+  "art": "art/v1_alpha/arcweasel/base.png",
   "moves": []
 }

@@ -24,7 +24,7 @@
   "flavor": "Thrice-daily she gulps the strait; thrice-daily the keels splinter in her throat.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/maelstrom_serpent.png",
+  "art": "art/v1_alpha/maelstrom_serpent/base.png",
   "moves": [
     {
       "name": "Hull-Splitter",

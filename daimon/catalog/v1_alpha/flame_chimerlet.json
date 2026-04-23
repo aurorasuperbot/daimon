@@ -20,6 +20,6 @@
   "rarity": "common",
   "archetype": "SYNCRETIC",
   "canon": "TEOTL",
-  "art": "art/common/flame_chimerlet.png",
+  "art": "art/v1_alpha/flame_chimerlet/base.png",
   "moves": []
 }

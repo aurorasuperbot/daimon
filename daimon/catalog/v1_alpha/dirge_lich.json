@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "REVENANT",
   "canon": "AESIR",
-  "art": "art/uncommon/dirge_lich.png",
+  "art": "art/v1_alpha/dirge_lich/base.png",
   "moves": []
 }

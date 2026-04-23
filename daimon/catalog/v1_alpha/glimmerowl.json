@@ -18,7 +18,7 @@
   "flavor": "Grey-eyed bird of the grey-eyed goddess; what she sees by lamp, it sees by storm.",
   "rarity": "uncommon",
   "canon": "OLYMPIAN",
-  "art": "art/uncommon/glimmerowl.png",
+  "art": "art/v1_alpha/glimmerowl/base.png",
   "moves": [
     {
       "name": "Owl-Swoop of Pallas",

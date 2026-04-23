@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": null,
   "canon": "APOCRYPHA",
-  "art": "art/common/runic_whelp.png",
+  "art": "art/v1_alpha/runic_whelp/base.png",
   "moves": []
 }

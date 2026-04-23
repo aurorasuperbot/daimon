@@ -18,7 +18,7 @@
   "flavor": "She casts her net in the cold green water and gathers the drowned to her hall.",
   "rarity": "rare",
   "canon": "AESIR",
-  "art": "art/rare/tidewyrm.png",
+  "art": "art/v1_alpha/tidewyrm/base.png",
   "moves": [
     {
       "name": "Net of Rán",

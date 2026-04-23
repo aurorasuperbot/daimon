@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "INFERNO",
   "canon": "KAMI",
-  "art": "art/common/cindermote.png",
+  "art": "art/v1_alpha/cindermote/base.png",
   "moves": []
 }

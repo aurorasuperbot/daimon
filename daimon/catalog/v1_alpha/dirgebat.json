@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "KAMI",
-  "art": "art/common/dirgebat.png",
+  "art": "art/v1_alpha/dirgebat/base.png",
   "moves": []
 }

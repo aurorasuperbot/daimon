@@ -24,7 +24,7 @@
   "flavor": "Lion-fronted, goat-spined, serpent-tailed — and burning at every seam.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/inferno_lynx.png",
+  "art": "art/v1_alpha/inferno_lynx/base.png",
   "moves": [
     {
       "name": "Triform Sprint",

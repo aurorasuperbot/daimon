@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "AESIR",
-  "art": "art/common/shadowpup.png",
+  "art": "art/v1_alpha/shadowpup/base.png",
   "moves": []
 }

@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
   "canon": "KAMI",
-  "art": "art/uncommon/boltrunner.png",
+  "art": "art/v1_alpha/boltrunner/base.png",
   "moves": []
 }

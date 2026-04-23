@@ -11,7 +11,7 @@
   "flavor": "Mountain-giant's young; the boulder thickens around him as the pup remembers nothing.",
   "rarity": "common",
   "canon": "AESIR",
-  "art": "art/common/geodeling.png",
+  "art": "art/v1_alpha/geodeling/base.png",
   "moves": [
     {
       "name": "Mountain-Pulse",

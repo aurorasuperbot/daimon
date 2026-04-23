@@ -18,7 +18,7 @@
   "flavor": "Thoth's night-bird; he reads the stars as letters and the wound as a verse.",
   "rarity": "uncommon",
   "canon": "NETJER",
-  "art": "art/uncommon/spectral_owl.png",
+  "art": "art/v1_alpha/spectral_owl/base.png",
   "moves": [
     {
       "name": "Thoth's Glance",

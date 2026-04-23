@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "REVENANT",
   "canon": "NETJER",
-  "art": "art/uncommon/wraith_prince.png",
+  "art": "art/v1_alpha/wraith_prince/base.png",
   "moves": []
 }

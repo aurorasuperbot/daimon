@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "INFERNO",
   "canon": "NETJER",
-  "art": "art/common/cinder_serpent.png",
+  "art": "art/v1_alpha/cinder_serpent/base.png",
   "moves": []
 }

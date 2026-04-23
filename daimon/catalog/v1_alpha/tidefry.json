@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "TIDAL",
   "canon": "NETJER",
-  "art": "art/common/tidefry.png",
+  "art": "art/v1_alpha/tidefry/base.png",
   "moves": []
 }

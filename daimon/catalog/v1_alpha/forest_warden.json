@@ -24,7 +24,7 @@
   "flavor": "Beautiful from the front, hollow at the back — and the woodsman never wakes the same.",
   "rarity": "rare",
   "canon": "AESIR",
-  "art": "art/rare/forest_warden.png",
+  "art": "art/v1_alpha/forest_warden/base.png",
   "moves": [
     {
       "name": "Hidden-Folk Aegis",

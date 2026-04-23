@@ -24,7 +24,7 @@
   "flavor": "The first oracle was a serpent at the navel-stone; the lightning is its modern tongue.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/arc_serpent.png",
+  "art": "art/v1_alpha/arc_serpent/base.png",
   "moves": [
     {
       "name": "Coil at the Omphalos",

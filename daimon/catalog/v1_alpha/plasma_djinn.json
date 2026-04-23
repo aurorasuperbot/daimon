@@ -24,7 +24,7 @@
   "flavor": "The lightning made woman; she walks beside Zeus and burns where she is asked.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/plasma_djinn.png",
+  "art": "art/v1_alpha/plasma_djinn/base.png",
   "moves": [
     {
       "name": "Quicken Olympos",

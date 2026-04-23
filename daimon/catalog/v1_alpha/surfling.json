@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "TIDAL",
   "canon": "TEOTL",
-  "art": "art/common/surfling.png",
+  "art": "art/v1_alpha/surfling/base.png",
   "moves": []
 }

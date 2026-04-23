@@ -24,7 +24,7 @@
   "flavor": "The chains broke at last; the eagle still circles, but the gift goes to others now.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/ashen_phoenix.png",
+  "art": "art/v1_alpha/ashen_phoenix/base.png",
   "moves": [
     {
       "name": "Liver's Lament",

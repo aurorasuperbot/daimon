@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "AESIR",
-  "art": "art/common/dread_kit.png",
+  "art": "art/v1_alpha/dread_kit/base.png",
   "moves": []
 }

@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "STORMCHAIN",
   "canon": "KAMI",
-  "art": "art/common/spark_imp.png",
+  "art": "art/v1_alpha/spark_imp/base.png",
   "moves": []
 }

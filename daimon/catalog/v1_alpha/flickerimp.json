@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "INFERNO",
   "canon": "KAMI",
-  "art": "art/common/flickerimp.png",
+  "art": "art/v1_alpha/flickerimp/base.png",
   "moves": []
 }

@@ -18,7 +18,7 @@
   "flavor": "Fire-eyed pup of the hellhound-line; the ember in the eye outlasts the hand that strikes it.",
   "rarity": "uncommon",
   "canon": "AESIR",
-  "art": "art/uncommon/cinderhound.png",
+  "art": "art/v1_alpha/cinderhound/base.png",
   "moves": [
     {
       "name": "Ember-Eyed Bond",

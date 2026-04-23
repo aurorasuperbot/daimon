@@ -18,7 +18,7 @@
   "flavor": "Soul-devourer's young; the jaws are small but the ledger is already long.",
   "rarity": "uncommon",
   "canon": "NETJER",
-  "art": "art/uncommon/thornpup.png",
+  "art": "art/v1_alpha/thornpup/base.png",
   "moves": [
     {
       "name": "Devourer's Coat",

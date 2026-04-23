@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "BULWARK",
   "canon": "NETJER",
-  "art": "art/common/rootsnake.png",
+  "art": "art/v1_alpha/rootsnake/base.png",
   "moves": []
 }

@@ -30,7 +30,7 @@
   "flavor": "Cloud-gatherer, thunder-thrower; he reigns and the lesser sky obeys.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/storm_celestial.png",
+  "art": "art/v1_alpha/storm_celestial/base.png",
   "moves": [
     {
       "name": "Olympian Tempo",

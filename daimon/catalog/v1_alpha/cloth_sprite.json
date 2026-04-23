@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": null,
   "canon": "APOCRYPHA",
-  "art": "art/common/cloth_sprite.png",
+  "art": "art/v1_alpha/cloth_sprite/base.png",
   "moves": []
 }

@@ -13,7 +13,7 @@
   "rarity": "legendary",
   "archetype": "INFERNO",
   "canon": "OLYMPIAN",
-  "art": "art/legendary/magma_tyrant.png",
+  "art": "art/v1_alpha/magma_tyrant/base.png",
   "moves": [
     {
       "name": "Stolen Fire",

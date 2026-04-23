@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "INFERNO",
   "canon": "NETJER",
-  "art": "art/uncommon/ash_strider.png",
+  "art": "art/v1_alpha/ash_strider/base.png",
   "moves": []
 }

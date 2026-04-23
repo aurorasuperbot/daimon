@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "STORMCHAIN",
   "canon": "NETJER",
-  "art": "art/common/arc_kit.png",
+  "art": "art/v1_alpha/arc_kit/base.png",
   "moves": []
 }

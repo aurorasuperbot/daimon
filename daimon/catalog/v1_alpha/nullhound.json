@@ -24,7 +24,7 @@
   "flavor": "Three heads at the gate; one for the coming, one for the going, one that does not sleep.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/nullhound.png",
+  "art": "art/v1_alpha/nullhound/base.png",
   "moves": [
     {
       "name": "Erase the Threshold",

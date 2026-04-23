@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "REVENANT",
   "canon": "AESIR",
-  "art": "art/uncommon/shadow_warden.png",
+  "art": "art/v1_alpha/shadow_warden/base.png",
   "moves": []
 }

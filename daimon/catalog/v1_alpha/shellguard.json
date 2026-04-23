@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "TIDAL",
   "canon": "KAMI",
-  "art": "art/uncommon/shellguard.png",
+  "art": "art/v1_alpha/shellguard/base.png",
   "moves": []
 }

@@ -20,6 +20,6 @@
   "rarity": "uncommon",
   "archetype": "SYNCRETIC",
   "canon": "TEOTL",
-  "art": "art/uncommon/void_chimera.png",
+  "art": "art/v1_alpha/void_chimera/base.png",
   "moves": []
 }

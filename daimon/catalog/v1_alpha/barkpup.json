@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "BULWARK",
   "canon": "AESIR",
-  "art": "art/common/barkpup.png",
+  "art": "art/v1_alpha/barkpup/base.png",
   "moves": []
 }

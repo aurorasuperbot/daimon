@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "TIDAL",
   "canon": "AESIR",
-  "art": "art/common/spring_otter.png",
+  "art": "art/v1_alpha/spring_otter/base.png",
   "moves": []
 }

@@ -11,7 +11,7 @@
   "flavor": "Wind-god's scurrier; he runs ahead of the rain and the rain says he is welcome.",
   "rarity": "common",
   "canon": "TEOTL",
-  "art": "art/common/dashmouse.png",
+  "art": "art/v1_alpha/dashmouse/base.png",
   "moves": [
     {
       "name": "Wind-Foot Dash",

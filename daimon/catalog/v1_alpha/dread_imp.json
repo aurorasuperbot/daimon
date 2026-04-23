@@ -18,7 +18,7 @@
   "flavor": "Lesser chaos-spawn of the night-serpent; even his shadow makes the cobra recoil.",
   "rarity": "uncommon",
   "canon": "NETJER",
-  "art": "art/uncommon/dread_imp.png",
+  "art": "art/v1_alpha/dread_imp/base.png",
   "moves": [
     {
       "name": "Chaos-Aura",

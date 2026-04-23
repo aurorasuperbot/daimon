@@ -30,7 +30,7 @@
   "flavor": "Hundred-throated, mountain-shouldered, the last child of Gaia to dare the sky.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/pyrotyrant.png",
+  "art": "art/v1_alpha/pyrotyrant/base.png",
   "moves": [
     {
       "name": "Climb to Olympos",

@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "NETJER",
-  "art": "art/common/silentmoth.png",
+  "art": "art/v1_alpha/silentmoth/base.png",
   "moves": []
 }

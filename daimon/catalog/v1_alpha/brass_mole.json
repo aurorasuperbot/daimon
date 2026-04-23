@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": null,
   "canon": "APOCRYPHA",
-  "art": "art/common/brass_mole.png",
+  "art": "art/v1_alpha/brass_mole/base.png",
   "moves": []
 }

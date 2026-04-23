@@ -30,7 +30,7 @@
   "flavor": "Primordial dark beneath the earth, before there was a god to name him.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/echo_lich.png",
+  "art": "art/v1_alpha/echo_lich/base.png",
   "moves": [
     {
       "name": "Field of Erebus",

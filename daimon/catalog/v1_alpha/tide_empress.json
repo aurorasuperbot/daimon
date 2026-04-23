@@ -13,7 +13,7 @@
   "rarity": "legendary",
   "archetype": "TIDAL",
   "canon": "OLYMPIAN",
-  "art": "art/legendary/tide_empress.png",
+  "art": "art/v1_alpha/tide_empress/base.png",
   "moves": [
     {
       "name": "Diadem of the Tide",

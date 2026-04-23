@@ -24,7 +24,7 @@
   "flavor": "Stone-and-rime giant of the eastern realm; the mountain walks and the snow follows.",
   "rarity": "rare",
   "canon": "AESIR",
-  "art": "art/rare/moss_titan.png",
+  "art": "art/v1_alpha/moss_titan/base.png",
   "moves": [
     {
       "name": "Bedrock of Jotunheim",

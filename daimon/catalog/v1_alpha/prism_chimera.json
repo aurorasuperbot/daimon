@@ -27,7 +27,7 @@
   "rarity": "epic",
   "archetype": "SYNCRETIC",
   "canon": "TEOTL",
-  "art": "art/epic/prism_chimera.png",
+  "art": "art/v1_alpha/prism_chimera/base.png",
   "moves": [
     {
       "name": "Serpent-Skirt's Vow",

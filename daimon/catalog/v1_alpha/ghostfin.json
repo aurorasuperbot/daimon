@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "NETJER",
-  "art": "art/common/ghostfin.png",
+  "art": "art/v1_alpha/ghostfin/base.png",
   "moves": []
 }

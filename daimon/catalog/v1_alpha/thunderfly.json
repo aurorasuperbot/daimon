@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "STORMCHAIN",
   "canon": "AESIR",
-  "art": "art/common/thunderfly.png",
+  "art": "art/v1_alpha/thunderfly/base.png",
   "moves": []
 }

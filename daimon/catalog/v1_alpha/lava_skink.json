@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "INFERNO",
   "canon": "NETJER",
-  "art": "art/common/lava_skink.png",
+  "art": "art/v1_alpha/lava_skink/base.png",
   "moves": []
 }

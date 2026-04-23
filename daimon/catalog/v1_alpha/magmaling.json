@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "INFERNO",
   "canon": "TEOTL",
-  "art": "art/common/magmaling.png",
+  "art": "art/v1_alpha/magmaling/base.png",
   "moves": []
 }

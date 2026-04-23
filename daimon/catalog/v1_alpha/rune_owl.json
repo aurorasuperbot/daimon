@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": null,
   "canon": "APOCRYPHA",
-  "art": "art/uncommon/rune_owl.png",
+  "art": "art/v1_alpha/rune_owl/base.png",
   "moves": []
 }

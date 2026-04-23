@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "NETJER",
-  "art": "art/common/hollowpup.png",
+  "art": "art/v1_alpha/hollowpup/base.png",
   "moves": []
 }

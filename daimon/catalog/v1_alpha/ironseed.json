@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "BULWARK",
   "canon": "AESIR",
-  "art": "art/common/ironseed.png",
+  "art": "art/v1_alpha/ironseed/base.png",
   "moves": []
 }

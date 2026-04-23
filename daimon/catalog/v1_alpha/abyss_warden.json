@@ -24,7 +24,7 @@
   "flavor": "Lake-and-river goddess; her skirt of jade is the green water that drowns and the green water that gives.",
   "rarity": "rare",
   "canon": "TEOTL",
-  "art": "art/rare/abyss_warden.png",
+  "art": "art/v1_alpha/abyss_warden/base.png",
   "moves": [
     {
       "name": "Jade-Skirt's Quiet",

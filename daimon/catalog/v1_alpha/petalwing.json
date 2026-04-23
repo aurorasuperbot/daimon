@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "BULWARK",
   "canon": "OLYMPIAN",
-  "art": "art/common/petalwing.png",
+  "art": "art/v1_alpha/petalwing/base.png",
   "moves": []
 }

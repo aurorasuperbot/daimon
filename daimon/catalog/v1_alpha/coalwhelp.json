@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "INFERNO",
   "canon": "TEOTL",
-  "art": "art/common/coalwhelp.png",
+  "art": "art/v1_alpha/coalwhelp/base.png",
   "moves": []
 }

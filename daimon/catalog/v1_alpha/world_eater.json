@@ -35,7 +35,7 @@
   "rarity": "legendary",
   "archetype": "SYNCRETIC",
   "canon": "TEOTL",
-  "art": "art/legendary/world_eater.png",
+  "art": "art/v1_alpha/world_eater/base.png",
   "moves": [
     {
       "name": "Mirror's Roar",

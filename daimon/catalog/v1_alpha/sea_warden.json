@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "TIDAL",
   "canon": "OLYMPIAN",
-  "art": "art/uncommon/sea_warden.png",
+  "art": "art/v1_alpha/sea_warden/base.png",
   "moves": []
 }

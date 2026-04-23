@@ -18,7 +18,7 @@
   "flavor": "Zeus's golden eagle — bearer of bolts, herald of the throne above the throne.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/tempest_eagle.png",
+  "art": "art/v1_alpha/tempest_eagle/base.png",
   "moves": [
     {
       "name": "Bolt-Bearing Talons",

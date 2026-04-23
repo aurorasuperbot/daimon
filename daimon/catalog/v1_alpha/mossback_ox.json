@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": null,
   "canon": "APOCRYPHA",
-  "art": "art/common/mossback_ox.png",
+  "art": "art/v1_alpha/mossback_ox/base.png",
   "moves": []
 }

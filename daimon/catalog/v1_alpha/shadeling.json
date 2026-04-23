@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "KAMI",
-  "art": "art/common/shadeling.png",
+  "art": "art/v1_alpha/shadeling/base.png",
   "moves": []
 }

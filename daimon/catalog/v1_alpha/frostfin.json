@@ -18,7 +18,7 @@
   "flavor": "Sea-smiths whose hammered curses dulled the bronze of better men.",
   "rarity": "uncommon",
   "canon": "OLYMPIAN",
-  "art": "art/uncommon/frostfin.png",
+  "art": "art/v1_alpha/frostfin/base.png",
   "moves": [
     {
       "name": "Smith-Curse Strike",

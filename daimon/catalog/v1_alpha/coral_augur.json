@@ -26,7 +26,7 @@
   "rarity": "epic",
   "archetype": "TIDAL",
   "canon": "OLYMPIAN",
-  "art": "art/epic/coral_augur.png",
+  "art": "art/v1_alpha/coral_augur/base.png",
   "moves": [
     {
       "name": "Pristine Reef-Song",

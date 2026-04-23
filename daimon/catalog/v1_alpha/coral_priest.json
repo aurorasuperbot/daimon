@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "TIDAL",
   "canon": "OLYMPIAN",
-  "art": "art/uncommon/coral_priest.png",
+  "art": "art/v1_alpha/coral_priest/base.png",
   "moves": []
 }

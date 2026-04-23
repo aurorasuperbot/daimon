@@ -13,7 +13,7 @@
   "rarity": "legendary",
   "archetype": "BULWARK",
   "canon": "OLYMPIAN",
-  "art": "art/legendary/worldroot_sentinel.png",
+  "art": "art/v1_alpha/worldroot_sentinel/base.png",
   "moves": [
     {
       "name": "Mantle of the World",

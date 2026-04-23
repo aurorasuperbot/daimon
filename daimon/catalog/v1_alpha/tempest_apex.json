@@ -13,7 +13,7 @@
   "rarity": "legendary",
   "archetype": "STORMCHAIN",
   "canon": "AESIR",
-  "art": "art/legendary/tempest_apex.png",
+  "art": "art/v1_alpha/tempest_apex/base.png",
   "moves": [
     {
       "name": "Mjölnir's Grant",

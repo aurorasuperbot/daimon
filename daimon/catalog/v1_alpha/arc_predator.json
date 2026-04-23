@@ -25,7 +25,7 @@
   "rarity": "epic",
   "archetype": "STORMCHAIN",
   "canon": "KAMI",
-  "art": "art/epic/arc_predator.png",
+  "art": "art/v1_alpha/arc_predator/base.png",
   "moves": [
     {
       "name": "Thunder-Beast Hunger",

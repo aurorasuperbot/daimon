@@ -11,7 +11,7 @@
   "flavor": "Freyr's golden-bristled boar; the bristles light the night-road, the tusks open the morning.",
   "rarity": "common",
   "canon": "AESIR",
-  "art": "art/common/iron_boar.png",
+  "art": "art/v1_alpha/iron_boar/base.png",
   "moves": [
     {
       "name": "Golden-Bristled Charge",

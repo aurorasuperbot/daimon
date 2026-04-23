@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "REVENANT",
   "canon": "AESIR",
-  "art": "art/common/voidling.png",
+  "art": "art/v1_alpha/voidling/base.png",
   "moves": []
 }

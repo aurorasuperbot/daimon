@@ -24,7 +24,7 @@
   "flavor": "The raven who ate a king's heart and learned to walk as a wolf in the storm.",
   "rarity": "rare",
   "canon": "AESIR",
-  "art": "art/rare/voltcat_apex.png",
+  "art": "art/v1_alpha/voltcat_apex/base.png",
   "moves": [
     {
       "name": "Raven-Wolf's Lance",

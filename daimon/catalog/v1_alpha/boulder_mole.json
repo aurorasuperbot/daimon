@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "BULWARK",
   "canon": "APOCRYPHA",
-  "art": "art/common/boulder_mole.png",
+  "art": "art/v1_alpha/boulder_mole/base.png",
   "moves": []
 }

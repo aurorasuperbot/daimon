@@ -32,7 +32,7 @@
   "rarity": "legendary",
   "archetype": "REVENANT",
   "canon": "OLYMPIAN",
-  "art": "art/legendary/voidking_morr.png",
+  "art": "art/v1_alpha/voidking_morr/base.png",
   "moves": [
     {
       "name": "Pall of the Unseen",

@@ -18,7 +18,7 @@
   "flavor": "Frost-bound cousin of the deep-kraken; even its silence cracks the hull.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/glacier_kraken.png",
+  "art": "art/v1_alpha/glacier_kraken/base.png",
   "moves": [
     {
       "name": "Bulwark of Aegaeon",

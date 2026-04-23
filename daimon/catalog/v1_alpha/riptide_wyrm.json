@@ -24,7 +24,7 @@
   "flavor": "Silver-footed nymph who shielded a hero in the river; her hand still warms the wounded.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/riptide_wyrm.png",
+  "art": "art/v1_alpha/riptide_wyrm/base.png",
   "moves": [
     {
       "name": "Silver-Footed Shroud",

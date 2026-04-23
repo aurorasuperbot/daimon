@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "TIDAL",
   "canon": "KAMI",
-  "art": "art/common/seapup.png",
+  "art": "art/v1_alpha/seapup/base.png",
   "moves": []
 }

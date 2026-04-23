@@ -18,7 +18,7 @@
   "flavor": "Ember-fragment from the sun-field of the blessed; the spark that walks of itself.",
   "rarity": "uncommon",
   "canon": "NETJER",
-  "art": "art/uncommon/magmite.png",
+  "art": "art/v1_alpha/magmite/base.png",
   "moves": [
     {
       "name": "Sun-Field Spit",

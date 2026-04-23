@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": null,
   "canon": "APOCRYPHA",
-  "art": "art/common/grove_pup.png",
+  "art": "art/v1_alpha/grove_pup/base.png",
   "moves": []
 }

@@ -18,7 +18,7 @@
   "flavor": "Dog-headed twin of the plumed one; he guides the sun through the night-country and back.",
   "rarity": "rare",
   "canon": "TEOTL",
-  "art": "art/rare/blazewolf.png",
+  "art": "art/v1_alpha/blazewolf/base.png",
   "moves": [
     {
       "name": "Twin-of-the-Sun Roar",

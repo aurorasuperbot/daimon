@@ -30,7 +30,7 @@
   "flavor": "Mother of monsters in the dark below, before the gods drew lots for the sea.",
   "rarity": "rare",
   "canon": "OLYMPIAN",
-  "art": "art/rare/leviathan_prime.png",
+  "art": "art/v1_alpha/leviathan_prime/base.png",
   "moves": [
     {
       "name": "Mantle of the Deep",

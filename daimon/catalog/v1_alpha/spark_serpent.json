@@ -19,6 +19,6 @@
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
   "canon": "AESIR",
-  "art": "art/uncommon/spark_serpent.png",
+  "art": "art/v1_alpha/spark_serpent/base.png",
   "moves": []
 }

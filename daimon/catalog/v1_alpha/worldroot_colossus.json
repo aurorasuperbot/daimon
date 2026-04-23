@@ -30,7 +30,7 @@
   "flavor": "A root of the world-ash given walking shape; it carries the weight that holds the nine.",
   "rarity": "rare",
   "canon": "AESIR",
-  "art": "art/rare/worldroot_colossus.png",
+  "art": "art/v1_alpha/worldroot_colossus/base.png",
   "moves": [
     {
       "name": "Anchor of the World-Ash",

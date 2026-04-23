@@ -19,6 +19,6 @@
   "rarity": "common",
   "archetype": "BULWARK",
   "canon": "AESIR",
-  "art": "art/common/forest_cub.png",
+  "art": "art/v1_alpha/forest_cub/base.png",
   "moves": []
 }
