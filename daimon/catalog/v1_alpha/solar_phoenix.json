@@ -20,18 +20,19 @@
       "value": 6
     }
   ],
-  "name": "Solar Phoenix",
-  "flavor": "The first cry of dawn; the last warmth of dusk.",
+  "name": "Helios, Sun-Charioteer",
+  "flavor": "He drives the chariot from horizon to horizon; the dive at dawn, the bleeding light at dusk.",
   "rarity": "epic",
   "archetype": "INFERNO",
+  "canon": "OLYMPIAN",
   "art": "art/epic/solar_phoenix.png",
   "moves": [
     {
-      "name": "Sunbreak Dive",
+      "name": "Dawn-Chariot Dive",
       "when": "ON_OPENING_ATTACK"
     },
     {
-      "name": "Last Light",
+      "name": "Sunset Bequest",
       "when": "ON_DEATH"
     }
   ]

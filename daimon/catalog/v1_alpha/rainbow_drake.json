@@ -22,18 +22,19 @@
       "condition": "team.distinct_elements >= 3"
     }
   ],
-  "name": "Rainbow Drake",
-  "flavor": "Its scales remember every weather it has ever flown through.",
+  "name": "Quetzalcóatl, Plumed One",
+  "flavor": "Plumed serpent of sky and earth; he gave the people maize and the calendar, then walked east.",
   "rarity": "epic",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/epic/rainbow_drake.png",
   "moves": [
     {
-      "name": "Many-Hued Pulse",
+      "name": "Plumed Pulse",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Iridescent Ward",
+      "name": "Quetzal-Feather Ward",
       "when": "ON_KILL"
     }
   ]

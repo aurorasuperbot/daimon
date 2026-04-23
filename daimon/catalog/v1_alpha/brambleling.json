@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Brambleling",
-  "flavor": "Sets the hedge before the attackers know there is one.",
+  "name": "Nisse of the Hedge",
+  "flavor": "Hedge-house spirit; leave the bowl of porridge or the cattle will not drink at dawn.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "AESIR",
   "art": "art/common/brambleling.png",
   "moves": []
 }

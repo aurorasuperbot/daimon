@@ -14,10 +14,11 @@
       "value": 1
     }
   ],
-  "name": "Boltrunner",
-  "flavor": "Runs faster after every name it crosses out.",
+  "name": "Raijin Herald",
+  "flavor": "Thunder-god's messenger; he runs the road of clouds and arrives before his footfall.",
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/uncommon/boltrunner.png",
   "moves": []
 }

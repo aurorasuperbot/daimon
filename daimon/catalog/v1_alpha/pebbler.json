@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Pebbler",
-  "flavor": "Carries a pocketful of stones; passes one to whoever needs it.",
+  "name": "Dolmen Spirit",
+  "flavor": "Stone-cairn folk; older than the parish, older than the parish's saint.",
   "rarity": "common",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/common/pebbler.png",
   "moves": []
 }

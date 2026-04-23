@@ -26,21 +26,22 @@
       "value": 8
     }
   ],
-  "name": "Worldroot Colossus",
-  "flavor": "Every fallen tree was a promise it kept.",
+  "name": "Yggdrasil-Root",
+  "flavor": "A root of the world-ash given walking shape; it carries the weight that holds the nine.",
   "rarity": "rare",
+  "canon": "AESIR",
   "art": "art/rare/worldroot_colossus.png",
   "moves": [
     {
-      "name": "Anchor of Eras",
+      "name": "Anchor of the World-Ash",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Verdant Pulse",
+      "name": "Yggdrasil-Pulse",
       "when": "ON_ROUND_START"
     },
     {
-      "name": "Last Bloom",
+      "name": "Last Bloom of the Nine",
       "when": "ON_DEATH"
     }
   ]

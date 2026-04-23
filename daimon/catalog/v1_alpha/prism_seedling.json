@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Prism Seedling",
-  "flavor": "Blooms different each time the team's colors change.",
+  "name": "Xochitl Seed",
+  "flavor": "Sacred flower-seed of the codex; planted in the right month, it answers the right god.",
   "rarity": "common",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/common/prism_seedling.png",
   "moves": []
 }

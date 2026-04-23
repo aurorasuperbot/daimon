@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Magma Warden",
-  "flavor": "Each fallen enemy lights the next one up.",
+  "name": "Tlāhuiztli Commander",
+  "flavor": "Elder solar-warrior; the tunic fits, the orders carry, the sun is fed on schedule.",
   "rarity": "uncommon",
   "archetype": "INFERNO",
+  "canon": "TEOTL",
   "art": "art/uncommon/magma_warden.png",
   "moves": []
 }

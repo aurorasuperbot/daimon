@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Pyroshrike",
-  "flavor": "Pins flames to a thorn before lighting them.",
+  "name": "Chalkotaur Calf",
+  "flavor": "Hephaestus's bronze bulls were calves once — and even then they breathed forge-fire.",
   "rarity": "uncommon",
+  "canon": "OLYMPIAN",
   "art": "art/uncommon/pyroshrike.png",
   "moves": [
     {
-      "name": "Burning Lance",
+      "name": "Bronze-Horn Lance",
       "when": "ON_BATTLE_START"
     }
   ]

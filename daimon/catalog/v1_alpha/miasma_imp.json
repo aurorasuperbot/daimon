@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Miasma Imp",
-  "flavor": "Picks the weakest plate to thin.",
+  "name": "Pestilence of Sekhmet",
+  "flavor": "Plague-imp of the lion-goddess; she releases what she releases, and the scribes write fast.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/common/miasma_imp.png",
   "moves": []
 }

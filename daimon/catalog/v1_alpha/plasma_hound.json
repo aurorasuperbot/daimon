@@ -14,10 +14,11 @@
       "value": 4
     }
   ],
-  "name": "Plasma Hound",
-  "flavor": "Burns the first scent of the battlefield off something.",
+  "name": "Set-Hound",
+  "flavor": "Jackal of the red desert; storm in the throat, sand in the paw, hunger in the eye.",
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
+  "canon": "NETJER",
   "art": "art/uncommon/plasma_hound.png",
   "moves": []
 }

@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Abyssbreaker",
-  "flavor": "Ends the depth; gives back the breath.",
+  "name": "Sobek Adept",
+  "flavor": "Initiate of the crocodile-temple; the river closes its mouth around him in approval.",
   "rarity": "uncommon",
   "archetype": "TIDAL",
+  "canon": "NETJER",
   "art": "art/uncommon/abyssbreaker.png",
   "moves": []
 }

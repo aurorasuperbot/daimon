@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Hollowpup",
-  "flavor": "Ends with a gift it had been hoarding.",
+  "name": "Anubis Pup",
+  "flavor": "Jackal-child of the embalmer-god; the linen waits, the scale waits, the pup waits.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/common/hollowpup.png",
   "moves": []
 }

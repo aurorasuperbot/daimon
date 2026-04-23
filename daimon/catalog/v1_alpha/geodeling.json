@@ -7,9 +7,15 @@
   "hp": 25,
   "spd": 5,
   "triggers": [],
-  "name": "Geodeling",
-  "flavor": "Reliable. Boring. Reliable.",
+  "name": "Bergrisi-Pup",
+  "flavor": "Mountain-giant's young; the boulder thickens around him as the pup remembers nothing.",
   "rarity": "common",
+  "canon": "AESIR",
   "art": "art/common/geodeling.png",
-  "moves": [{"name": "Stone Pulse", "when": "ON_ATTACK"}]
+  "moves": [
+    {
+      "name": "Mountain-Pulse",
+      "when": "ON_ATTACK"
+    }
+  ]
 }

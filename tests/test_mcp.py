@@ -355,14 +355,17 @@ def test_match_propagates_real_catalog_display_metadata(monkeypatch, tmp_path):
     payload = Match.model_validate(state.data)
 
     # Every card on every side carries real metadata lifted from the JSON.
+    # Post mythology-pivot display names (see tools/canon_rewrite/mapping.py).
+    # Engine-stable ids (species above) are unchanged; only `name` flows through
+    # here, which is now the mythological display string.
     for side_key, expected_names in (
         ("player", {
-            "Voltcat Apex", "Bulwarthog", "Mindroot",
-            "Tidewyrm", "Stormhare", "Iron Boar",
+            "Valravn", "Khepri, Scarab-Warden", "Mandragora of Kokytos",
+            "Rán, Drowning-Queen", "Vindhare", "Gullinbursti",
         }),
         ("opponent", {
-            "Voltcat Apex", "Bulwarthog", "Mindroot",
-            "Tidewyrm", "Stormhare", "Iron Boar",
+            "Valravn", "Khepri, Scarab-Warden", "Mandragora of Kokytos",
+            "Rán, Drowning-Queen", "Vindhare", "Gullinbursti",
         }),
     ):
         got_names = {c.name for c in payload.participants[side_key].loadout}
@@ -748,13 +751,15 @@ def test_catalog_list_unknown_expansion():
 def test_catalog_card_full_payload():
     # Switched from voltcat_apex (demoted to rare in Phase 4a) to world_eater
     # so this test stays pinned to a known-legendary card. world_eater is the
-    # FLUX apex legendary shipped in Phase 3.
+    # SYNCRETIC apex legendary shipped in Phase 3. Display name updated in the
+    # 2026-04-23 mythology pivot (see tools/canon_rewrite/mapping.py) — the
+    # engine id `world_eater` is stable, the flavor string is now Aztec.
     r = _call(dm_catalog_card, card_id="world_eater")
     assert r["card_id"] == "world_eater"
     assert r["rarity"] == "legendary"
     # Display fields must flow through (engine blind to them, but tool isn't).
     assert "name" in r["payload"]
-    assert r["payload"]["name"] == "World-Eater"
+    assert r["payload"]["name"] == "Tezcatlipoca, Smoking Mirror"
 
 
 def test_catalog_card_unknown_card():

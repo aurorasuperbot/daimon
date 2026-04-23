@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Stonepup",
-  "flavor": "Crumbles into mineral that the others drink.",
+  "name": "Komainu Pup",
+  "flavor": "Shrine lion-dog young; even the cub at the gate makes the bad spirit hesitate.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "KAMI",
   "art": "art/common/stonepup.png",
   "moves": []
 }

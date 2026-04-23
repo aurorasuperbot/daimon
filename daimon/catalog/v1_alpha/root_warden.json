@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Root Warden",
-  "flavor": "Stays where the team needs the line drawn.",
+  "name": "Kodama Warden",
+  "flavor": "Grown tree-spirit; do not fell the trunk that does not answer the axe.",
   "rarity": "uncommon",
   "archetype": "BULWARK",
+  "canon": "KAMI",
   "art": "art/uncommon/root_warden.png",
   "moves": []
 }

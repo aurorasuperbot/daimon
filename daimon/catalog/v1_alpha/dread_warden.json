@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Dread Warden",
-  "flavor": "Its first whisper takes a finger of strength from each.",
+  "name": "Niflung Warden",
+  "flavor": "Elder of the misted dead; he tends the door between the rime and the road.",
   "rarity": "uncommon",
   "archetype": "REVENANT",
+  "canon": "AESIR",
   "art": "art/uncommon/dread_warden.png",
   "moves": []
 }

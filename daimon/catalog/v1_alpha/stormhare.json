@@ -20,17 +20,18 @@
       "value": 1
     }
   ],
-  "name": "Stormhare",
-  "flavor": "Faster than the rainbow can assemble.",
+  "name": "Vindhare",
+  "flavor": "Wind-hare of the northern moor; he runs ahead of the storm, and the storm follows.",
   "rarity": "rare",
+  "canon": "AESIR",
   "art": "art/rare/stormhare.png",
   "moves": [
     {
-      "name": "Thunderdash",
+      "name": "Storm-Outracing Dash",
       "when": "ON_OPENING_ATTACK"
     },
     {
-      "name": "Rally Wind",
+      "name": "Wind-Hare's Cry",
       "when": "ON_BATTLE_START"
     }
   ]

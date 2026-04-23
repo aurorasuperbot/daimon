@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Shellfin",
-  "flavor": "Grows another plate every time it is asked.",
+  "name": "Kappa Scholar",
+  "flavor": "River-imp of letters; he keeps the bowl of water on his head and the bowl of ink at his side.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "KAMI",
   "art": "art/common/shellfin.png",
   "moves": []
 }

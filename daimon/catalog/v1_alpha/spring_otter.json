@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Spring Otter",
-  "flavor": "Begins each tale already washed.",
+  "name": "Otr of Andvari",
+  "flavor": "Shape-shifter slain by Loki's stone; his pelt is the curse that doomed the Niflungs.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "AESIR",
   "art": "art/common/spring_otter.png",
   "moves": []
 }

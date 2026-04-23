@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Arc Kit",
-  "flavor": "The smallest current arrives first.",
+  "name": "Set-Whelp",
+  "flavor": "Storm-chaos god's young; the red-land wind learns its shape around him.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "NETJER",
   "art": "art/common/arc_kit.png",
   "moves": []
 }

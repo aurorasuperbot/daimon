@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Flashfox",
-  "flavor": "Wounded fox runs faster than fed fox.",
+  "name": "Tenko-Kit",
+  "flavor": "Heaven-fox's young; her tail will be many in time, and her bolt will be one.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/flashfox.png",
   "moves": []
 }

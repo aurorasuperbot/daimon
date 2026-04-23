@@ -14,10 +14,11 @@
       "value": 4
     }
   ],
-  "name": "Zapdrake",
-  "flavor": "Out of the gate before the gate is finished opening.",
+  "name": "Raiju Initiate",
+  "flavor": "Thunder-beast grown; the bolt is the body, the body is the bolt's choice of road.",
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/uncommon/zapdrake.png",
   "moves": []
 }

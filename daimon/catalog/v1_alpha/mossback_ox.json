@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Mossback Ox",
-  "flavor": "Stands where it stands. Asks the enemy to come to it.",
+  "name": "Old Ox of the Parish",
+  "flavor": "Unmoveable farm-guardian; the field is plowed where he stops and not before.",
   "rarity": "common",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/common/mossback_ox.png",
   "moves": []
 }

@@ -20,17 +20,18 @@
       "value": 3
     }
   ],
-  "name": "Riptide Wyrm",
-  "flavor": "The tide gives, the tide takes — both at once.",
+  "name": "Thetis, Silver-Footed",
+  "flavor": "Silver-footed nymph who shielded a hero in the river; her hand still warms the wounded.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/riptide_wyrm.png",
   "moves": [
     {
-      "name": "Tidal Shroud",
+      "name": "Silver-Footed Shroud",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Salve Surge",
+      "name": "Mother's Salve",
       "when": "ON_ATTACK"
     }
   ]

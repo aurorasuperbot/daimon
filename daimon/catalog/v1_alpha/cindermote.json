@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Cindermote",
-  "flavor": "The spark that lingers after the swing.",
+  "name": "Hi-no-Kagutsuchi Spark",
+  "flavor": "Ember of the fire-kami who burned his mother to the underworld at his birth.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "KAMI",
   "art": "art/common/cindermote.png",
   "moves": []
 }

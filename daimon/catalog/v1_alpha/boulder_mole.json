@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Boulder Mole",
-  "flavor": "Tunnels deeper every time the ground complains.",
+  "name": "Hodag",
+  "flavor": "American forest-folk beast; lumpy-bristled and stand-your-ground; the stick rebounds.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "APOCRYPHA",
   "art": "art/common/boulder_mole.png",
   "moves": []
 }

@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Thornling",
-  "flavor": "The first lesson of hedgerows.",
+  "name": "Jorōgumo Thread",
+  "flavor": "First strand of the spider-spirit; pretty, fine, and waiting for the second strand.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "KAMI",
   "art": "art/common/thornling.png",
   "moves": []
 }

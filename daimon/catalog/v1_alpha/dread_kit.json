@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Dread Kit",
-  "flavor": "Its first whisper trims a knife from every enemy.",
+  "name": "Niflung Whelp",
+  "flavor": "Mist-dead's young; born already cold, born already counting.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "AESIR",
   "art": "art/common/dread_kit.png",
   "moves": []
 }

@@ -238,18 +238,18 @@ class TestEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# Realistic FLUX-style and ON_LOW_HP-style conditions.
+# Realistic SYNCRETIC-style and ON_LOW_HP-style conditions.
 # ---------------------------------------------------------------------------
 
 class TestRealisticConditions:
-    def test_flux_dual_element(self):
+    def test_syncretic_dual_element(self):
         f = compile_condition("team.distinct_elements >= 2")
         # Mono-element team
         assert f(CTX_HEALTHY) is False
         # Multi-element team
         assert f(CTX_LOW_HP) is True
 
-    def test_flux_full_rainbow(self):
+    def test_syncretic_full_rainbow(self):
         f = compile_condition("team.distinct_elements >= 4")
         assert f(CTX_LOW_HP) is False  # only 3 distinct
         ctx = {**CTX_LOW_HP, "team": {**CTX_LOW_HP["team"], "distinct_elements": 5}}

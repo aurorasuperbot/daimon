@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Spectral Volt",
-  "flavor": "Steals a watt from every neighbor that isn't kin.",
+  "name": "Teoyaomiqui Spark",
+  "flavor": "Spark of the war-dead; he came home as a hummingbird and as this small bright thing.",
   "rarity": "common",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/common/spectral_volt.png",
   "moves": []
 }

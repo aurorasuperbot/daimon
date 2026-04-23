@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Mist Ray",
-  "flavor": "Wears its own fog as a balm.",
+  "name": "Havmand's Fin",
+  "flavor": "Merman of the cold north water; the fin breaks the surface, the rest is rumor.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "AESIR",
   "art": "art/common/mistray.png",
   "moves": []
 }

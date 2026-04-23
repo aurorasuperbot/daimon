@@ -14,13 +14,14 @@
       "value": 5
     }
   ],
-  "name": "Tempest Eagle",
-  "flavor": "Hunts the strongest first. Pride is dinner.",
+  "name": "Aetos Dios",
+  "flavor": "Zeus's golden eagle — bearer of bolts, herald of the throne above the throne.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/tempest_eagle.png",
   "moves": [
     {
-      "name": "Skyfall Talons",
+      "name": "Bolt-Bearing Talons",
       "when": "ON_ATTACK"
     }
   ]

@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Mossbear",
-  "flavor": "The forest lends bark to whatever is its bear today.",
+  "name": "Kodama Elder",
+  "flavor": "Bark-skin, slow heartbeat — the grove answers when its eldest is struck.",
   "rarity": "uncommon",
   "archetype": "BULWARK",
+  "canon": "KAMI",
   "art": "art/uncommon/mossbear.png",
   "moves": []
 }

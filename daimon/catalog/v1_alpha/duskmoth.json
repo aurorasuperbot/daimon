@@ -7,9 +7,10 @@
   "hp": 16,
   "spd": 8,
   "triggers": [],
-  "name": "Duskmoth",
-  "flavor": "Drawn to the lights between worlds.",
+  "name": "Mothra of Yomi",
+  "flavor": "Moth that flies between the lit world and the underworld; the wings carry the ash of both.",
   "rarity": "common",
+  "canon": "KAMI",
   "art": "art/common/duskmoth.png",
   "moves": []
 }

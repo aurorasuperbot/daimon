@@ -8,14 +8,15 @@
   "spd": 5,
   "triggers": [],
   "rule_change": "L2",
-  "name": "Worldroot Sentinel",
-  "flavor": "A wall is a tree that has decided not to grow leaves.",
+  "name": "Gaia, Worldmother",
+  "flavor": "The earth herself, broad-breasted, who gave the gods their thrones and outlasts them.",
   "rarity": "legendary",
   "archetype": "BULWARK",
+  "canon": "OLYMPIAN",
   "art": "art/legendary/worldroot_sentinel.png",
   "moves": [
     {
-      "name": "Mantle of Bark",
+      "name": "Mantle of the World",
       "when": "RULE_CHANGE_L2"
     }
   ]

@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Boltbat",
-  "flavor": "Echolocates by the smell of ozone.",
+  "name": "Raiju-Hatchling",
+  "flavor": "Newborn thunder-beast; the wings have not yet learned to fold, the bolt has.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/boltbat.png",
   "moves": []
 }

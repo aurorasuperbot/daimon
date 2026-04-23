@@ -20,18 +20,19 @@
       "value": 5
     }
   ],
-  "name": "Arc Predator",
-  "flavor": "Hunts the weakest spark, then leaves on a faster line.",
+  "name": "Raijū-Taishō",
+  "flavor": "Thunder-beast commander; the pack moves where the storm leans, and the storm leans where he turns.",
   "rarity": "epic",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/epic/arc_predator.png",
   "moves": [
     {
-      "name": "Bolt Hunger",
+      "name": "Thunder-Beast Hunger",
       "when": "ON_KILL"
     },
     {
-      "name": "Cull Strike",
+      "name": "Taishō's Cull",
       "when": "ON_ATTACK"
     }
   ]

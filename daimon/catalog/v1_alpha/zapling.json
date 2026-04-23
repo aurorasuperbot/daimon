@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Zapling",
-  "flavor": "The first out of the gate, always.",
+  "name": "Raiju Whelp",
+  "flavor": "Thunder-beast young; in the storm he sleeps in the navel of the careless sleeper.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/zapling.png",
   "moves": []
 }

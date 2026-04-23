@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Shadeling",
-  "flavor": "Each lost name is fed to the next swing.",
+  "name": "Shinigami Initiate",
+  "flavor": "Young death-spirit; the ledger is short, but the hand that writes it is patient.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "KAMI",
   "art": "art/common/shadeling.png",
   "moves": []
 }

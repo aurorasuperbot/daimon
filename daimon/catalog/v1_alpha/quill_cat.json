@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Quill Cat",
-  "flavor": "Leaves a needle in every wound; the next striker thanks her.",
+  "name": "Thistle Cat",
+  "flavor": "Hedge-cat of the thorn-rows; he hunts what the hedge will not hunt itself.",
   "rarity": "common",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/common/quill_cat.png",
   "moves": []
 }

@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Coralwhelp",
-  "flavor": "Each kill blooms a brief reef inside the team.",
+  "name": "Nile Whelp",
+  "flavor": "Hatchling of the great river; the reeds bend to hide him, the heron does not.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "NETJER",
   "art": "art/common/coralwhelp.png",
   "moves": []
 }

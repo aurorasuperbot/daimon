@@ -7,9 +7,10 @@
   "hp": 22,
   "spd": 4,
   "triggers": [],
-  "name": "Coralcub",
-  "flavor": "Grows armor faster than it grows up.",
+  "name": "Jenny Greenteeth Pup",
+  "flavor": "Marsh-hag's juvenile; mind the ditch at twilight, mind the green skin under the duckweed.",
   "rarity": "common",
+  "canon": "APOCRYPHA",
   "art": "art/common/coralcub.png",
   "moves": []
 }

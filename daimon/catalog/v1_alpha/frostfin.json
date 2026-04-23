@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Frostfin",
-  "flavor": "Its bite leaves a cold that lingers under the scales.",
+  "name": "Telchine of the Tide",
+  "flavor": "Sea-smiths whose hammered curses dulled the bronze of better men.",
   "rarity": "uncommon",
+  "canon": "OLYMPIAN",
   "art": "art/uncommon/frostfin.png",
   "moves": [
     {
-      "name": "Numbing Strike",
+      "name": "Smith-Curse Strike",
       "when": "ON_ATTACK"
     }
   ]

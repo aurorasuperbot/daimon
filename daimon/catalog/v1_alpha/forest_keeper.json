@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Forest Keeper",
-  "flavor": "Tends the wound the way it tends a sapling.",
+  "name": "Skogsrå Elder",
+  "flavor": "Eldest of the hidden-folk; she tends the wound and she remembers the hand that gave it.",
   "rarity": "uncommon",
   "archetype": "BULWARK",
+  "canon": "AESIR",
   "art": "art/uncommon/forest_keeper.png",
   "moves": []
 }

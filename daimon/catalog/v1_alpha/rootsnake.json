@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Rootsnake",
-  "flavor": "Sinks deeper after every strike.",
+  "name": "Uraeus-Root",
+  "flavor": "Cobra-root of the temple garden; the king's brow remembers what the soil first held.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "NETJER",
   "art": "art/common/rootsnake.png",
   "moves": []
 }

@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Coalwhelp",
-  "flavor": "Saves its hottest breath for the smallest target.",
+  "name": "Obsidian Pup",
+  "flavor": "Jaguar-warrior's young; the obsidian club is his teething-stone.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "TEOTL",
   "art": "art/common/coalwhelp.png",
   "moves": []
 }

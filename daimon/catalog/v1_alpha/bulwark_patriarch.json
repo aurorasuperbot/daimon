@@ -21,18 +21,19 @@
       "value": 1
     }
   ],
-  "name": "Bulwark Patriarch",
-  "flavor": "Old enough to remember when the storms were the children.",
+  "name": "Kronos, Titan-Father",
+  "flavor": "Deposed lord of the golden age; the scythe rusts but the patience does not.",
   "rarity": "epic",
   "archetype": "BULWARK",
+  "canon": "OLYMPIAN",
   "art": "art/epic/bulwark_patriarch.png",
   "moves": [
     {
-      "name": "Patient Verdure",
+      "name": "Patient Aeons",
       "when": "ON_ROUND_START"
     },
     {
-      "name": "Set the Roots",
+      "name": "Set the Old Order",
       "when": "ON_TAKE_DAMAGE"
     }
   ]

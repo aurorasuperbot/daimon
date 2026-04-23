@@ -7,9 +7,15 @@
   "hp": 20,
   "spd": 9,
   "triggers": [],
-  "name": "Dashmouse",
-  "flavor": "Speed is its own armor.",
+  "name": "Ehecatl Mouse",
+  "flavor": "Wind-god's scurrier; he runs ahead of the rain and the rain says he is welcome.",
   "rarity": "common",
+  "canon": "TEOTL",
   "art": "art/common/dashmouse.png",
-  "moves": [{"name": "Spark Dash", "when": "ON_ATTACK"}]
+  "moves": [
+    {
+      "name": "Wind-Foot Dash",
+      "when": "ON_ATTACK"
+    }
+  ]
 }

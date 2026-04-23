@@ -20,18 +20,19 @@
       "value": 5
     }
   ],
-  "name": "Crypt Wraith",
-  "flavor": "Speaks only the names of those who can no longer answer.",
+  "name": "Thanatos, Reaper",
+  "flavor": "Soft-stepping brother of Sleep; even the strong yield to his cool hand at last.",
   "rarity": "epic",
   "archetype": "REVENANT",
+  "canon": "OLYMPIAN",
   "art": "art/epic/crypt_wraith.png",
   "moves": [
     {
-      "name": "Hush of Mourning",
+      "name": "Hush of Thanatos",
       "when": "ON_ALLY_DEATH"
     },
     {
-      "name": "Parting Wail",
+      "name": "Soft-Stepping Wail",
       "when": "ON_DEATH"
     }
   ]

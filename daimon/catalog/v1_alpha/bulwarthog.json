@@ -20,17 +20,18 @@
       "value": 3
     }
   ],
-  "name": "Bulwarthog",
-  "flavor": "When the storm strikes, the herd shoulders together.",
+  "name": "Khepri, Scarab-Warden",
+  "flavor": "Dung-beetle who rolls the morning sun up from the underworld; the rebirth is in the rolling.",
   "rarity": "rare",
+  "canon": "NETJER",
   "art": "art/rare/bulwarthog.png",
   "moves": [
     {
-      "name": "Rallying Roar",
+      "name": "Scarab's Summons",
       "when": "ON_ROUND_START"
     },
     {
-      "name": "Plate of Calm",
+      "name": "Carapace of Khepri",
       "when": "ON_ROUND_START"
     }
   ]

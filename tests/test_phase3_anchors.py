@@ -72,7 +72,7 @@ def solo(card: Card, *, elements: list[Element] | None = None) -> Loadout:
     """Build a 6-card loadout: `card` at slot 0, inert dummies elsewhere.
 
     `elements` controls the ELEMENT of each dummy at positions 1..5 — used
-    to set up FLUX `team.distinct_elements` scenarios. None → all NATURE.
+    to set up SYNCRETIC `team.distinct_elements` scenarios. None → all NATURE.
     """
     if elements is None:
         elements = [Element.NATURE] * (TEAM_SIZE - 1)
@@ -167,7 +167,7 @@ class TestCatalogLoad:
             "tide_empress",       # L3 TIDAL       (Phase 4f-pool promotion)
             "tempest_apex",       # L4 STORMCHAIN  (Phase 4f-pool promotion)
             "voidking_morr",      # L5 REVENANT    (V1 original legendary)
-            "world_eater",        # L6 FLUX        (V1 original legendary)
+            "world_eater",        # L6 SYNCRETIC        (V1 original legendary)
         }
         manifest = json.loads(MANIFEST_PATH.read_text())
         legendaries = {
@@ -190,7 +190,7 @@ class TestCatalogLoad:
         promoted 4 epics to legendary (one rule-changer per archetype, §23.6),
         bringing the epic count 12 → 8: each strategic archetype keeps
         exactly 1 epic anchor (its legendary peer was the promoted one);
-        FLUX keeps both its epics (per §3 — FLUX warrants double coverage at
+        SYNCRETIC keeps both its epics (per §3 — SYNCRETIC warrants double coverage at
         epic); NORMAL keeps `concord_phoenix`.
 
         Adding a 9th epic requires an explicit doc update + archetype rationale.
@@ -201,8 +201,8 @@ class TestCatalogLoad:
             "coral_augur",         # TIDAL   (anchor; tide_empress promoted to L3)
             "arc_predator",        # STORMCHAIN (anchor; tempest_apex promoted to L4)
             "crypt_wraith",        # REVENANT (mourners_lich retired Phase 4e)
-            "prism_chimera",       # FLUX
-            "rainbow_drake",       # FLUX
+            "prism_chimera",       # SYNCRETIC
+            "rainbow_drake",       # SYNCRETIC
             "concord_phoenix",     # NORMAL (Phase 4e)
         }
         manifest = json.loads(MANIFEST_PATH.read_text())
@@ -282,7 +282,7 @@ class TestVoidkingMorr:
 
 
 # ---------------------------------------------------------------------------
-# FLUX — World-Eater.
+# SYNCRETIC — World-Eater.
 # Signature: 3 condition-gated triggers on team.distinct_elements >= 2/3/4.
 # Run the same loadout twice — once mono-element, once 4-element rainbow —
 # and confirm the rainbow version has VASTLY more battle-start beats.
@@ -292,14 +292,14 @@ class TestWorldEater:
     """world_eater carries `rule_change: L6` post-Phase-4f (§22.2 L6).
 
     L6's effect: every read of `team.distinct_elements` returns the actual
-    count + 2 FOR FLUX CARDS. world_eater is FLUX, so its OWN gates always
+    count + 2 FOR SYNCRETIC CARDS. world_eater is SYNCRETIC, so its OWN gates always
     see effective_distinct = actual + 2. This means:
 
       mono-element team (1 distinct) → effective 3 → ≥2 ✓ ≥3 ✓ ≥4 ✗
       4-element rainbow (4 distinct) → effective 6 → ≥2 ✓ ≥3 ✓ ≥4 ✓
 
-    The "mono team locks out FLUX" intuition was the pre-L6 model. L6 is
-    DESIGNED to unlock FLUX in mono shells specifically when world_eater is
+    The "mono team locks out SYNCRETIC" intuition was the pre-L6 model. L6 is
+    DESIGNED to unlock SYNCRETIC in mono shells specifically when world_eater is
     on the team — see §22.2 L6 lock-text justification. Tests below assert
     the post-L6 behavior.
     """
@@ -754,7 +754,7 @@ class TestCryptWraith:
 
 
 # ---------------------------------------------------------------------------
-# FLUX — Prism Chimera + Rainbow Drake.
+# SYNCRETIC — Prism Chimera + Rainbow Drake.
 # Verify gating on team.distinct_elements behaves as designed.
 # ---------------------------------------------------------------------------
 

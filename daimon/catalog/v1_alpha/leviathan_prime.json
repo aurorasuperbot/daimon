@@ -26,21 +26,22 @@
       "value": 3
     }
   ],
-  "name": "Leviathan Prime",
-  "flavor": "Older than the coastline that fears it.",
+  "name": "Keto Primeval",
+  "flavor": "Mother of monsters in the dark below, before the gods drew lots for the sea.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/leviathan_prime.png",
   "moves": [
     {
-      "name": "Aegis of the Deep",
+      "name": "Mantle of the Deep",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "World-Crushing Maw",
+      "name": "Maw of the Primeval",
       "when": "ON_ATTACK"
     },
     {
-      "name": "Tide Returns",
+      "name": "The Sea Reclaims",
       "when": "ON_TAKE_DAMAGE"
     }
   ]

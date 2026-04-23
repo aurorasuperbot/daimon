@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Bramblegoat",
-  "flavor": "Stands at the edge of the herd. Always.",
+  "name": "Aegipan",
+  "flavor": "Goat-horned forest-guardian; the hedge thickens where his hoof has passed.",
   "rarity": "uncommon",
+  "canon": "OLYMPIAN",
   "art": "art/uncommon/bramblegoat.png",
   "moves": [
     {
-      "name": "Hedgewall",
+      "name": "Aegipan's Hedge",
       "when": "ON_BATTLE_START"
     }
   ]

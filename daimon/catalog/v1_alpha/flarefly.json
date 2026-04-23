@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Flarefly",
-  "flavor": "Always finds the wounded one.",
+  "name": "Muspel-Spark",
+  "flavor": "Ember from the south-realm before the worlds; it remembers being older than ice.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "AESIR",
   "art": "art/common/flarefly.png",
   "moves": []
 }

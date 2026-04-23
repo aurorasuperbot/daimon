@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Tidewatcher",
-  "flavor": "Counts the team in by the sound of the surf.",
+  "name": "Glaukos",
+  "flavor": "A fisherman who tasted the green herb; his skin became scale and his eye became sea.",
   "rarity": "uncommon",
   "archetype": "TIDAL",
+  "canon": "OLYMPIAN",
   "art": "art/uncommon/tidewatcher.png",
   "moves": []
 }

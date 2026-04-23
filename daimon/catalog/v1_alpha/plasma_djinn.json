@@ -20,17 +20,18 @@
       "value": 3
     }
   ],
-  "name": "Plasma Djinn",
-  "flavor": "Granted exactly one wish. The lightning kept it.",
+  "name": "Astrape",
+  "flavor": "The lightning made woman; she walks beside Zeus and burns where she is asked.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/plasma_djinn.png",
   "moves": [
     {
-      "name": "Quicken the Court",
+      "name": "Quicken Olympos",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Wishlash",
+      "name": "Bright-Lash",
       "when": "ON_ATTACK"
     }
   ]

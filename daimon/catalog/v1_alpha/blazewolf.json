@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Blazewolf",
-  "flavor": "The pack burns brighter when it howls together.",
+  "name": "Xolotl, Dog-Star",
+  "flavor": "Dog-headed twin of the plumed one; he guides the sun through the night-country and back.",
   "rarity": "rare",
+  "canon": "TEOTL",
   "art": "art/rare/blazewolf.png",
   "moves": [
     {
-      "name": "Pack Roar",
+      "name": "Twin-of-the-Sun Roar",
       "when": "ON_BATTLE_START"
     }
   ]

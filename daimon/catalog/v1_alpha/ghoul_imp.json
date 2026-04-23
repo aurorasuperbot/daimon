@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Ghoul Imp",
-  "flavor": "Bites once. Dies in instalments.",
+  "name": "Servant of Ammit",
+  "flavor": "Lesser soul-eater; he gathers the crumbs the great devourer leaves on the scale.",
   "rarity": "uncommon",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/uncommon/ghoul_imp.png",
   "moves": []
 }

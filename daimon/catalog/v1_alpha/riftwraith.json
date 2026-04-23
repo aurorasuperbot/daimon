@@ -20,17 +20,18 @@
       "value": 1
     }
   ],
-  "name": "Riftwraith",
-  "flavor": "Leaves a small wound in the world wherever it stood.",
+  "name": "Keres, Battle-Spirit",
+  "flavor": "Sister-fates of violent death; they crouch at the wound and drink while the man still names them.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/riftwraith.png",
   "moves": [
     {
-      "name": "Parting Tear",
+      "name": "Death-Spirits' Parting",
       "when": "ON_DEATH"
     },
     {
-      "name": "Fray",
+      "name": "Blood-Drinker's Fray",
       "when": "ON_BATTLE_START"
     }
   ]

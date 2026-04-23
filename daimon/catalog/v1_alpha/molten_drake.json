@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Molten Drake",
-  "flavor": "Its breath is the slow, glassy fire of the deep earth.",
+  "name": "Lernean Pyrohydra",
+  "flavor": "Cousin to Lerna's serpent — sever a head and a candle answers in its place.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/molten_drake.png",
   "moves": [
     {
-      "name": "Sunsplit Breath",
+      "name": "Hydra's Breath",
       "when": "ON_ATTACK"
     }
   ]

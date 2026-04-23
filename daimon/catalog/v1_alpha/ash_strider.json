@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Ash Strider",
-  "flavor": "Walks where the heat has done its work first.",
+  "name": "Sunstrider of Ra",
+  "flavor": "He walks where Ra has walked; the sand keeps the print, the print keeps the heat.",
   "rarity": "uncommon",
   "archetype": "INFERNO",
+  "canon": "NETJER",
   "art": "art/uncommon/ash_strider.png",
   "moves": []
 }

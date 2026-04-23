@@ -135,7 +135,7 @@ class TestVanillaCap:
 
 # ---------------------------------------------------------------------------
 # 3. Per-element representation — every element must support mono-element
-#    teams of 6 across all bulk tiers, and FLUX-host elements must appear.
+#    teams of 6 across all bulk tiers, and SYNCRETIC-host elements must appear.
 # ---------------------------------------------------------------------------
 
 
@@ -396,7 +396,7 @@ ARCHETYPE_MATRIX = {
     "TIDAL":      {"common": 13, "uncommon":  7, "rare": 0, "epic": 1, "legendary": 1},
     "STORMCHAIN": {"common": 13, "uncommon":  7, "rare": 0, "epic": 1, "legendary": 1},
     "REVENANT":   {"common": 13, "uncommon":  7, "rare": 0, "epic": 1, "legendary": 1},
-    "FLUX":       {"common": 10, "uncommon": 10, "rare": 0, "epic": 2, "legendary": 1},
+    "SYNCRETIC":       {"common": 10, "uncommon": 10, "rare": 0, "epic": 2, "legendary": 1},
     # `null` = NORMAL element (15) + element-flavored utility (53). All 28
     # rares are archetype:null by §23.2 convention — anti-pattern guard.
     None:         {"common": 23, "uncommon": 16, "rare": 28, "epic": 1, "legendary": 0},

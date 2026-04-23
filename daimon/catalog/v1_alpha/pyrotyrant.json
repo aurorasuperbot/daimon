@@ -26,21 +26,22 @@
       "value": 8
     }
   ],
-  "name": "Pyrotyrant",
-  "flavor": "What it cannot rule, it renders.",
+  "name": "Typhon",
+  "flavor": "Hundred-throated, mountain-shouldered, the last child of Gaia to dare the sky.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/pyrotyrant.png",
   "moves": [
     {
-      "name": "Ascend the Throne",
+      "name": "Climb to Olympos",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Rule by Fire",
+      "name": "Reign in Brimstone",
       "when": "ON_ATTACK"
     },
     {
-      "name": "Funeral of the World",
+      "name": "Pyre for the Gods",
       "when": "ON_DEATH"
     }
   ]

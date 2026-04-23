@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Petalwing",
-  "flavor": "The first flap drops pollen that mends.",
+  "name": "Meliai",
+  "flavor": "Ash-tree nymphs born of Ouranos's blood; their petals close every wound but one.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "OLYMPIAN",
   "art": "art/common/petalwing.png",
   "moves": []
 }

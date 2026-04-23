@@ -20,17 +20,18 @@
       "value": 4
     }
   ],
-  "name": "Nullhound",
-  "flavor": "Whatever it bites is a little less, after.",
+  "name": "Cerberus",
+  "flavor": "Three heads at the gate; one for the coming, one for the going, one that does not sleep.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/nullhound.png",
   "moves": [
     {
-      "name": "Erase Edges",
+      "name": "Erase the Threshold",
       "when": "ON_ATTACK"
     },
     {
-      "name": "Final Howl",
+      "name": "Triple-Throated Howl",
       "when": "ON_DEATH"
     }
   ]

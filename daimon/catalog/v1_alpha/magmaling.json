@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Magmaling",
-  "flavor": "When a thing dies, the lava splashes.",
+  "name": "Tlāhuiztli Whelp",
+  "flavor": "Solar-warrior's young; the feathered tunic is too large still — for now.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "TEOTL",
   "art": "art/common/magmaling.png",
   "moves": []
 }

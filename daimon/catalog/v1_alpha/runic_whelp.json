@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Runic Whelp",
-  "flavor": "Half a chant, sung in earnest — and the team braces.",
+  "name": "Hedge-Scribe",
+  "flavor": "Half-chant household spirit; he scratches a charm on the lintel and the hearth holds.",
   "rarity": "common",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/common/runic_whelp.png",
   "moves": []
 }

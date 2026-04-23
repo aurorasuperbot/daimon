@@ -1,5 +1,8 @@
 # DAIMON V1 Base-Set Card Design — `v1_alpha`
 
+> **2026-04-23 note:** `FLUX` archetype renamed to `SYNCRETIC` across codebase + this doc (mythology pivot). Mechanically identical; see `docs/canon_mapping.md`.
+
+
 **Status**: Phase 1 framework. Locks design intent before any cards are written.
 **Date**: 2026-04-22
 **Author**: Coda (with Santiago)
@@ -80,13 +83,13 @@ The six archetypes below are the **soft clusters**. Read each entry as "this car
 - **Counter-pressure**: dies to BULWARK that won't kill anything; SILENCE shuts down ON_DEATH triggers
 - **Signature lore**: liches, wraiths, shadow imps, void serpents, the apex Voidking
 
-### A6 — FLUX (HYBRID · dual-element synergy showcase)
+### A6 — SYNCRETIC (HYBRID · dual-element synergy showcase)
 - **Win condition**: cards reward team composition diversity — must field 2+ elements to function
-- **Mechanic**: **FLUX** keyword — triggers conditional on `team.distinct_elements >= 2` (or 3); cross-element synergies (e.g. "if your team has both FIRE and WATER, ON_BATTLE_START gain X")
+- **Mechanic**: **SYNCRETIC** keyword — triggers conditional on `team.distinct_elements >= 2` (or 3); cross-element synergies (e.g. "if your team has both FIRE and WATER, ON_BATTLE_START gain X")
 - **Tempo**: variable — depends on host elements
-- **Counter-pressure**: mono-element pure archetypes can outpace if FLUX cards underdeliver in the wrong shells
+- **Counter-pressure**: mono-element pure archetypes can outpace if SYNCRETIC cards underdeliver in the wrong shells
 - **Signature lore**: chimeras, prismatic elementals, hybrid spirits, the apex *World-Eater*
-- **Note**: FLUX cards are NOT element-locked — they appear across all 5 elements, but their triggers only fire if the loadout is dual-element
+- **Note**: SYNCRETIC cards are NOT element-locked — they appear across all 5 elements, but their triggers only fire if the loadout is dual-element
 
 ### Why these 6
 Each mono-element archetype gets one home so the rock-paper-scissors loop is meaningful at the strategic level (not just the per-hit damage multiplier). Hybrid is the "expressive" archetype that makes deckbuilding interesting beyond "pick element, fill slots."
@@ -102,7 +105,7 @@ Aggressive curve — keeps gacha pulls feeling differentiated:
 | Common | 98 | 49% | 60% | ~16 each |
 | Uncommon | 60 | 30% | 25% | ~10 each |
 | Rare | 28 | 14% | 10% | ~4-5 each |
-| Epic | 8 | 4% | 4% | 1 anchor per strategic archetype + FLUX gets 2 + 1 NORMAL |
+| Epic | 8 | 4% | 4% | 1 anchor per strategic archetype + SYNCRETIC gets 2 + 1 NORMAL |
 | Legendary | 6 | 3% | 1% | exactly 1 rule-changer per strategic archetype |
 
 *(Revised 2026-04-22 after Phase 3: bumped epic count 10→12; commons dropped 100→98.
@@ -125,11 +128,11 @@ The 6 legendaries (one per strategic archetype):
 - **L3 — `tide_empress`** (TIDAL) — *when any ally is healed, all allies heal for 1*
 - **L4 — `tempest_apex`** (STORMCHAIN) — *extra-action cap raised 1→2 per unit per round*
 - **L5 — `voidking_morr`** (REVENANT) — *all `ON_ALLY_DEATH` triggers fire twice*
-- **L6 — `world_eater`** (FLUX) — *all `team.distinct_elements` references count as +2*
+- **L6 — `world_eater`** (SYNCRETIC) — *all `team.distinct_elements` references count as +2*
 
 Full mechanical specs and engine-binding contracts: §22.
 
-Epic tier still carries the "archetype boss" role — each strategic archetype gets exactly 1 epic anchor (the flagship build-around), FLUX gets 2 (its dual-host nature warrants double coverage at epic), NORMAL gets 1 (`concord_phoenix`) — totalling 8 epics.
+Epic tier still carries the "archetype boss" role — each strategic archetype gets exactly 1 epic anchor (the flagship build-around), SYNCRETIC gets 2 (its dual-host nature warrants double coverage at epic), NORMAL gets 1 (`concord_phoenix`) — totalling 8 epics.
 
 ---
 
@@ -191,7 +194,7 @@ Locked:
 - **Team size**: 6 cards (`TEAM_SIZE = 6`)
 - **No duplicate card_ids** in one loadout (engine-enforced)
 - **No element cap**: full mono-element teams allowed (encourages archetype purity)
-- **No species cap**: you may run 2 cards of same species at different rarities (e.g. embercub + emberlion together — explicitly *rewarded* by FLUX-adjacent design? No — this is intentional anti-cheese: same-species in one team yields no special bonus, just normal play. Reward comes from *evolution-line synergy in collection mode*, not in-battle.)
+- **No species cap**: you may run 2 cards of same species at different rarities (e.g. embercub + emberlion together — explicitly *rewarded* by SYNCRETIC-adjacent design? No — this is intentional anti-cheese: same-species in one team yields no special bonus, just normal play. Reward comes from *evolution-line synergy in collection mode*, not in-battle.)
 
 Open for Phase 3:
 - Should some archetypes have a soft cap on opposing-element cards? (e.g. INFERNO struggles to slot a NATURE healer because of element-ring counter-pressure) — *probably handled organically by element multipliers, no explicit rule needed*
@@ -291,10 +294,10 @@ After Phase 5: the legacy 67-card scaffolding (`scripts/author_v1_alpha_expansio
 
 ## 11. Open questions (resolved + remaining)
 
-1. ✅ **FLUX trigger condition syntax** — RESOLVED: restricted-eval string DSL with AST whitelist. Lives at `daimon/engine/conditions.py`; vocabulary documented in §7. Validated at card load, never raises mid-match.
+1. ✅ **SYNCRETIC trigger condition syntax** — RESOLVED: restricted-eval string DSL with AST whitelist. Lives at `daimon/engine/conditions.py`; vocabulary documented in §7. Validated at card load, never raises mid-match.
 2. ⏳ **SUMMON phantom card representation** — DEFERRED to V1.1 (engine architecture change too large for V1 scope; phantoms not in Phase-2 op shipset).
 3. ❓ **Legendary balance philosophy** — Hearthstone (strictly bigger) vs Magic (mechanically unique)? **Provisional**: Magic model — legendaries are *unique* in mechanic, not strictly bigger numbers. Confirm in Phase 3 when designing the 2 legendary anchors.
-4. ❓ **Should FLUX cards have an element field at all?** Currently every card requires an element. **Provisional**: yes, FLUX cards have a "host element" that determines elemental matchup, but their main trigger only fires when team is multi-element (gated via `condition: "team.distinct_elements >= 2"`). Phase 2 condition DSL makes this trivially expressible.
+4. ❓ **Should SYNCRETIC cards have an element field at all?** Currently every card requires an element. **Provisional**: yes, SYNCRETIC cards have a "host element" that determines elemental matchup, but their main trigger only fires when team is multi-element (gated via `condition: "team.distinct_elements >= 2"`). Phase 2 condition DSL makes this trivially expressible.
 5. ❓ **Status-condition stack semantics** — APPLY_* uses `max(existing, new)` refresh (not addition). Is that the right default for BURN/POISON, or should DOTs stack additively? **Provisional**: max-refresh keeps total tick damage bounded by card design (single epic with BURN(3) + another BURN(3) doesn't double the DOT). Re-evaluate in Phase 3 if INFERNO archetype needs additive BURN.
 
 ---
@@ -326,7 +329,7 @@ Test count: 595 passing, 1 skipped (was 529 + 43 conditions + 20 combat-phase2 +
 | Card | Element | Archetype | Signature mechanic |
 |---|---|---|---|
 | `voidking_morr` | VOID | REVENANT | ON_ALLY_DEATH BUFF_ATK SELF +4 (overwrote existing scaffolding to add the snowball) |
-| `world_eater` | VOID | FLUX | 3 trigger gates on `team.distinct_elements >= 2/3/4` — apex card requires rainbow team |
+| `world_eater` | VOID | SYNCRETIC | 3 trigger gates on `team.distinct_elements >= 2/3/4` — apex card requires rainbow team |
 
 **Epics (12)** — 2 per archetype:
 | Archetype | Cards | Defining mechanic |
@@ -336,7 +339,7 @@ Test count: 595 passing, 1 skipped (was 529 + 43 conditions + 20 combat-phase2 +
 | TIDAL | `tide_empress`, `coral_augur` | ON_ATTACK LIFESTEAL; `self.hp == self.hp_max` gated heal |
 | STORMCHAIN | `tempest_apex`, `arc_predator` | Team SPD buff + ON_OPENING_ATTACK AOE; ON_KILL BUFF_SPD chain |
 | REVENANT | `crypt_wraith`, `mourners_lich` | ON_ALLY_DEATH APPLY_SILENCE; ON_ALLY_DEATH BUFF_ATK + ON_DEATH lingering DEBUFF |
-| FLUX | `prism_chimera`, `rainbow_drake` | NATURE-host: `>=2` ATK buff + `>=3` AOE; FIRE-host: `>=2` heal + `>=3` shield-on-kill |
+| SYNCRETIC | `prism_chimera`, `rainbow_drake` | NATURE-host: `>=2` ATK buff + `>=3` AOE; FIRE-host: `>=2` heal + `>=3` shield-on-kill |
 
 ### Files added
 - `scripts/author_phase3_anchors.py` — one-shot anchor authoring script (idempotent; re-running overwrites)
@@ -431,7 +434,7 @@ Phase 4b+c authors the remaining 120 cards (75 commons + 45 uncommons) to hit th
 | VOID   | 4 | +15 | 19 |
 | **Total** | **23** | **+75** | **98 ✅** |
 
-Each element's 15 = **13 archetype-pure + 2 FLUX** (host element matches the card's element; FLUX trigger gated on `team.distinct_elements >= 2`). This mirrors the Phase-3 archetype-anchor shape but at the lowest power tier.
+Each element's 15 = **13 archetype-pure + 2 SYNCRETIC** (host element matches the card's element; SYNCRETIC trigger gated on `team.distinct_elements >= 2`). This mirrors the Phase-3 archetype-anchor shape but at the lowest power tier.
 
 ### Design rules enforced in-script
 The author script (`scripts/author_phase4b_commons.py`) carries an internal `_validate()` that fails BEFORE writing disk if any of these break:
@@ -439,7 +442,7 @@ The author script (`scripts/author_phase4b_commons.py`) carries an internal `_va
 - Trigger count: exactly 1 (every new common; keeps total vanilla count at 23/98 = 23.5%, well under the §4 30% cap)
 - Trigger value: exactly 2-3 (§4 common range; STUN/SILENCE excluded entirely as their canonical value=1 violates the band, AND they're disable mechanics that don't belong on commons)
 - Per-element count: exactly 15 each
-- Per-archetype count: 13 INFERNO+BULWARK+TIDAL+STORMCHAIN+REVENANT each, 10 FLUX
+- Per-archetype count: 13 INFERNO+BULWARK+TIDAL+STORMCHAIN+REVENANT each, 10 SYNCRETIC
 
 ### Files added
 - `scripts/author_phase4b_commons.py` — one-shot idempotent authoring script
@@ -467,7 +470,7 @@ The author script (`scripts/author_phase4b_commons.py`) carries an internal `_va
 | VOID   | 3 | +9 | 12 |
 | **Total** | **15** | **+45** | **60 ✅** |
 
-Each element's 9 = **7 archetype-pure + 2 FLUX**. Mirrors Phase-4b shape at the next power tier.
+Each element's 9 = **7 archetype-pure + 2 SYNCRETIC**. Mirrors Phase-4b shape at the next power tier.
 
 ### Species evolution lines seeded
 14 of the 45 uncommons intentionally extend a Phase-4b common into a 2-tier (C → U) species line via the `species` field, satisfying §5's "most species span 2-3 rarity tiers":
@@ -488,7 +491,7 @@ The remaining uncommons are **singletons** (their own species). Phase 4c intenti
 - Trigger count: exactly 1 (uncommons differ from commons by *value*, not count)
 - Trigger value: exactly 3-4 (§4 uncommon range)
 - Per-element count: exactly 9 each
-- Per-archetype count: 7 INFERNO+BULWARK+TIDAL+STORMCHAIN+REVENANT each, 10 FLUX
+- Per-archetype count: 7 INFERNO+BULWARK+TIDAL+STORMCHAIN+REVENANT each, 10 SYNCRETIC
 
 ### Files added
 - `scripts/author_phase4c_uncommons.py` — one-shot idempotent authoring script
@@ -563,10 +566,10 @@ NORMAL is an **element**, not an archetype. The 6 strategic archetypes are uncha
 
 ```
 INFERNO (FIRE) · BULWARK (NATURE) · TIDAL (WATER)
-STORMCHAIN (VOLT) · REVENANT (VOID) · FLUX (hybrid)
+STORMCHAIN (VOLT) · REVENANT (VOID) · SYNCRETIC (hybrid)
 ```
 
-NORMAL cards carry **`archetype: null`** in the catalog — they are intentionally archetype-less, designed to be picked up by any of the 6 strategic decks. They are NOT eligible for FLUX gates that count distinct elements (the implementation lets `team.distinct_elements` count NORMAL the same as any other element, but design intent is that NORMAL is "background colour" — gates should be authored on the assumption that NORMAL is filler).
+NORMAL cards carry **`archetype: null`** in the catalog — they are intentionally archetype-less, designed to be picked up by any of the 6 strategic decks. They are NOT eligible for SYNCRETIC gates that count distinct elements (the implementation lets `team.distinct_elements` count NORMAL the same as any other element, but design intent is that NORMAL is "background colour" — gates should be authored on the assumption that NORMAL is filler).
 
 NORMAL gets **no legendary** in V1. The "one legendary per archetype" rule (§3) only covers strategic archetypes; NORMAL's cap is epic.
 
@@ -716,15 +719,15 @@ The hierarchy resolves bottom-up at evaluation time: legendaries' rule mutations
 
 **Anti-pattern guard**: do NOT author SACRIFICE_SELF or ON_ALLY_DEATH triggers on non-REVENANT cards. Death-as-resource is the cluster's spine.
 
-### A6 — FLUX (HYBRID · diversity-scaler / buffer)
+### A6 — SYNCRETIC (HYBRID · diversity-scaler / buffer)
 
-**Distinctness lock** (revised 2026-04-23 per Santiago directive): FLUX is the **buffer/diversity-scaler archetype**. Its cards' triggers scale by **`team.distinct_elements`** (the team-wide primitive, §21). Cards reward composition diversity rather than specializing in any single element. Where the other archetypes win by element-purity, FLUX wins by element-spread.
+**Distinctness lock** (revised 2026-04-23 per Santiago directive): SYNCRETIC is the **buffer/diversity-scaler archetype**. Its cards' triggers scale by **`team.distinct_elements`** (the team-wide primitive, §21). Cards reward composition diversity rather than specializing in any single element. Where the other archetypes win by element-purity, SYNCRETIC wins by element-spread.
 
-**What "uniquely FLUX" means**: a 6-element rainbow loadout should feel mechanically distinct from a 6-FIRE INFERNO loadout. FLUX cards in a mono-element shell underperform deliberately (their buffs gate on `>= 2`, `>= 3`, `>= 4` distinct elements). FLUX cards in a 4-element rainbow shell unlock cascading buffs that mono-element cards can't access.
+**What "uniquely SYNCRETIC" means**: a 6-element rainbow loadout should feel mechanically distinct from a 6-FIRE INFERNO loadout. SYNCRETIC cards in a mono-element shell underperform deliberately (their buffs gate on `>= 2`, `>= 3`, `>= 4` distinct elements). SYNCRETIC cards in a 4-element rainbow shell unlock cascading buffs that mono-element cards can't access.
 
-**FLUX is NOT element-locked**: FLUX cards exist across all 5 ring elements (and CAN exist on NORMAL, though no NORMAL FLUX cards ship in V1). Their host element drives elemental matchup math; their FLUX trigger only fires once `team.distinct_elements` clears the gate.
+**SYNCRETIC is NOT element-locked**: SYNCRETIC cards exist across all 5 ring elements (and CAN exist on NORMAL, though no NORMAL SYNCRETIC cards ship in V1). Their host element drives elemental matchup math; their SYNCRETIC trigger only fires once `team.distinct_elements` clears the gate.
 
-**Anti-pattern guard**: do NOT author FLUX-style `team.distinct_elements >= N` gates on non-FLUX cards. Diversity-scaling is the cluster's spine; spreading it dilutes the identity.
+**Anti-pattern guard**: do NOT author SYNCRETIC-style `team.distinct_elements >= N` gates on non-SYNCRETIC cards. Diversity-scaling is the cluster's spine; spreading it dilutes the identity.
 
 ### NORMAL (element, not archetype)
 
@@ -758,7 +761,7 @@ Existing v1 surface (Phase 2 shipped) is documented in §7 and unchanged. This s
 | `unit.burn_stacks` | `int ≥ 0` | persists across rounds; consumed (zeroed) on ON_TURN_END after dealing `1 × stack_count` damage | INFERNO's signature DOT primitive — distinct from `APPLY_BURN` (the shipped Phase-2 status, which sets duration). Stacks accumulate; they don't refresh. | INFERNO |
 | `unit.shield_count` | `int ≥ 0` | persists across rounds; decremented on damage absorption | BULWARK shield-stacking primitive. Each shield_count point absorbs one damage instance fully (not value-based). Distinct from existing shield-value mechanic (which absorbs N damage). Allows "wall of three small shields" patterns. | BULWARK |
 | `unit.extra_action_used_this_round` | `bool` | reset to `False` at round start | Prevents GRANT_EXTRA_ACTION double-stacking per unit per round under default rules. The cap is `1` by default; `tempest_apex`'s legendary mutation raises it to `2` (§22 L4). | STORMCHAIN |
-| `team.distinct_elements` | `int ∈ [0, 6]` | computed live from alive units' elements | Already exists in Phase-2 condition DSL (§7). Documented here for completeness — FLUX's signature gate. NORMAL counts as 1 distinct element when computing this value. `world_eater`'s legendary mutation adds +2 to this read for FLUX cards on its team (§22 L6). | FLUX |
+| `team.distinct_elements` | `int ∈ [0, 6]` | computed live from alive units' elements | Already exists in Phase-2 condition DSL (§7). Documented here for completeness — SYNCRETIC's signature gate. NORMAL counts as 1 distinct element when computing this value. `world_eater`'s legendary mutation adds +2 to this read for SYNCRETIC cards on its team (§22 L6). | SYNCRETIC |
 
 **Implementation requirements**:
 - All four primitives must be visible to the condition DSL (`daimon/engine/conditions.py` whitelist additions)
@@ -890,19 +893,19 @@ All 6 are accepted as-proposed. Balance testing deferred to Phase 5 sim harness 
 
 **Re-entrancy**: if the 2nd fire causes another ally to die (e.g. SACRIFICE_SELF as part of the trigger), THAT death's ON_ALLY_DEATH fires for surviving allies — also doubled. Engine-enforced cascade depth cap = 8 nested ON_ALLY_DEATH fires per source event (otherwise REVENANT can deadlock the round on a 6-card team-wipe cascade).
 
-#### L6 — `world_eater` (FLUX) — "distinct_elements counts +2"
+#### L6 — `world_eater` (SYNCRETIC) — "distinct_elements counts +2"
 
-**Mutation**: while `world_eater` is alive on your team, **every read of `team.distinct_elements` returns the actual count + 2** for FLUX cards on your team.
+**Mutation**: while `world_eater` is alive on your team, **every read of `team.distinct_elements` returns the actual count + 2** for SYNCRETIC cards on your team.
 
 **Rule it changes**: `team.distinct_elements` (§21.1) is normally a live count of unique elements among alive units. Under this mutation, condition-DSL reads of the value get +2 added before comparison.
 
-**Scope**: ONLY FLUX cards' condition gates see the +2. Non-FLUX condition gates (which would not exist in V1 — only FLUX cards use this gate per §20 anti-pattern guard, but a future expansion might) see the un-mutated count. This scope-narrowing is the whole point: `world_eater` is a FLUX-team enabler, not a global cheat-mode.
+**Scope**: ONLY SYNCRETIC cards' condition gates see the +2. Non-SYNCRETIC condition gates (which would not exist in V1 — only SYNCRETIC cards use this gate per §20 anti-pattern guard, but a future expansion might) see the un-mutated count. This scope-narrowing is the whole point: `world_eater` is a SYNCRETIC-team enabler, not a global cheat-mode.
 
-**Stacking**: a 4-element team becomes effectively 6 distinct for FLUX condition resolution. A `>= 6` gate (which exists nowhere in V1 but is reachable in expansion) would land on a 4-distinct team. A `>= 4` gate lands on a 2-distinct team. Mono-element team (1 distinct) becomes effectively 3 — which clears `>= 2` and `>= 3` gates, unlocking FLUX cards in mono-element shells specifically when `world_eater` is present.
+**Stacking**: a 4-element team becomes effectively 6 distinct for SYNCRETIC condition resolution. A `>= 6` gate (which exists nowhere in V1 but is reachable in expansion) would land on a 4-distinct team. A `>= 4` gate lands on a 2-distinct team. Mono-element team (1 distinct) becomes effectively 3 — which clears `>= 2` and `>= 3` gates, unlocking SYNCRETIC cards in mono-element shells specifically when `world_eater` is present.
 
-**Engine binding**: `conditions.py` evaluation context checks the FLUX-card flag (passed in by the caller in `_fire_triggers_for_unit`) and the mutation flag, and adds +2 to the `team.distinct_elements` value passed into the eval context for FLUX-card condition evaluation.
+**Engine binding**: `conditions.py` evaluation context checks the SYNCRETIC-card flag (passed in by the caller in `_fire_triggers_for_unit`) and the mutation flag, and adds +2 to the `team.distinct_elements` value passed into the eval context for SYNCRETIC-card condition evaluation.
 
-**Lock-text justification — proximity antibody**: a future reader might "fix" this to apply universally (FLUX and non-FLUX). Don't. The narrowed scope is what keeps the mutation cluster-coherent — FLUX is the diversity-scaler archetype; `world_eater`'s mutation supercharges that archetype's identity, NOT every card's identity. Not a bug, feature.
+**Lock-text justification — proximity antibody**: a future reader might "fix" this to apply universally (SYNCRETIC and non-SYNCRETIC). Don't. The narrowed scope is what keeps the mutation cluster-coherent — SYNCRETIC is the diversity-scaler archetype; `world_eater`'s mutation supercharges that archetype's identity, NOT every card's identity. Not a bug, feature.
 
 ### 22.3 — Mutation interaction matrix (V1)
 
@@ -913,7 +916,7 @@ All 6 V1 legendaries can cohabit one team (deckbuilding allows 6-card teams = ex
 | L1 `magma_tyrant` × L2 `worldroot_sentinel` | INFERNO burn stacks accumulate on attackers (via L1) AND attackers take THORNS 2 reflection (via L2). Stacks; both apply. |
 | L1 × L3 `tide_empress` | The +1 trickle (L3) does NOT count as a damage instance, so does NOT trigger L1. Independent. |
 | L4 `tempest_apex` × L5 `voidking_morr` | Doubled extra-action grants (L4 raises cap 1→2; L5 doubles ON_ALLY_DEATH). Independent rule domains. |
-| L5 × L6 `world_eater` | A FLUX trigger that fires on ON_ALLY_DEATH (none exist in V1 but legal) would fire ×2 (L5) and read distinct_elements +2 (L6). Independent. |
+| L5 × L6 `world_eater` | A SYNCRETIC trigger that fires on ON_ALLY_DEATH (none exist in V1 but legal) would fire ×2 (L5) and read distinct_elements +2 (L6). Independent. |
 | Any pair involving L3 trickle | Trickle never cascades, never triggers ANY mutation. The cascade-break (§22.2 L3) is the engine guard. |
 | All 6 alive | Maximum-mutation state. Engine remains deterministic; cascade caps (re-entry caps in §21.5; ON_ALLY_DEATH cap of 8 in §22.2 L5) prevent any pathological loop. Phase 5 sim harness must include "all-6-legendary mirror match" as a regression test for cap behavior. |
 
@@ -966,7 +969,7 @@ The **post-Phase 4f** pool (after the 4 epic→legendary promotions in §22.4 la
 | TIDAL | 13 | 7 | 0 | 1 | 1 | 22 | `tide_empress` epic→legendary; 1 epic anchor remains (`coral_augur`) |
 | STORMCHAIN | 13 | 7 | 0 | 1 | 1 | 22 | `tempest_apex` epic→legendary; 1 epic anchor remains (`arc_predator`) |
 | REVENANT | 13 | 7 | 0 | 1 | 1 | 22 | unchanged — `voidking_morr` was already L; `crypt_wraith` is the epic anchor |
-| FLUX | 10 | 10 | 0 | 2 | 1 | 23 | unchanged — `world_eater` was already L; `prism_chimera` + `rainbow_drake` are the 2 epics |
+| SYNCRETIC | 10 | 10 | 0 | 2 | 1 | 23 | unchanged — `world_eater` was already L; `prism_chimera` + `rainbow_drake` are the 2 epics |
 | **null** (NORMAL element + untagged elemental rares) | 23 | 16 | 28 | 1 | 0 | 68 | NORMAL element = 15 cards (8C/4U/2R/1E); the other 53 null cards are element-flavored utility (15C non-NORMAL + 12U non-NORMAL + 26R non-NORMAL) |
 | **TOTAL** | **98** | **60** | **28** | **8** | **6** | **200** | matches §3 |
 
@@ -976,14 +979,14 @@ The **post-Phase 4f** pool (after the 4 epic→legendary promotions in §22.4 la
 
 ### 23.3 — Counter-card design (LOCKED — REVERSES §20 row 2)
 
-**Reversal**: §20 specified "5 counter — designated archetype counters" living in the NORMAL element. **§23 supersedes that**: counters live as **6 elemental rares re-flavored in place** (one per strategic archetype, FLUX included), keeping `archetype: null` and using only existing engine vocabulary.
+**Reversal**: §20 specified "5 counter — designated archetype counters" living in the NORMAL element. **§23 supersedes that**: counters live as **6 elemental rares re-flavored in place** (one per strategic archetype, SYNCRETIC included), keeping `archetype: null` and using only existing engine vocabulary.
 
 **Why the reversal**:
 1. **The 200-card pool is locked.** Adding 5 NORMAL counter cards would require trimming 5 cards elsewhere, re-running the distribution lock test, re-balancing the elemental matchup math, and re-doing the Phase 4e-pool audit. Re-flavoring 6 existing rares is a zero-net-card-count operation.
 2. **All necessary engine ops already exist.** A NORMAL-counter design (the original §20 plan) needed ~10 new ops/whens (CLEANSE_BURN_STACKS, REMOVE_SHIELD, APPLY_HEAL_BLOCK, etc.). The elemental-rare-counter design uses `APPLY_SILENCE`, `APPLY_POISON`, `BUFF_DEF`, `DEBUFF_DEF`, `ADD_SHIELD`, `BUFF_SPD`, `DAMAGE`, `HEAL`, `DEBUFF_ATK`, `ON_BATTLE_START`, `ON_LOW_HP`, `ON_OPENING_ATTACK`, `ON_ROUND_START`, `ON_ATTACK` — every one of those is already in `daimon/engine/types.py` and `combat.py`. Phase 4e-counters runs with **zero engine changes**.
 3. **Counters at rare tier reach thoughtful deckbuilders.** A counter at common dilutes the gacha pull rate; at rare it sits in the band where players are intentionally tuning a loadout against an expected meta. This is the standard TCG move (MTG sideboard rares, Hearthstone tech rares).
 4. **NORMAL stays compositionally pure as support.** §20 row 1 ("7 support") becomes "all 15 NORMAL are support / utility." NORMAL is the no-archetype splashable element; loading it with counter logic would re-introduce hidden archetype gates by another name.
-5. **FLUX gets a counter too.** §20 had 5 counters covering 5 archetypes (FLUX intentionally uncountered). The 6-rare design covers all 6 strategic archetypes, including FLUX (`stormhare` race-burst cracks FLUX before its `team.distinct_elements` gates assemble).
+5. **SYNCRETIC gets a counter too.** §20 had 5 counters covering 5 archetypes (SYNCRETIC intentionally uncountered). The 6-rare design covers all 6 strategic archetypes, including SYNCRETIC (`stormhare` race-burst cracks SYNCRETIC before its `team.distinct_elements` gates assemble).
 
 **The 6 counters** (re-flavored from existing rares; full mechanical specs in `scripts/author_phase4e_counters.py`):
 
@@ -994,7 +997,7 @@ The **post-Phase 4f** pool (after the 4 epic→legendary promotions in §22.4 la
 | `mindroot` | VOID | TIDAL | `ON_BATTLE_START APPLY_POISON ALL_ENEMIES 3r` + `ON_ATTACK DAMAGE LOWEST_HP_ENEMY 3` (DOT competes with heal cycle) |
 | `bulwarthog` | NATURE | STORMCHAIN | `ON_ROUND_START BUFF_DEF ALL_ALLIES 1` + `ON_ROUND_START ADD_SHIELD SELF 3` (round-start triggers fire under STUN; stacks across rounds, single SILENCE doesn't undo prior rounds) |
 | `abyss_warden` | VOID | REVENANT | `ON_BATTLE_START APPLY_SILENCE ALL_ENEMIES 3r` + `ON_ATTACK DEBUFF_ATK ALL_ENEMIES 3` (SILENCE suppresses ON_DEATH/ON_ALLY_DEATH per `combat.py::_fire_triggers_for_unit` — keystone anti-REVENANT) |
-| `stormhare` | VOLT | FLUX | `ON_OPENING_ATTACK DAMAGE LOWEST_HP_ENEMY 4` + `ON_BATTLE_START BUFF_SPD ALL_ALLIES 1` (race-burst kills FLUX squishies before distinct_elements gates fire) |
+| `stormhare` | VOLT | SYNCRETIC | `ON_OPENING_ATTACK DAMAGE LOWEST_HP_ENEMY 4` + `ON_BATTLE_START BUFF_SPD ALL_ALLIES 1` (race-burst kills SYNCRETIC squishies before distinct_elements gates fire) |
 
 **Counter-coverage tagging**: counters carry their counter-target in `scripts/author_phase4e_counters.py::EXPECTED_SLOTS` as the single source of truth. Card JSONs do NOT add a new `counters` field in V1 — the script + tests are the audit surface. **Lock-text justification**: adding a JSON `counters` field would tempt the engine to *read* it (e.g. "fire harder when facing target archetype"), reintroducing archetype-as-gate logic that §2.0 explicitly forbids. Counter status is *implementation* (mechanic chosen to punish a pattern), not *engine state*. Not a bug, feature.
 

@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Prism Grove",
-  "flavor": "Blooms in whatever colors its companions are wearing.",
+  "name": "Xochipilli Grove",
+  "flavor": "Flower-prince's bloom; the grove sings without breath and the warrior remembers the field.",
   "rarity": "uncommon",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/uncommon/prism_grove.png",
   "moves": []
 }

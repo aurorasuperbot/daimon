@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Mist Chimera Adept",
-  "flavor": "Three throats; one chorus; richer harmony in mixed company.",
+  "name": "Tlaloc's Storm-Mist",
+  "flavor": "Grown rain-mist envoy; the cloud is heavy now and the field will know it by morning.",
   "rarity": "uncommon",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/uncommon/mistchimera_adept.png",
   "moves": []
 }

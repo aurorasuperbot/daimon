@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Blazefiend",
-  "flavor": "Picks the limp; sets the limp on fire.",
+  "name": "Xiuhcoatl Adept",
+  "flavor": "Initiate of the fire-serpent cult; he aims the venom-flame and the weakest is named first.",
   "rarity": "uncommon",
   "archetype": "INFERNO",
+  "canon": "TEOTL",
   "art": "art/uncommon/blazefiend.png",
   "moves": []
 }

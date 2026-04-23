@@ -4,7 +4,7 @@
   "tier": "elite",
   "rank": 4,
   "flavor": "Two skies, one stride.",
-  "bio": "FLUX epic. prism_chimera anchors an all-elements team where every monster fires ON_BATTLE_START. echo_lich rare adds ON_ALLY_DEATH AND ON_BATTLE_START AND ON_ATTACK \u2014 a triple-trigger payoff.",
+  "bio": "SYNCRETIC epic. prism_chimera anchors an all-elements team where every monster fires ON_BATTLE_START. echo_lich rare adds ON_ALLY_DEATH AND ON_BATTLE_START AND ON_ATTACK — a triple-trigger payoff.",
   "loadout": [
     "prism_chimera",
     "echo_lich",

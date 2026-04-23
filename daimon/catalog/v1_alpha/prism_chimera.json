@@ -22,18 +22,19 @@
       "condition": "team.distinct_elements >= 3"
     }
   ],
-  "name": "Prism Chimera",
-  "flavor": "Every head bargains with a different season; together they win.",
+  "name": "Coatlicue, Serpent-Skirt",
+  "flavor": "Earth-mother of the serpent-skirt; she gave birth to the sun and the moon, and to a war between them.",
   "rarity": "epic",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/epic/prism_chimera.png",
   "moves": [
     {
-      "name": "Many-Voiced Vow",
+      "name": "Serpent-Skirt's Vow",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Spectral Lash",
+      "name": "Obsidian-Tongue Lash",
       "when": "ON_ATTACK"
     }
   ]

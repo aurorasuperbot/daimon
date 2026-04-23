@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Thornpup",
-  "flavor": "Hugging is, technically, an attack.",
+  "name": "Ammit Cub",
+  "flavor": "Soul-devourer's young; the jaws are small but the ledger is already long.",
   "rarity": "uncommon",
+  "canon": "NETJER",
   "art": "art/uncommon/thornpup.png",
   "moves": [
     {
-      "name": "Bramblecoat",
+      "name": "Devourer's Coat",
       "when": "ON_TAKE_DAMAGE"
     }
   ]

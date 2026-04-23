@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Arcweasel",
-  "flavor": "The first dash is for the team.",
+  "name": "Kamaitachi Jr.",
+  "flavor": "Younger wind-sickle; he learns the cut from his elder, and the elder is a quick teacher.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/arcweasel.png",
   "moves": []
 }

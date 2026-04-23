@@ -14,10 +14,11 @@
       "value": 4
     }
   ],
-  "name": "Coalbreaker",
-  "flavor": "The first hit is always the one it remembers.",
+  "name": "Jaguar Warrior",
+  "flavor": "Ocelotl initiate; the pelt is earned, the kill is recorded, the sun is fed.",
   "rarity": "uncommon",
   "archetype": "INFERNO",
+  "canon": "TEOTL",
   "art": "art/uncommon/coalbreaker.png",
   "moves": []
 }

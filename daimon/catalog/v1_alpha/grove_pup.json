@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Grove Pup",
-  "flavor": "Trots between teammates; nudges their guard back up.",
+  "name": "Grove Hob",
+  "flavor": "Hedge-child between the rows; he trots between the wounded and is gone before the thanks.",
   "rarity": "common",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/common/grove_pup.png",
   "moves": []
 }

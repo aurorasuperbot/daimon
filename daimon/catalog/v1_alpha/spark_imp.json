@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Spark Imp",
-  "flavor": "Faster after the swing than before.",
+  "name": "Oni-Spark",
+  "flavor": "Lesser demon-spark from the iron club; small, but the bruise it leaves is purple-blue.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/spark_imp.png",
   "moves": []
 }

@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Flickerimp",
-  "flavor": "A spite the size of a candle.",
+  "name": "Hinode-Oni Whelp",
+  "flavor": "Dawn-demon young; the first red light is its first appetite.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "KAMI",
   "art": "art/common/flickerimp.png",
   "moves": []
 }

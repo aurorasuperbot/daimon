@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Cloth Sprite",
-  "flavor": "Tears its own gauze for whoever needs the dressing.",
+  "name": "Brownie",
+  "flavor": "Household helper; he patches the cloak in the night and asks no thanks but the milk.",
   "rarity": "common",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/common/cloth_sprite.png",
   "moves": []
 }

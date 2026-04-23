@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Dirgebat",
-  "flavor": "Sings the eulogy; the enemy thins to hear it.",
+  "name": "Onryō-Bat",
+  "flavor": "Vengeful-ghost in bat-form; she remembers the room, she remembers the door, she remembers the name.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "KAMI",
   "art": "art/common/dirgebat.png",
   "moves": []
 }

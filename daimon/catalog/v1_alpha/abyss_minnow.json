@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Abyss Minnow",
-  "flavor": "Smaller things below feed on smaller things still.",
+  "name": "Sobek-Hatchling",
+  "flavor": "Crocodile-god's young; even at this size, the tooth knows the meat.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "NETJER",
   "art": "art/common/abyss_minnow.png",
   "moves": []
 }

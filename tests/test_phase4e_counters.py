@@ -9,7 +9,7 @@ counters for the six strategic archetypes:
     mindroot            VOID     TIDAL          ON_BATTLE_START AoE POISON
     bulwarthog          NATURE   STORMCHAIN     ON_ROUND_START team-DEF stack
     abyss_warden        VOID     REVENANT       ON_BATTLE_START AoE SILENCE
-    stormhare           VOLT     FLUX           ON_OPENING_ATTACK target lowest-HP
+    stormhare           VOLT     SYNCRETIC           ON_OPENING_ATTACK target lowest-HP
 
 Each test mirrors the Phase-3 anchor pattern (see `test_phase3_anchors.py`):
 load the counter via the real catalog loader, build a deterministic loadout
@@ -66,7 +66,7 @@ def _inert_dummy(idx: int, element: Element = Element.NATURE) -> Card:
 
 def solo(card: Card, *, elements: list[Element] | None = None) -> Loadout:
     """Counter at slot 0; dummies fill the rest. `elements` controls the
-    distinct_elements profile of the rest of the team — for FLUX scenarios."""
+    distinct_elements profile of the rest of the team — for SYNCRETIC scenarios."""
     if elements is None:
         elements = [Element.NATURE] * (TEAM_SIZE - 1)
     assert len(elements) == TEAM_SIZE - 1
@@ -269,11 +269,11 @@ class TestAbyssWardenAntiRevenant:
 
 
 # ===========================================================================
-# Anti-FLUX — Stormhare
+# Anti-SYNCRETIC — Stormhare
 # ===========================================================================
 
 class TestStormhareAntiFlux:
-    """Race-burst that kills FLUX squishies before their distinct_elements
+    """Race-burst that kills SYNCRETIC squishies before their distinct_elements
     gates assemble. Two parts:
        (a) ON_OPENING_ATTACK DAMAGE LOWEST_HP_ENEMY 4 — surgical first-hit.
        (b) ON_BATTLE_START BUFF_SPD ALL_ALLIES 1 — whole-team tempo lead.
@@ -290,7 +290,7 @@ class TestStormhareAntiFlux:
         assert "stormhare buffs SPD of _dummy_1 by +1" in round1, round1
 
     def test_opening_attack_targets_lowest_hp_enemy(self):
-        # FLUX-shaped opponent: low-HP catalyst at slot 0 vs sturdier filler.
+        # SYNCRETIC-shaped opponent: low-HP catalyst at slot 0 vs sturdier filler.
         catalyst = Card(
             card_id="catalyst", species="catalyst", element=Element.FIRE,
             atk=4, defense=2, hp=8, spd=2,    # the low-HP target

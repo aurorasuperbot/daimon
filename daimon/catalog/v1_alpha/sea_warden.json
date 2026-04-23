@@ -14,10 +14,11 @@
       "value": 4
     }
   ],
-  "name": "Sea Warden",
-  "flavor": "Lives off the largest of the day's mistakes.",
+  "name": "Karkinos, Deep-Crab",
+  "flavor": "The crab Hera sent against Heracles — crushed underfoot, set in stars, still hungry.",
   "rarity": "uncommon",
   "archetype": "TIDAL",
+  "canon": "OLYMPIAN",
   "art": "art/uncommon/sea_warden.png",
   "moves": []
 }

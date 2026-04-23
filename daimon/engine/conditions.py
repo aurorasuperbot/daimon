@@ -1,7 +1,7 @@
 """Restricted-eval condition DSL for triggers.
 
 Phase 2 (V1 vocab expansion, 2026-04-22): some triggers fire conditionally —
-e.g. FLUX cards require `team.distinct_elements >= 2`, ON_LOW_HP-style cards
+e.g. SYNCRETIC cards require `team.distinct_elements >= 2`, ON_LOW_HP-style cards
 guard on `self.hp < self.hp_max * 0.5`. The condition is a small expression
 language parsed at card-load time; invalid expressions raise during catalog
 load (NEVER mid-match — the engine is deterministic and parse errors break

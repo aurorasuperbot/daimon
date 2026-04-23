@@ -14,13 +14,14 @@
       "value": 1
     }
   ],
-  "name": "Spectral Owl",
-  "flavor": "Hoots once. The room loses heart.",
+  "name": "Nocturnal Ibis",
+  "flavor": "Thoth's night-bird; he reads the stars as letters and the wound as a verse.",
   "rarity": "uncommon",
+  "canon": "NETJER",
   "art": "art/uncommon/spectral_owl.png",
   "moves": [
     {
-      "name": "Soul Glance",
+      "name": "Thoth's Glance",
       "when": "ON_ATTACK"
     }
   ]

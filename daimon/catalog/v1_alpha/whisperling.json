@@ -7,9 +7,10 @@
   "hp": 15,
   "spd": 7,
   "triggers": [],
-  "name": "Whisperling",
-  "flavor": "Speaks only the words you nearly said.",
+  "name": "Moros",
+  "flavor": "Doom-spirit; he murmurs the ending under every beginning.",
   "rarity": "common",
+  "canon": "OLYMPIAN",
   "art": "art/common/whisperling.png",
   "moves": []
 }

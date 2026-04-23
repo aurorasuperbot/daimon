@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Thunderfly",
-  "flavor": "The team buzzes a little louder when it joins.",
+  "name": "Skuld-Mote",
+  "flavor": "A spark off the youngest Norn's loom; what she has woven, the mote already knows.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "AESIR",
   "art": "art/common/thunderfly.png",
   "moves": []
 }

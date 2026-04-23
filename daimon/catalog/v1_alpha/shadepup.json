@@ -7,9 +7,10 @@
   "hp": 16,
   "spd": 6,
   "triggers": [],
-  "name": "Shadepup",
-  "flavor": "Casts no shadow. Is one.",
+  "name": "Shade of Duat",
+  "flavor": "Nameless walker of the underworld; what name he had was weighed and found wanting.",
   "rarity": "common",
+  "canon": "NETJER",
   "art": "art/common/shadepup.png",
   "moves": []
 }

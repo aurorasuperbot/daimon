@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Shadebishop",
-  "flavor": "Reads the obituary; sharpens accordingly.",
+  "name": "Priest of Set",
+  "flavor": "He drinks the falling-of-allies as wine; the red-land god approves the cup.",
   "rarity": "uncommon",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/uncommon/shadebishop.png",
   "moves": []
 }

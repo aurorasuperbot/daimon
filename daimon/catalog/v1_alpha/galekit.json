@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Galekit",
-  "flavor": "The kill is the wind; the next kill is the next wind.",
+  "name": "Shezmu-Whelp",
+  "flavor": "Young of the blood-pressing executioner-god; the cup that he learns to hold is not water.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "NETJER",
   "art": "art/common/galekit.png",
   "moves": []
 }

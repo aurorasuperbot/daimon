@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Surfling",
-  "flavor": "The first wave restores it; the rest are for show.",
+  "name": "Acihuatl Sprite",
+  "flavor": "Water-nymph of the Mexica lakes; she carries the gourd that does not empty.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "TEOTL",
   "art": "art/common/surfling.png",
   "moves": []
 }

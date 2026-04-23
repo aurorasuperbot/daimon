@@ -14,13 +14,14 @@
       "value": 3
     }
   ],
-  "name": "Abysseel",
-  "flavor": "Pressure tempers it. Pain tempers it more.",
+  "name": "Fossegrim",
+  "flavor": "Waterfall-spirit who plays the fiddle; the salmon learn the tune and the boys do not return.",
   "rarity": "uncommon",
+  "canon": "AESIR",
   "art": "art/uncommon/abysseel.png",
   "moves": [
     {
-      "name": "Pressure Shell",
+      "name": "Fossegrim's Coil",
       "when": "ON_TAKE_DAMAGE"
     }
   ]

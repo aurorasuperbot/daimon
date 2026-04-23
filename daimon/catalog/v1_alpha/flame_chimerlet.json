@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Flame Chimerlet",
-  "flavor": "Two heads, two tempers, one shared appetite.",
+  "name": "Xochitonal Whelp",
+  "flavor": "Flower-fire spirit's young; the bloom and the spark are the same gesture, just younger.",
   "rarity": "common",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/common/flame_chimerlet.png",
   "moves": []
 }

@@ -30,22 +30,23 @@
     }
   ],
   "rule_change": "L6",
-  "name": "World-Eater",
-  "flavor": "It does not hate the world. It is merely hungry, and the world is here.",
+  "name": "Tezcatlipoca, Smoking Mirror",
+  "flavor": "Night-jaguar primordial; the mirror smokes and the world is here, and the world is here.",
   "rarity": "legendary",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/legendary/world_eater.png",
   "moves": [
     {
-      "name": "Many-Hued Roar",
+      "name": "Mirror's Roar",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Spectral Maw",
+      "name": "Night-Jaguar Maw",
       "when": "ON_ATTACK"
     },
     {
-      "name": "World-Devouring",
+      "name": "Smoking-Mirror Devouring",
       "when": "ON_BATTLE_START"
     }
   ]

@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Cinderhound",
-  "flavor": "Pain is a perfectly good reason to bite harder.",
+  "name": "Garmr-Whelp",
+  "flavor": "Fire-eyed pup of the hellhound-line; the ember in the eye outlasts the hand that strikes it.",
   "rarity": "uncommon",
+  "canon": "AESIR",
   "art": "art/uncommon/cinderhound.png",
   "moves": [
     {
-      "name": "Pain Bond",
+      "name": "Ember-Eyed Bond",
       "when": "ON_TAKE_DAMAGE"
     }
   ]

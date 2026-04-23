@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Stormpup",
-  "flavor": "Born during the squall; never quite calmed.",
+  "name": "Fūjin Pup",
+  "flavor": "Wind-god's young; the bag at his back is small, but the wind in it is the same wind.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/stormpup.png",
   "moves": []
 }

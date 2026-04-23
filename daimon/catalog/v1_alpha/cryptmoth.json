@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Cryptmoth",
-  "flavor": "Eats the grief; spits the chill.",
+  "name": "Scarab-Moth",
+  "flavor": "Psychopomp moth of the necropolis; the wing-dust marks the path the soul forgets.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/common/cryptmoth.png",
   "moves": []
 }

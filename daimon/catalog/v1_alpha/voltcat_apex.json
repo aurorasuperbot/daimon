@@ -20,17 +20,18 @@
       "value": 4
     }
   ],
-  "name": "Voltcat Apex",
-  "flavor": "First strike, second strike, third strike — all the same instant.",
+  "name": "Valravn",
+  "flavor": "The raven who ate a king's heart and learned to walk as a wolf in the storm.",
   "rarity": "rare",
+  "canon": "AESIR",
   "art": "art/rare/voltcat_apex.png",
   "moves": [
     {
-      "name": "Plasma Lance",
+      "name": "Raven-Wolf's Lance",
       "when": "ON_ATTACK"
     },
     {
-      "name": "Thunderstep",
+      "name": "Storm-Walking Stride",
       "when": "ON_BATTLE_START"
     }
   ]

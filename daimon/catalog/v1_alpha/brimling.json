@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Brimling",
-  "flavor": "Its first breath is the one to remember.",
+  "name": "Eldjötunn Whelp",
+  "flavor": "Young of the fire-giants; small still, but the cradle scorches the rock.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "AESIR",
   "art": "art/common/brimling.png",
   "moves": []
 }

@@ -15,10 +15,11 @@
       "condition": "round >= 2"
     }
   ],
-  "name": "Tide Chanter",
-  "flavor": "Patient with the pain; insistent with the song.",
+  "name": "Siren of Anthemoessa",
+  "flavor": "On the meadow-isle she sings; the rowers turn, and the rowers do not return.",
   "rarity": "uncommon",
   "archetype": "TIDAL",
+  "canon": "OLYMPIAN",
   "art": "art/uncommon/tide_chanter.png",
   "moves": []
 }

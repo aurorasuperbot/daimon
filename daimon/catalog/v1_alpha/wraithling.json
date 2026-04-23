@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Wraithling",
-  "flavor": "A small death that splashes outward.",
+  "name": "Ushabti",
+  "flavor": "Tomb-servant figurine; called by name, he rises and labors in the field of reeds.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/common/wraithling.png",
   "moves": []
 }

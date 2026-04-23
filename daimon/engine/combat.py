@@ -91,10 +91,10 @@ _MUT_L2 = "L2"   # worldroot_sentinel — every ally has THORNS 2
 _MUT_L3 = "L3"   # tide_empress — every heal trickles +1 to all allies
 _MUT_L4 = "L4"   # tempest_apex — extra-action cap raised 1→2
 _MUT_L5 = "L5"   # voidking_morr — ON_ALLY_DEATH triggers fire ×2
-_MUT_L6 = "L6"   # world_eater — team.distinct_elements +2 for FLUX cards
+_MUT_L6 = "L6"   # world_eater — team.distinct_elements +2 for SYNCRETIC cards
 _MUT_L2_THORNS_BONUS = 2  # bonus thorns added to every ally under L2
 _MUT_L3_TRICKLE = 1       # silent +1 heal to every other ally per heal event
-_MUT_L6_DISTINCT_BONUS = 2  # +2 to team.distinct_elements read for FLUX cards
+_MUT_L6_DISTINCT_BONUS = 2  # +2 to team.distinct_elements read for SYNCRETIC cards
 
 # Cached compile of trigger conditions. Conditions are short DSL strings whose
 # parse cost is non-trivial relative to fire frequency; cache by string identity
@@ -973,13 +973,14 @@ def _build_condition_ctx(
     round_number: int,
 ) -> Dict[str, Any]:
     # Phase 4f-engine: L6 (`world_eater`) mutation. If `world_eater` is alive on
-    # the unit's team AND the unit is a FLUX card, the team.distinct_elements
+    # the unit's team AND the unit is a SYNCRETIC card, the team.distinct_elements
     # value the DSL sees is bumped by +2 (charter §22.2 L6). Scope is narrow on
-    # purpose — only FLUX cards' condition gates see the bonus, so the mutation
-    # supercharges FLUX deckbuilding specifically (per §22.2 L6 lock-text).
+    # purpose — only SYNCRETIC cards' condition gates see the bonus, so the
+    # mutation supercharges SYNCRETIC deckbuilding specifically (per §22.2 L6).
+    # (Renamed FLUX → SYNCRETIC 2026-04-23 with the mythology pivot.)
     distinct = len({int(u.card.element) for u in allies if u.alive})
     if (
-        unit.card.archetype == "FLUX"
+        unit.card.archetype == "SYNCRETIC"
         and _team_has_mutation(allies, _MUT_L6)
     ):
         distinct += _MUT_L6_DISTINCT_BONUS

@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Moss Cat",
-  "flavor": "Purrs in chlorophyll.",
+  "name": "Maneki-Neko Kit",
+  "flavor": "Beckoning-cat young; the small paw lifts, and the morning comes well to the household.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "KAMI",
   "art": "art/common/mosscat.png",
   "moves": []
 }

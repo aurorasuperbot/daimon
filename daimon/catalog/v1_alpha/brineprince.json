@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Brineprince",
-  "flavor": "Drinks salt like wine; every wound is a vintage.",
+  "name": "Namazu Lord",
+  "flavor": "Catfish under the islands; when the keystone slips, the rooftiles remember.",
   "rarity": "uncommon",
   "archetype": "TIDAL",
+  "canon": "KAMI",
   "art": "art/uncommon/brineprince.png",
   "moves": []
 }

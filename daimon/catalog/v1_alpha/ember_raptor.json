@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Ember Raptor",
-  "flavor": "Dives once at the start; the rest is bookkeeping.",
+  "name": "Karura Adept",
+  "flavor": "Grown into the wind-fire; he hunts the dragon now, not the snake.",
   "rarity": "uncommon",
   "archetype": "INFERNO",
+  "canon": "KAMI",
   "art": "art/uncommon/ember_raptor.png",
   "moves": []
 }

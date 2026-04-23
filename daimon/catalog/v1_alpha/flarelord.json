@@ -14,10 +14,11 @@
       "value": 4
     }
   ],
-  "name": "Flarelord",
-  "flavor": "Walks in like a daybreak. Leaves like a noon.",
+  "name": "Surtr",
+  "flavor": "Fire comes from the south; Surtr the flame-wreathed bears a sword brighter than the sun.",
   "rarity": "uncommon",
   "archetype": "INFERNO",
+  "canon": "AESIR",
   "art": "art/uncommon/flarelord.png",
   "moves": []
 }

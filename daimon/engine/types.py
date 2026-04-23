@@ -183,13 +183,33 @@ RULE_CHANGE_IDS: tuple[str, ...] = ("L1", "L2", "L3", "L4", "L5", "L6")
 
 # Strategic-archetype tags (charter §3). The engine treats archetype as
 # metadata almost everywhere — soft-priority cluster model per §2.0 — but the
-# L6 mutation (`world_eater`) needs to know which cards are FLUX at fire-time
-# to scope its `team.distinct_elements +2` effect (charter §22.2 L6). So the
-# field is engine-visible but engine-INERT for everything except L6 dispatch.
-# `None` is the legitimate default: commons + uncommons inherit archetype from
-# their evolution-line parent at the docs level (§23.2) but carry no JSON tag.
+# L6 mutation (`world_eater`) needs to know which cards are SYNCRETIC at
+# fire-time to scope its `team.distinct_elements +2` effect (charter §22.2 L6).
+# So the field is engine-visible but engine-INERT for everything except L6
+# dispatch. `None` is the legitimate default: commons + uncommons inherit
+# archetype from their evolution-line parent at the docs level (§23.2) but
+# carry no JSON tag.
+#
+# 2026-04-23: `FLUX` renamed to `SYNCRETIC` as part of the mythology pivot.
+# Mechanically identical — the rename reflects that hybrid-archetype cards are
+# the cross-pantheon thunder/death/trickster gods (Zeus+Thor+Raijin+Tlaloc),
+# which is the theological concept of syncretism. See docs/canon_mapping.md.
 ARCHETYPE_IDS: tuple[str, ...] = (
-    "INFERNO", "BULWARK", "TIDAL", "STORMCHAIN", "REVENANT", "FLUX",
+    "INFERNO", "BULWARK", "TIDAL", "STORMCHAIN", "REVENANT", "SYNCRETIC",
+)
+
+
+# Lore Canon tags (mythology pivot, 2026-04-23 — see docs/canon_mapping.md).
+# CANON is engine-INERT — no op reads it. It exists purely to:
+#   (a) gate display-layer choices (art directory, name index, lore text)
+#   (b) enable agentic queries like "show me all Olympian cards"
+#   (c) document the syncretism story (a SYNCRETIC card is drawn from one of
+#       the 5 mythology Canons; APOCRYPHA = the "nowhere folk" bucket for
+#       universal-folklore creatures untied to any pantheon)
+# Every Canon spans every element. Canon × Element × Archetype are orthogonal.
+# `None` is the legitimate default for legacy cards loaded before the rename.
+CANON_IDS: tuple[str, ...] = (
+    "OLYMPIAN", "AESIR", "NETJER", "KAMI", "TEOTL", "APOCRYPHA",
 )
 
 
@@ -212,9 +232,12 @@ class Card:
     rule_change: Optional[str] = None
     # Phase 4f-engine addition (charter §22.2 L6): strategic-archetype tag.
     # Engine-INERT for L1–L5 (those mutations don't read it). The L6 dispatcher
-    # (`world_eater`) reads it to scope the +2 distinct-elements bonus to FLUX
-    # cards only. Validated at load-time against ARCHETYPE_IDS.
+    # (`world_eater`) reads it to scope the +2 distinct-elements bonus to
+    # SYNCRETIC cards only. Validated at load-time against ARCHETYPE_IDS.
     archetype: Optional[str] = None
+    # Mythology pivot 2026-04-23: lore Canon tag (engine-INERT).
+    # See CANON_IDS comment above. Validated at load-time when present.
+    canon: Optional[str] = None
 
     def __post_init__(self) -> None:
         for v, name in [(self.atk, "atk"), (self.defense, "def"),
@@ -234,6 +257,11 @@ class Card:
             raise ValueError(
                 f"Card.archetype={self.archetype!r} invalid; "
                 f"expected one of: {ARCHETYPE_IDS}"
+            )
+        if self.canon is not None and self.canon not in CANON_IDS:
+            raise ValueError(
+                f"Card.canon={self.canon!r} invalid; "
+                f"expected one of: {CANON_IDS}"
             )
 
 

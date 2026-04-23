@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Shade Prismatic",
-  "flavor": "Refracts what the team doesn't need into the eyes that face it.",
+  "name": "Yōkai Chorus",
+  "flavor": "Many spirits, one voice; the night-procession becomes a single agreed song.",
   "rarity": "uncommon",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "KAMI",
   "art": "art/uncommon/shade_prismatic.png",
   "moves": []
 }

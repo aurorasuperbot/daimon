@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Tidefry",
-  "flavor": "Rolls in with the morning current.",
+  "name": "Ra-Barque Pilotfish",
+  "flavor": "Escort-fish to the solar boat; he swims before the dawn and never tires.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "NETJER",
   "art": "art/common/tidefry.png",
   "moves": []
 }

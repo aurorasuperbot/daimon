@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Tide Imp",
-  "flavor": "Picks the easiest cup to drink from.",
+  "name": "Rán-Maiden",
+  "flavor": "Daughter of the net-queen; she counts the drowned by their belt-buckles.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "AESIR",
   "art": "art/common/tide_imp.png",
   "moves": []
 }

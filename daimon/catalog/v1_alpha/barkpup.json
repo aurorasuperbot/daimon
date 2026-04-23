@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Barkpup",
-  "flavor": "Hardens at the first whiff of trouble.",
+  "name": "Skogsrå Pup",
+  "flavor": "Forest-warden's young; the bark grows over the wound while the pup still nurses.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "AESIR",
   "art": "art/common/barkpup.png",
   "moves": []
 }

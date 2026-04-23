@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Ironseed",
-  "flavor": "Roots first; lets everything else grow around it.",
+  "name": "Acorn of Yggdrasil",
+  "flavor": "A seed-shard of the world-ash; from such a thing the nine realms once grew.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "AESIR",
   "art": "art/common/ironseed.png",
   "moves": []
 }

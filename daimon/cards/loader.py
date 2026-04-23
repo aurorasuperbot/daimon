@@ -38,6 +38,16 @@ Card JSON schema (V2 — monster pivot):
   // identity; triggers = secondary effects within global rules).
   "rule_change": "L1|L2|L3|L4|L5|L6",  // optional, only meaningful at legendary tier
 
+  // Phase 4f-engine: strategic-archetype tag (charter §22.2 L6).
+  // Engine-INERT for L1–L5; the L6 dispatcher reads it to scope the
+  // distinct-elements bonus to SYNCRETIC cards. Validated against
+  // ARCHETYPE_IDS in engine/types.py.
+  "archetype": "INFERNO|BULWARK|TIDAL|STORMCHAIN|REVENANT|SYNCRETIC",  // optional
+
+  // Mythology pivot 2026-04-23: lore Canon tag (engine-INERT).
+  // Validated against CANON_IDS in engine/types.py.
+  "canon": "OLYMPIAN|AESIR|NETJER|KAMI|TEOTL|APOCRYPHA",  // optional
+
   // Render-only fields (NEVER read by engine):
   "name":   "string",
   "flavor": "string",
@@ -61,6 +71,7 @@ from typing import Any, Dict, Optional
 from daimon.engine.conditions import ConditionError, parse as parse_condition
 from daimon.engine.types import (
     ARCHETYPE_IDS,
+    CANON_IDS,
     Card,
     EffectOp,
     Element,
@@ -211,6 +222,23 @@ def load_card_dict(d: Dict[str, Any]) -> Card:
             )
         archetype = archetype_raw
 
+    # Mythology pivot 2026-04-23: optional canon tag — engine-INERT (no op
+    # reads it). Pure lore bucket per docs/canon_mapping.md. None is OK for
+    # legacy cards loaded before the mapping was applied.
+    canon_raw = d.get("canon")
+    canon: Optional[str] = None
+    if canon_raw is not None:
+        if not isinstance(canon_raw, str):
+            raise ValueError(
+                f"canon must be string, got {type(canon_raw).__name__}"
+            )
+        if canon_raw not in CANON_IDS:
+            raise ValueError(
+                f"canon={canon_raw!r} invalid; "
+                f"expected one of: {CANON_IDS}"
+            )
+        canon = canon_raw
+
     return Card(
         card_id=card_id,
         species=species,
@@ -222,6 +250,7 @@ def load_card_dict(d: Dict[str, Any]) -> Card:
         triggers=triggers,
         rule_change=rule_change,
         archetype=archetype,
+        canon=canon,
     )
 
 

@@ -7,9 +7,10 @@
   "hp": 14,
   "spd": 9,
   "triggers": [],
-  "name": "Sparkling",
-  "flavor": "A held breath, plus current.",
+  "name": "Will-o'-Wisp",
+  "flavor": "Swamp-light folk-spirit; follow it home and you will not arrive at the home you meant.",
   "rarity": "common",
+  "canon": "APOCRYPHA",
   "art": "art/common/sparkling.png",
   "moves": []
 }

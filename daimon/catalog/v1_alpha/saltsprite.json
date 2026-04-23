@@ -15,10 +15,11 @@
       "condition": "round >= 2"
     }
   ],
-  "name": "Saltsprite",
-  "flavor": "Patient with the wound; impatient with the bleeding.",
+  "name": "Meermin",
+  "flavor": "Salt-spray sprite of the longship's wake; small, but the cold remembers her.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "AESIR",
   "art": "art/common/saltsprite.png",
   "moves": []
 }

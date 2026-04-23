@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Bramble Warden",
-  "flavor": "Sets the briar before the song of the first arrow.",
+  "name": "Thyrsus-Bearer",
+  "flavor": "Thorn-staffed druid of the cold groves; the briar answers to the staff's tap.",
   "rarity": "uncommon",
   "archetype": "BULWARK",
+  "canon": "AESIR",
   "art": "art/uncommon/bramble_warden.png",
   "moves": []
 }

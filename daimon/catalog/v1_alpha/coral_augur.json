@@ -21,18 +21,19 @@
       "value": 3
     }
   ],
-  "name": "Coral Augur",
-  "flavor": "Reads the fate of the reef in the pattern of held breath.",
+  "name": "Scylla, Reef-Witch",
+  "flavor": "Twelve-voiced oracle of the strait — she names the drowned before the wave is done.",
   "rarity": "epic",
   "archetype": "TIDAL",
+  "canon": "OLYMPIAN",
   "art": "art/epic/coral_augur.png",
   "moves": [
     {
-      "name": "Pristine Tide",
+      "name": "Pristine Reef-Song",
       "when": "ON_ATTACK"
     },
     {
-      "name": "Tidewarded",
+      "name": "Twelvefold Ward",
       "when": "ON_HEAL_RECEIVED"
     }
   ]

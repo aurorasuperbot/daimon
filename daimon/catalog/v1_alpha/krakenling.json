@@ -15,9 +15,10 @@
     }
   ],
   "name": "Krakenling",
-  "flavor": "Eight tantrums in a child-sized package.",
+  "flavor": "Born in the trench, learning already the weight of the Aegean above.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "OLYMPIAN",
   "art": "art/common/krakenling.png",
   "moves": []
 }

@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Wrought Bear",
-  "flavor": "The first hit only convinces it to stand farther forward.",
+  "name": "Iron-Tongued Bear",
+  "flavor": "Bear-spirit of the parish; he speaks once a year and the village writes it down.",
   "rarity": "uncommon",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/uncommon/wrought_bear.png",
   "moves": []
 }

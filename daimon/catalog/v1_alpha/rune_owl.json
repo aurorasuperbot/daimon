@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Rune Owl",
-  "flavor": "Reads the air as if it were a clock; the team learns the hour.",
+  "name": "Soothsayer Owl",
+  "flavor": "Hedge-witch's familiar; she reads the barley-stalk and the barley-stalk reads her back.",
   "rarity": "uncommon",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/uncommon/rune_owl.png",
   "moves": []
 }

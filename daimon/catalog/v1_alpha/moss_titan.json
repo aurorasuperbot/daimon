@@ -20,17 +20,18 @@
       "value": 1
     }
   ],
-  "name": "Moss Titan",
-  "flavor": "Older than the trail. Older than the trail-makers.",
+  "name": "Jötunn of Jotunheim",
+  "flavor": "Stone-and-rime giant of the eastern realm; the mountain walks and the snow follows.",
   "rarity": "rare",
+  "canon": "AESIR",
   "art": "art/rare/moss_titan.png",
   "moves": [
     {
-      "name": "Bedrock Stance",
+      "name": "Bedrock of Jotunheim",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Patient Bark",
+      "name": "Patience of the Cold",
       "when": "ON_TAKE_DAMAGE"
     }
   ]

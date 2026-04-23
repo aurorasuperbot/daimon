@@ -20,17 +20,18 @@
       "value": 4
     }
   ],
-  "name": "Inferno Lynx",
-  "flavor": "Strikes leave heat-shimmer where the body used to be.",
+  "name": "Chimaera",
+  "flavor": "Lion-fronted, goat-spined, serpent-tailed — and burning at every seam.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/inferno_lynx.png",
   "moves": [
     {
-      "name": "Quickflame",
+      "name": "Triform Sprint",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Searing Pounce",
+      "name": "Three-Mouthed Pounce",
       "when": "ON_ATTACK"
     }
   ]

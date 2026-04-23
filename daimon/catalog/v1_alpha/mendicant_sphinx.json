@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Mendicant Sphinx",
-  "flavor": "Asks no riddle; gives only the answer the wounded needed.",
+  "name": "Crossroads Sphinx",
+  "flavor": "Riddleless sphinx of the highway; he asks the price of bread and lets you pass.",
   "rarity": "uncommon",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/uncommon/mendicant_sphinx.png",
   "moves": []
 }

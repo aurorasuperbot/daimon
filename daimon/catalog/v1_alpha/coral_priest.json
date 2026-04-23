@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Coral Priest",
-  "flavor": "Bites once for the fight; once for the friend.",
+  "name": "Nereid Priestess",
+  "flavor": "Daughter of Nereus, she sings the salt into wounds and the wounds into salt.",
   "rarity": "uncommon",
   "archetype": "TIDAL",
+  "canon": "OLYMPIAN",
   "art": "art/uncommon/coral_priest.png",
   "moves": []
 }

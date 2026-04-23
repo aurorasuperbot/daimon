@@ -20,17 +20,18 @@
       "value": 3
     }
   ],
-  "name": "Mindroot",
-  "flavor": "Even the clean spring forgets itself.",
+  "name": "Mandragora of Kokytos",
+  "flavor": "Pulled from the wailing river — its scream poisons the ear and the year that hears it.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/mindroot.png",
   "moves": [
     {
-      "name": "Tainted Spring",
+      "name": "Wailing-River Spring",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Closer's Whisper",
+      "name": "Mandrake-Scream",
       "when": "ON_ATTACK"
     }
   ]

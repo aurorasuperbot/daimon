@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Page Slime",
-  "flavor": "Reads the cuts as marginalia and erases them at leisure.",
+  "name": "Marginalia",
+  "flavor": "Book-margin spirit; he writes a small hand in the white space and the wound forgets the page.",
   "rarity": "common",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/common/page_slime.png",
   "moves": []
 }

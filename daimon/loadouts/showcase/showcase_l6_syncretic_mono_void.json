@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l6_syncretic_mono_void",
+  "name": "L6 — World Eater Mono-Void",
+  "demonstrates": "L6",
+  "flavor": "One element, but he counts in tongues no one hears.",
+  "description": "Mono-VOID team built around world_eater — the L6 paradox showcase. Without the L6 mutation, a mono-element team has team.distinct_elements=1, so every SYNCRETIC gate (≥ 2 distinct, ≥ 3 distinct, ≥ 4 distinct) would fire on nothing. With L6 active (charter §22.2 L6), SYNCRETIC cards on world_eater's team see effective distinct_elements = 1 + 2 = 3, which UNLOCKS the ≥2 gate (BUFF_ATK on void_chimera/void_chimerlet, DEBUFF_ATK on shade_prismatic/shadeprism) and the ≥3 gate (world_eater's own ON_ATTACK DAMAGE). The ≥4 gate stays gated — L6 doesn't make a mono team rainbow, just enough rainbow for the lower gates. dread_warden is a non-SYNCRETIC REVENANT VOID anchor that doesn't depend on the mutation but rounds out the team's debuff pressure.",
+  "loadout": [
+    "world_eater",
+    "void_chimera",
+    "void_chimerlet",
+    "shade_prismatic",
+    "shadeprism",
+    "dread_warden"
+  ]
+}

@@ -117,7 +117,7 @@ def _solo_loadout(card: Card) -> Loadout:
 # ---------------------------------------------------------------------------
 # Synthetic helpers for the rich scenarios — carefully constructed test
 # fixtures, NOT catalog cards. Element diversity is deliberate to satisfy
-# `team.distinct_elements >= 2/3` conditions on FLUX/RAINBOW cards.
+# `team.distinct_elements >= 2/3` conditions on SYNCRETIC/RAINBOW cards.
 # ---------------------------------------------------------------------------
 
 

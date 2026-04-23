@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Shadowpup",
-  "flavor": "Falls — and so does the menace of those who watched.",
+  "name": "Garm's Pup",
+  "flavor": "Hellhound's young; the chain is short still, but the howl is already true.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "AESIR",
   "art": "art/common/shadowpup.png",
   "moves": []
 }

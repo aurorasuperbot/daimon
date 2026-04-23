@@ -7,9 +7,15 @@
   "hp": 30,
   "spd": 3,
   "triggers": [],
-  "name": "Iron Boar",
-  "flavor": "Hold the line.",
+  "name": "Gullinbursti",
+  "flavor": "Freyr's golden-bristled boar; the bristles light the night-road, the tusks open the morning.",
   "rarity": "common",
+  "canon": "AESIR",
   "art": "art/common/iron_boar.png",
-  "moves": [{"name": "Plated Charge", "when": "ON_ATTACK"}]
+  "moves": [
+    {
+      "name": "Golden-Bristled Charge",
+      "when": "ON_ATTACK"
+    }
+  ]
 }

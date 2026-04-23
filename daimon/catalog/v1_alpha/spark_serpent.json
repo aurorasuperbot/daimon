@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Spark Serpent",
-  "flavor": "Each strike sharpens the line of the next.",
+  "name": "Lyngorm",
+  "flavor": "Heath-serpent of the Norse fen; lightning answers when his coil drinks the cloud.",
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
+  "canon": "AESIR",
   "art": "art/uncommon/spark_serpent.png",
   "moves": []
 }

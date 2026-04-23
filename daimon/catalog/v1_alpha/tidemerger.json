@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Tidemerger",
-  "flavor": "Borrows menace from any element kept nearby.",
+  "name": "Mizu-no-Yōkai Jr.",
+  "flavor": "Young water-spirit of confluences; he learns where two rivers become a third name.",
   "rarity": "common",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "KAMI",
   "art": "art/common/tidemerger.png",
   "moves": []
 }

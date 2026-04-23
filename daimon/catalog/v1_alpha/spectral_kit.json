@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Spectral Kit",
-  "flavor": "Leaves a chill in the corner of someone's lung.",
+  "name": "Serket-Kit",
+  "flavor": "Scorpion-goddess's young; the tail is small still, but the venom is the venom of Serket.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/common/spectral_kit.png",
   "moves": []
 }

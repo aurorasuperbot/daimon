@@ -20,10 +20,11 @@
       "value": 3
     }
   ],
-  "name": "Aegis Lion",
-  "flavor": "A king of nothing but the line behind him.",
+  "name": "Nemean Wanderer",
+  "flavor": "Lion of no temple; he keeps the crossroads, and the road keeps him, and that is enough.",
   "rarity": "rare",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/rare/aegis_lion.png",
   "moves": []
 }

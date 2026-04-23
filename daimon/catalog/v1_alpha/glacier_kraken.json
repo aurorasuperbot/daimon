@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Glacier Kraken",
-  "flavor": "Carves shelter out of the storm itself.",
+  "name": "Kraken of Aegaeon",
+  "flavor": "Frost-bound cousin of the deep-kraken; even its silence cracks the hull.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/glacier_kraken.png",
   "moves": [
     {
-      "name": "Iceflow Bulwark",
+      "name": "Bulwark of Aegaeon",
       "when": "ON_ROUND_START"
     }
   ]

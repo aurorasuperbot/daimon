@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Mist Chimera",
-  "flavor": "Three throats, one mercy — when the team isn't already alone.",
+  "name": "Tlaloc's Mist",
+  "flavor": "Vaporous envoy of the rain-god; the mist is the message, the mist is the rain to come.",
   "rarity": "common",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/common/mistchimera.png",
   "moves": []
 }

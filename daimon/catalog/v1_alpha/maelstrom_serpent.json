@@ -20,17 +20,18 @@
       "value": 3
     }
   ],
-  "name": "Maelstrom Serpent",
-  "flavor": "The whirlpool eats the wall.",
+  "name": "Charybdis",
+  "flavor": "Thrice-daily she gulps the strait; thrice-daily the keels splinter in her throat.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/maelstrom_serpent.png",
   "moves": [
     {
-      "name": "Hull-Crack",
+      "name": "Hull-Splitter",
       "when": "ON_OPENING_ATTACK"
     },
     {
-      "name": "Spiral Lash",
+      "name": "Whirlpool Lash",
       "when": "ON_ATTACK"
     }
   ]

@@ -7,9 +7,10 @@
   "hp": 15,
   "spd": 6,
   "triggers": [],
-  "name": "Emberpup",
-  "flavor": "Born from the last coal of a forgotten hearth.",
+  "name": "Ocelocoyotl Pup",
+  "flavor": "Jaguar-coyote hybrid pup; the bite is the jaguar's, the laugh is the coyote's.",
   "rarity": "common",
+  "canon": "TEOTL",
   "art": "art/common/emberpup.png",
   "moves": []
 }

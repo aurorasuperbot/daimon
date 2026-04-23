@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Crypt Seer",
-  "flavor": "Reads the team's losses to the enemy's grip.",
+  "name": "Völva",
+  "flavor": "Seeress of the staff and the trance; she names the fallen before the funeral fire.",
   "rarity": "uncommon",
   "archetype": "REVENANT",
+  "canon": "AESIR",
   "art": "art/uncommon/crypt_seer.png",
   "moves": []
 }

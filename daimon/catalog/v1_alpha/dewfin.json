@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Dewfin",
-  "flavor": "Ends every move a little newer than it began.",
+  "name": "Brunnmigi",
+  "flavor": "Spring-fouler of the homestead; the well goes sour where his shadow has crossed.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "AESIR",
   "art": "art/common/dewfin.png",
   "moves": []
 }

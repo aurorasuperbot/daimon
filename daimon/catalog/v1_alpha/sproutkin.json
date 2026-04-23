@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Sproutkin",
-  "flavor": "Roots that drink the blow and grow on it.",
+  "name": "Vaetter Sapling",
+  "flavor": "Land-wight in seedling form; small, but the soil already knows its name.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "AESIR",
   "art": "art/common/sproutkin.png",
   "moves": []
 }

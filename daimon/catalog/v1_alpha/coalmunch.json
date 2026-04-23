@@ -7,9 +7,10 @@
   "hp": 20,
   "spd": 4,
   "triggers": [],
-  "name": "Coalmunch",
-  "flavor": "Eats the embers it cannot light.",
+  "name": "Okuribi",
+  "flavor": "Sending-fire that follows travelers; bow once, and it goes home with the polite.",
   "rarity": "common",
+  "canon": "KAMI",
   "art": "art/common/coalmunch.png",
   "moves": []
 }

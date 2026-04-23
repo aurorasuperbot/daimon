@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Cinder Serpent",
-  "flavor": "Coils through smoke; strikes from heat-haze.",
+  "name": "Apep Hatchling",
+  "flavor": "Chaos-serpent's young; in the night-hours he learns the swallowing of the sun.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "NETJER",
   "art": "art/common/cinder_serpent.png",
   "moves": []
 }

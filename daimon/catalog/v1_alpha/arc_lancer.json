@@ -14,10 +14,11 @@
       "value": 5
     }
   ],
-  "name": "Arc Lancer",
-  "flavor": "Picks the soft spark; turns it into a dim one.",
+  "name": "Set Initiate",
+  "flavor": "Servant of the red-land lord; he carries the storm under the skin like a scar.",
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
+  "canon": "NETJER",
   "art": "art/uncommon/arc_lancer.png",
   "moves": []
 }

@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Silent Moth",
-  "flavor": "Folds the loudest enemy into a smaller voice.",
+  "name": "Hypocephalus Moth",
+  "flavor": "Amulet-moth of silent passage; she lays the disk beneath the head of the dead.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/common/silentmoth.png",
   "moves": []
 }

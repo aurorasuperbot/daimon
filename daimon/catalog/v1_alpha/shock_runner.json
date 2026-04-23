@@ -14,10 +14,11 @@
       "value": 1
     }
   ],
-  "name": "Shock Runner",
-  "flavor": "Each kill is a tailwind for everyone behind.",
+  "name": "Raijin Drumroller",
+  "flavor": "Thunder-god's drum-beater; the cadence is the thunder, the thunder is the cadence.",
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/uncommon/shock_runner.png",
   "moves": []
 }

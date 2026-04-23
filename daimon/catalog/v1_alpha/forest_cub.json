@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Forest Cub",
-  "flavor": "Sleeps it off, even between blows.",
+  "name": "Bjarn Cub",
+  "flavor": "Bear-cub of the northern wood; soon enough the stride will match the father's.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "AESIR",
   "art": "art/common/forest_cub.png",
   "moves": []
 }

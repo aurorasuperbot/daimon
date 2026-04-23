@@ -20,17 +20,18 @@
       "value": 2
     }
   ],
-  "name": "Arc Serpent",
-  "flavor": "Coils between heartbeats.",
+  "name": "Python of Delphi",
+  "flavor": "The first oracle was a serpent at the navel-stone; the lightning is its modern tongue.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/arc_serpent.png",
   "moves": [
     {
-      "name": "Coil & Conduct",
+      "name": "Coil at the Omphalos",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Arc Lash",
+      "name": "Oracle's Lash",
       "when": "ON_ATTACK"
     }
   ]

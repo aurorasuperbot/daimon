@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Ghostfin",
-  "flavor": "Bites cold; stays cold.",
+  "name": "Oxyrhynchus",
+  "flavor": "Sacred Nile-fish that ate the lost piece of Osiris; what it tasted, it remembers as venom.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/common/ghostfin.png",
   "moves": []
 }

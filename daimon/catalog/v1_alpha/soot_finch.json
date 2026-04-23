@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Soot Finch",
-  "flavor": "Sings the kettle into boiling.",
+  "name": "Tototl-Warrior",
+  "flavor": "Bird-warrior of the codex-fields; the war-cry is the song, the song is the cry.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "TEOTL",
   "art": "art/common/soot_finch.png",
   "moves": []
 }

@@ -7,9 +7,10 @@
   "hp": 15,
   "spd": 10,
   "triggers": [],
-  "name": "Charge Chick",
-  "flavor": "Hatches faster than its shell.",
+  "name": "Hummingbird of Huitzilopochtli",
+  "flavor": "Sacred warrior-hummingbird; the small beak drinks the small heart and asks for the next.",
   "rarity": "common",
+  "canon": "TEOTL",
   "art": "art/common/charge_chick.png",
   "moves": []
 }

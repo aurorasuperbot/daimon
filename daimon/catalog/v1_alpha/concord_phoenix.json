@@ -20,10 +20,11 @@
       "value": 4
     }
   ],
-  "name": "Concord Phoenix",
-  "flavor": "Doesn't burn for any element; burns FOR every element.",
+  "name": "The First Ancestor",
+  "flavor": "The eldest of the village dead; bless the field and the new-fallen step into the line.",
   "rarity": "epic",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/epic/concord_phoenix.png",
   "moves": []
 }

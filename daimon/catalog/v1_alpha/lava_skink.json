@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Lava Skink",
-  "flavor": "Strike it; it leaves embers under your fingernails.",
+  "name": "Wadjet Skink",
+  "flavor": "Cobra-shaped, sun-warmed; the uraeus rises from the brow when the king wakes.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "NETJER",
   "art": "art/common/lava_skink.png",
   "moves": []
 }

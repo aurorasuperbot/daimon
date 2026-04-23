@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Voltsprite",
-  "flavor": "Hands out the second-fastest grin in the room.",
+  "name": "Ratatoskr",
+  "flavor": "Squirrel of the world-ash; he carries insults up the trunk and curses back down.",
   "rarity": "uncommon",
+  "canon": "AESIR",
   "art": "art/uncommon/voltsprite.png",
   "moves": [
     {
-      "name": "Quicken All",
+      "name": "Trunk-Running Tongue",
       "when": "ON_BATTLE_START"
     }
   ]

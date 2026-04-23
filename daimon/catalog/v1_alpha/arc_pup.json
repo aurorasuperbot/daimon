@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Arc Pup",
-  "flavor": "Always finds the weakest spark.",
+  "name": "Raiju Cub",
+  "flavor": "Thunder-wolf juvenile; the play-bite already crackles.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/arc_pup.png",
   "moves": []
 }

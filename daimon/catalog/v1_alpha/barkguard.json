@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Barkguard",
-  "flavor": "Hardens before the first axe is even named.",
+  "name": "Skogsrå Warden",
+  "flavor": "Grown into the grove; the trees bend where she walks, and the bear gives way.",
   "rarity": "uncommon",
   "archetype": "BULWARK",
+  "canon": "AESIR",
   "art": "art/uncommon/barkguard.png",
   "moves": []
 }

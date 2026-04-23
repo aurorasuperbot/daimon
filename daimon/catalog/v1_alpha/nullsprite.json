@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Nullsprite",
-  "flavor": "Steals a finger of strength with every brush.",
+  "name": "Mictlan-Wisp",
+  "flavor": "Wisp of the nine-layered underworld; she lights the fourth river and the fourth river only.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "TEOTL",
   "art": "art/common/nullsprite.png",
   "moves": []
 }

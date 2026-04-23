@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Flame Chimera Adept",
-  "flavor": "Has learned what its small selves only sang about.",
+  "name": "Xochitonal Adept",
+  "flavor": "Grown flower-fire spirit; the petal opens, the spark answers the petal's invitation.",
   "rarity": "uncommon",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/uncommon/flame_chimera_adept.png",
   "moves": []
 }

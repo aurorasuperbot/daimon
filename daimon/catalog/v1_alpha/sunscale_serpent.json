@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Sunscale Serpent",
-  "flavor": "Coils warmth into the team it travels with.",
+  "name": "Quetzalcóatl Adept",
+  "flavor": "Grown plumed serpent; he learns the names of the four winds and answers each in turn.",
   "rarity": "uncommon",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/uncommon/sunscale_serpent.png",
   "moves": []
 }

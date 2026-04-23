@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Boltkit",
-  "flavor": "Each kill sharpens its line.",
+  "name": "Raijin-Kit",
+  "flavor": "Thunder-god's attendant-young; the small drum learns the cadence of the storm.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/boltkit.png",
   "moves": []
 }

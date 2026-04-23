@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Shellguard",
-  "flavor": "Owes another plate to the next blow that asks.",
+  "name": "Kappa Warden",
+  "flavor": "Elder of the river-imps; the cucumber is left, the boat is let pass, the shrine is tended.",
   "rarity": "uncommon",
   "archetype": "TIDAL",
+  "canon": "KAMI",
   "art": "art/uncommon/shellguard.png",
   "moves": []
 }

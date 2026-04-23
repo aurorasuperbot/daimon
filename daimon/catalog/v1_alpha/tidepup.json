@@ -7,9 +7,10 @@
   "hp": 20,
   "spd": 5,
   "triggers": [],
-  "name": "Tidepup",
-  "flavor": "Rolls in with one wave, out with the next.",
+  "name": "Ahuizotl Pup",
+  "flavor": "Lagoon-dog's young; the tail-hand is small, the snatch-from-the-bank is already practiced.",
   "rarity": "common",
+  "canon": "TEOTL",
   "art": "art/common/tidepup.png",
   "moves": []
 }

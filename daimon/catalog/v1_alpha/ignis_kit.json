@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Ignis Kit",
-  "flavor": "Cornered fire is the kind that takes the room.",
+  "name": "Xipe Totec Cub",
+  "flavor": "Flayed-god's young; the skin he sheds becomes the spring he gives.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "TEOTL",
   "art": "art/common/ignis_kit.png",
   "moves": []
 }

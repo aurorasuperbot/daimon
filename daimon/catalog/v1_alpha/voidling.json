@@ -14,10 +14,11 @@
       "value": 0
     }
   ],
-  "name": "Voidling",
-  "flavor": "A removed life is a removed lesson.",
+  "name": "Draugr Dreg",
+  "flavor": "Lesser of the howe-walkers; when the cold claims him at last, the lunge claims one of yours.",
   "rarity": "common",
   "archetype": "REVENANT",
+  "canon": "AESIR",
   "art": "art/common/voidling.png",
   "moves": []
 }

@@ -7,14 +7,26 @@
   "hp": 20,
   "spd": 9,
   "triggers": [
-    { "when": "ON_BATTLE_START", "op": "BUFF_SPD", "target": "SELF", "value": 1 }
+    {
+      "when": "ON_BATTLE_START",
+      "op": "BUFF_SPD",
+      "target": "SELF",
+      "value": 1
+    }
   ],
-  "name": "Glimmerowl",
-  "flavor": "Sees the move before it happens.",
+  "name": "Glaukos-Owl of Athena",
+  "flavor": "Grey-eyed bird of the grey-eyed goddess; what she sees by lamp, it sees by storm.",
   "rarity": "uncommon",
+  "canon": "OLYMPIAN",
   "art": "art/uncommon/glimmerowl.png",
   "moves": [
-    {"name": "Static Swoop", "when": "ON_ATTACK"},
-    {"name": "Forewarning", "when": "ON_BATTLE_START"}
+    {
+      "name": "Owl-Swoop of Pallas",
+      "when": "ON_ATTACK"
+    },
+    {
+      "name": "Grey-Eyed Foresight",
+      "when": "ON_BATTLE_START"
+    }
   ]
 }

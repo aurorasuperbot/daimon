@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Thornserpent",
-  "flavor": "Coils through the hedge; the hedge bites back twice.",
+  "name": "Jorōgumo Warden",
+  "flavor": "Grown spider-spirit; the parlor is set, the visitor is welcome, the visitor is not leaving.",
   "rarity": "uncommon",
   "archetype": "BULWARK",
+  "canon": "KAMI",
   "art": "art/uncommon/thornserpent.png",
   "moves": []
 }

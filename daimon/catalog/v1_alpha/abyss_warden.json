@@ -20,17 +20,18 @@
       "value": 3
     }
   ],
-  "name": "Abyss Warden",
-  "flavor": "The warden silences echoes before they wake.",
+  "name": "Chalchiuhtlicue, Jade-Skirt",
+  "flavor": "Lake-and-river goddess; her skirt of jade is the green water that drowns and the green water that gives.",
   "rarity": "rare",
+  "canon": "TEOTL",
   "art": "art/rare/abyss_warden.png",
   "moves": [
     {
-      "name": "Quietus",
+      "name": "Jade-Skirt's Quiet",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Ledger Closes",
+      "name": "Lake's Ledger Closes",
       "when": "ON_ATTACK"
     }
   ]

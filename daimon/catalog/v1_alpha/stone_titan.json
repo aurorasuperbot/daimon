@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Stone Titan",
-  "flavor": "Each blow leaves another mineral coat.",
+  "name": "Berg-Risi",
+  "flavor": "Mountain-giant of the high crags; storms cling to him as moss to a stone.",
   "rarity": "uncommon",
   "archetype": "BULWARK",
+  "canon": "AESIR",
   "art": "art/uncommon/stone_titan.png",
   "moves": []
 }

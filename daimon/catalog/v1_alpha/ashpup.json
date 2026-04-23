@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Ashpup",
-  "flavor": "Marks the wounded with smouldering bites.",
+  "name": "Solar Cub",
+  "flavor": "Young of the sun-disk; the light around him is yet small enough to cradle.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "NETJER",
   "art": "art/common/ashpup.png",
   "moves": []
 }

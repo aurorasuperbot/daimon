@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Voidcrawler",
-  "flavor": "Finds the seam in the armor and unstitches it.",
+  "name": "Xolotl-Shadow",
+  "flavor": "Death-twin's shade; he is the dog at the heel of the soul, and the soul does not refuse him.",
   "rarity": "uncommon",
+  "canon": "TEOTL",
   "art": "art/uncommon/voidcrawler.png",
   "moves": [
     {
-      "name": "Seam Bite",
+      "name": "Twin-Shadow's Bite",
       "when": "ON_ATTACK"
     }
   ]

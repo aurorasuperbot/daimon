@@ -7,9 +7,10 @@
   "hp": 22,
   "spd": 4,
   "triggers": [],
-  "name": "Sproutling",
-  "flavor": "The first leaf is the loudest.",
+  "name": "Lotus of Nefertum",
+  "flavor": "Sacred lotus of the perfume-god; the bloom opens at dawn and the wound forgets itself.",
   "rarity": "common",
+  "canon": "NETJER",
   "art": "art/common/sproutling.png",
   "moves": []
 }

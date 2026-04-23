@@ -26,21 +26,22 @@
       "value": 3
     }
   ],
-  "name": "Storm Celestial",
-  "flavor": "A constellation that decided to come down and watch.",
+  "name": "Zeus, Sky-Lord",
+  "flavor": "Cloud-gatherer, thunder-thrower; he reigns and the lesser sky obeys.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/storm_celestial.png",
   "moves": [
     {
-      "name": "Heaven's Tempo",
+      "name": "Olympian Tempo",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Skyfall Volley",
+      "name": "Thunderbolt Volley",
       "when": "ON_ATTACK"
     },
     {
-      "name": "Mourner's Charge",
+      "name": "Aegis-Charge",
       "when": "ON_ALLY_DEATH"
     }
   ]

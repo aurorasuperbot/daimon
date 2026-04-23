@@ -15,9 +15,10 @@
     }
   ],
   "name": "Brass Mole",
-  "flavor": "Burrows up under an ally's footing and gives a quiet shove.",
+  "flavor": "Earth-worker of the old folk; the brass is the color of the soil it has crossed.",
   "rarity": "common",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/common/brass_mole.png",
   "moves": []
 }

@@ -27,22 +27,23 @@
     }
   ],
   "rule_change": "L5",
-  "name": "Voidking Morr",
-  "flavor": "Crowned by what nobody wanted. Reigns regardless.",
+  "name": "Hades, Unseen-King",
+  "flavor": "Lord of the rich land below; his crown is forged of asphodel, his court of silence.",
   "rarity": "legendary",
   "archetype": "REVENANT",
+  "canon": "OLYMPIAN",
   "art": "art/legendary/voidking_morr.png",
   "moves": [
     {
-      "name": "Sovereign Pall",
+      "name": "Pall of the Unseen",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Feast on Loss",
+      "name": "Toll for the Crossing",
       "when": "ON_ALLY_DEATH"
     },
     {
-      "name": "Throne of Silence",
+      "name": "Throne Beneath the Stone",
       "when": "ON_DEATH"
     }
   ]

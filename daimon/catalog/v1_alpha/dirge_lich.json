@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Dirge Lich",
-  "flavor": "Sings; the enemy plates thin to listen.",
+  "name": "Draugr-King",
+  "flavor": "Howe-king who refused the long sleep; the gold turned black, the king did not.",
   "rarity": "uncommon",
   "archetype": "REVENANT",
+  "canon": "AESIR",
   "art": "art/uncommon/dirge_lich.png",
   "moves": []
 }

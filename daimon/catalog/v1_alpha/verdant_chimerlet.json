@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Verdant Chimerlet",
-  "flavor": "Three saplings in conference; better when there's weather to share.",
+  "name": "Mayahuel Whelp",
+  "flavor": "Maguey-goddess's young; the leaf-shield is the gift, the sap-wine is the second gift.",
   "rarity": "common",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "TEOTL",
   "art": "art/common/verdant_chimerlet.png",
   "moves": []
 }

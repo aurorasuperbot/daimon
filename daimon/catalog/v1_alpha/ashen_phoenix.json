@@ -20,17 +20,18 @@
       "value": 2
     }
   ],
-  "name": "Ashen Phoenix",
-  "flavor": "Its last breath is a gift; its first, a promise.",
+  "name": "Prometheus-Unbound",
+  "flavor": "The chains broke at last; the eagle still circles, but the gift goes to others now.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/ashen_phoenix.png",
   "moves": [
     {
-      "name": "Ember Dirge",
+      "name": "Liver's Lament",
       "when": "ON_DEATH"
     },
     {
-      "name": "Hearth Anthem",
+      "name": "Gift of the Unbound",
       "when": "ON_BATTLE_START"
     }
   ]

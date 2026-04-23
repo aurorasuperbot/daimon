@@ -14,13 +14,14 @@
       "value": 2
     }
   ],
-  "name": "Magmite",
-  "flavor": "Spits gravel and lava in equal measure.",
+  "name": "Sekhet-Spark",
+  "flavor": "Ember-fragment from the sun-field of the blessed; the spark that walks of itself.",
   "rarity": "uncommon",
+  "canon": "NETJER",
   "art": "art/uncommon/magmite.png",
   "moves": [
     {
-      "name": "Spitfire",
+      "name": "Sun-Field Spit",
       "when": "ON_ATTACK"
     }
   ]

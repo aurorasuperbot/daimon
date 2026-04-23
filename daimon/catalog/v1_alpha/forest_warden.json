@@ -20,17 +20,18 @@
       "value": 5
     }
   ],
-  "name": "Forest Warden",
-  "flavor": "Roots heal what the flame would kill.",
+  "name": "Huldra, Forest-Hidden",
+  "flavor": "Beautiful from the front, hollow at the back — and the woodsman never wakes the same.",
   "rarity": "rare",
+  "canon": "AESIR",
   "art": "art/rare/forest_warden.png",
   "moves": [
     {
-      "name": "Grove Aegis",
+      "name": "Hidden-Folk Aegis",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Sapwell Surge",
+      "name": "Sapwell of the Hollow",
       "when": "ON_LOW_HP"
     }
   ]

@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Galelord",
-  "flavor": "The team flies a half-second nearer the front for it.",
+  "name": "Fūjin Herald",
+  "flavor": "Wind-god's envoy; he opens the bag a hand's-width and the army is fast.",
   "rarity": "uncommon",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/uncommon/galelord.png",
   "moves": []
 }

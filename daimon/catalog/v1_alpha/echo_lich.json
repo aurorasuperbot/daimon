@@ -26,21 +26,22 @@
       "value": 2
     }
   ],
-  "name": "Echo Lich",
-  "flavor": "Repeats every grief, then bills you for the recital.",
+  "name": "Erebus",
+  "flavor": "Primordial dark beneath the earth, before there was a god to name him.",
   "rarity": "rare",
+  "canon": "OLYMPIAN",
   "art": "art/rare/echo_lich.png",
   "moves": [
     {
-      "name": "Lament Field",
+      "name": "Field of Erebus",
       "when": "ON_BATTLE_START"
     },
     {
-      "name": "Feed on Loss",
+      "name": "Drink of the Forgotten",
       "when": "ON_ALLY_DEATH"
     },
     {
-      "name": "Repetition Strike",
+      "name": "Echo from the Pit",
       "when": "ON_ATTACK"
     }
   ]

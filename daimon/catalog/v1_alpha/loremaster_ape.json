@@ -20,10 +20,11 @@
       "value": 3
     }
   ],
-  "name": "Loremaster Ape",
-  "flavor": "Reads the team aloud each round; they grow into the recital.",
+  "name": "Sanzaru",
+  "flavor": "See-no, hear-no, speak-no — the three become one, and the one teaches the troop.",
   "rarity": "rare",
   "archetype": null,
+  "canon": "KAMI",
   "art": "art/rare/loremaster_ape.png",
   "moves": []
 }

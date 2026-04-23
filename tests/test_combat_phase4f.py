@@ -15,7 +15,7 @@ Coverage:
   - L3 mutation (tide_empress): every heal trickles +1 to allies (no cascade)
   - L4 mutation (tempest_apex): extra-action cap raised 1→2
   - L5 mutation (voidking_morr): ON_ALLY_DEATH triggers fire ×2
-  - L6 mutation (world_eater): team.distinct_elements +2 for FLUX cards
+  - L6 mutation (world_eater): team.distinct_elements +2 for SYNCRETIC cards
   - extra_actions_used_this_round resets at round start
 
 Mirrors test_combat_phase2.py conventions: solo()/pair() padding, INERT_DUMMY,
@@ -670,19 +670,19 @@ class TestL5VoidkingMorr:
 
 
 class TestL6WorldEater:
-    def test_l6_distinct_elements_bonus_for_flux(self):
-        """L6 alive → FLUX cards see team.distinct_elements + 2 in their condition gate."""
+    def test_l6_distinct_elements_bonus_for_syncretic(self):
+        """L6 alive → SYNCRETIC cards see team.distinct_elements + 2 in their condition gate."""
         legendary = mk(
             "world_eater", atk=0, defense=0, hp=200, spd=1,
             element=Element.VOID, rule_change="L6",
         )
-        # FLUX card with condition gating on team.distinct_elements >= 5.
+        # SYNCRETIC card with condition gating on team.distinct_elements >= 5.
         # Real team has 2 distinct elements (FIRE + VOID). With L6 +2 = 4 → still
         # below 5. Use >= 4 as the gate to demonstrate the bonus tipping it over.
-        flux = mk(
-            "flux1", atk=5, defense=0, hp=50, spd=99,
+        syncretic = mk(
+            "syncretic1", atk=5, defense=0, hp=50, spd=99,
             element=Element.FIRE,
-            archetype="FLUX",
+            archetype="SYNCRETIC",
             triggers=(Trigger(
                 TriggerWhen.ON_ATTACK, EffectOp.BUFF_ATK,
                 TargetFilter.SELF, value=7,
@@ -690,20 +690,20 @@ class TestL6WorldEater:
             ),),
         )
         target = mk("opp_l6", atk=0, defense=0, hp=100, spd=1)
-        result = resolve_match(pair(legendary, flux), solo(target), SEED_ZERO)
+        result = resolve_match(pair(legendary, syncretic), solo(target), SEED_ZERO)
         log = all_logs(result)
-        # With L6 alive, FLUX sees 2+2=4 distinct → condition true → BUFF fires.
-        assert "flux1 buffs ATK of flux1 by +7" in log
+        # With L6 alive, SYNCRETIC sees 2+2=4 distinct → condition true → BUFF fires.
+        assert "syncretic1 buffs ATK of syncretic1 by +7" in log
 
-    def test_l6_no_bonus_for_non_flux(self):
-        """L6 → only FLUX cards see the bonus; non-FLUX cards see actual count."""
+    def test_l6_no_bonus_for_non_syncretic(self):
+        """L6 → only SYNCRETIC cards see the bonus; non-SYNCRETIC cards see actual count."""
         legendary = mk(
             "world_eater", atk=0, defense=0, hp=200, spd=1,
             element=Element.VOID, rule_change="L6",
         )
-        # Non-FLUX card with same condition; should NOT trigger.
-        non_flux = mk(
-            "noflux", atk=5, defense=0, hp=50, spd=99,
+        # Non-SYNCRETIC card with same condition; should NOT trigger.
+        non_syncretic = mk(
+            "nosyncretic", atk=5, defense=0, hp=50, spd=99,
             element=Element.FIRE,
             triggers=(Trigger(
                 TriggerWhen.ON_ATTACK, EffectOp.BUFF_ATK,
@@ -712,10 +712,10 @@ class TestL6WorldEater:
             ),),
         )
         target = mk("opp_l6b", atk=0, defense=0, hp=100, spd=1)
-        result = resolve_match(pair(legendary, non_flux), solo(target), SEED_ZERO)
+        result = resolve_match(pair(legendary, non_syncretic), solo(target), SEED_ZERO)
         log = all_logs(result)
-        # Non-FLUX sees actual 2 distinct → condition false → no buff.
-        assert "noflux buffs ATK of noflux by +7" not in log
+        # Non-SYNCRETIC sees actual 2 distinct → condition false → no buff.
+        assert "nosyncretic buffs ATK of nosyncretic by +7" not in log
 
 
 # ---------------------------------------------------------------------------

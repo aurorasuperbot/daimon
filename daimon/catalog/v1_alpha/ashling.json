@@ -7,9 +7,10 @@
   "hp": 14,
   "spd": 7,
   "triggers": [],
-  "name": "Ashling",
-  "flavor": "Cinders given the shape of a small, hungry thing.",
+  "name": "Xiuhcoatl Spark",
+  "flavor": "Ember of the turquoise fire-serpent; the sun eats thirteen hearts, the spark eats one.",
   "rarity": "common",
+  "canon": "TEOTL",
   "art": "art/common/ashling.png",
   "moves": []
 }

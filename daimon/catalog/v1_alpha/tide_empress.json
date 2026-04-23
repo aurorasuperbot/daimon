@@ -8,14 +8,15 @@
   "spd": 8,
   "triggers": [],
   "rule_change": "L3",
-  "name": "Tide Empress",
-  "flavor": "The current never asks; it merely remembers everything it took.",
+  "name": "Amphitrite, Sea-Queen",
+  "flavor": "Consort of Poseidon, sovereign of the salt-throne; the wave bows where her foot falls.",
   "rarity": "legendary",
   "archetype": "TIDAL",
+  "canon": "OLYMPIAN",
   "art": "art/legendary/tide_empress.png",
   "moves": [
     {
-      "name": "Coronal Trickle",
+      "name": "Diadem of the Tide",
       "when": "RULE_CHANGE_L3"
     }
   ]

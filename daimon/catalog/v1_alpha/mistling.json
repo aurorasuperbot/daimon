@@ -7,9 +7,10 @@
   "hp": 18,
   "spd": 5,
   "triggers": [],
-  "name": "Mistling",
-  "flavor": "Easier to chase than to catch.",
+  "name": "Ayakashi-Drift",
+  "flavor": "Sea-mist yōkai over the night-water; nothing seen, only something passing.",
   "rarity": "common",
+  "canon": "KAMI",
   "art": "art/common/mistling.png",
   "moves": []
 }

@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Embershrew",
-  "flavor": "Bites once. Then twice as hard.",
+  "name": "Kamaitachi",
+  "flavor": "Wind-sickle weasel; the cut comes before the feeling; the feeling never comes.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "KAMI",
   "art": "art/common/embershrew.png",
   "moves": []
 }

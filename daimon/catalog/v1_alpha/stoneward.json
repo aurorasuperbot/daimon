@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Stoneward",
-  "flavor": "Passes a shard of granite to every teammate before the bell.",
+  "name": "Cairn-Warden",
+  "flavor": "Stone-stacker of the mountain path; add a stone, and you will come back down.",
   "rarity": "uncommon",
   "archetype": null,
+  "canon": "APOCRYPHA",
   "art": "art/uncommon/stoneward.png",
   "moves": []
 }

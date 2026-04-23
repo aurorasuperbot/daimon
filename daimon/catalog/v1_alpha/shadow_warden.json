@@ -14,10 +14,11 @@
       "value": 4
     }
   ],
-  "name": "Shadow Warden",
-  "flavor": "Falls — and the enemy menace goes with it.",
+  "name": "Garm, Warden",
+  "flavor": "Hound at the gates of Hel; at Ragnarök his chain breaks, and Týr meets him at last.",
   "rarity": "uncommon",
   "archetype": "REVENANT",
+  "canon": "AESIR",
   "art": "art/uncommon/shadow_warden.png",
   "moves": []
 }

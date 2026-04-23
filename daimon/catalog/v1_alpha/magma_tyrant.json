@@ -8,14 +8,15 @@
   "spd": 9,
   "triggers": [],
   "rule_change": "L1",
-  "name": "Magma Tyrant",
-  "flavor": "Counts subjects by the embers they leave behind.",
+  "name": "Prometheus, Fire-Thief",
+  "flavor": "He stole flame from the sky; the punishment is that flame still answers him.",
   "rarity": "legendary",
   "archetype": "INFERNO",
+  "canon": "OLYMPIAN",
   "art": "art/legendary/magma_tyrant.png",
   "moves": [
     {
-      "name": "Sovereign Ember",
+      "name": "Stolen Fire",
       "when": "RULE_CHANGE_L1"
     }
   ]

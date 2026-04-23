@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Emberhawk",
-  "flavor": "Dives once on every battlefield it sees.",
+  "name": "Karura Fledgling",
+  "flavor": "Garuda-bird of the Buddhist-Shinto sky; the fledgling already eats the small serpent whole.",
   "rarity": "common",
   "archetype": "INFERNO",
+  "canon": "KAMI",
   "art": "art/common/emberhawk.png",
   "moves": []
 }

@@ -71,7 +71,7 @@ EXPECTED_BY_ID = {
     "showcase_l3_tidal_trickle":       ("tide_empress",       "L3", "TIDAL"),
     "showcase_l4_stormchain_tempo":    ("tempest_apex",       "L4", "STORMCHAIN"),
     "showcase_l5_revenant_cascade":    ("voidking_morr",      "L5", "REVENANT"),
-    "showcase_l6_flux_mono_void":      ("world_eater",        "L6", "FLUX"),
+    "showcase_l6_syncretic_mono_void":      ("world_eater",        "L6", "SYNCRETIC"),
 }
 
 
@@ -210,34 +210,34 @@ class TestMutationPlumbing:
         team = self._build("showcase_l5_revenant_cascade")
         assert _team_has_mutation(team, "L5") is True
 
-    def test_l6_grants_two_distinct_elements_to_flux_cards(self):
-        """L6 mutation: FLUX cards on world_eater's team see effective
+    def test_l6_grants_two_distinct_elements_to_syncretic_cards(self):
+        """L6 mutation: SYNCRETIC cards on world_eater's team see effective
         team.distinct_elements = real_distinct + 2 (charter \u00a722.2 L6).
-        The L6 showcase is a mono-VOID team \u2014 real distinct = 1, so FLUX
+        The L6 showcase is a mono-VOID team \u2014 real distinct = 1, so SYNCRETIC
         cards must see 3 (the \u22652 and \u22653 gates open; the \u22654 stays gated)."""
-        team = self._build("showcase_l6_flux_mono_void")
+        team = self._build("showcase_l6_syncretic_mono_void")
         assert _team_has_mutation(team, "L6") is True
 
-        # Build a condition context as if a FLUX card on this team were
+        # Build a condition context as if a SYNCRETIC card on this team were
         # checking its trigger condition. _build_condition_ctx applies the
-        # L6 distinct bump for FLUX cards.
-        flux_unit = next(u for u in team if u.card.archetype == "FLUX")
+        # L6 distinct bump for SYNCRETIC cards.
+        syncretic_unit = next(u for u in team if u.card.archetype == "SYNCRETIC")
         enemies = []  # mutation maths don't depend on enemies for this gate
-        ctx = _build_condition_ctx(flux_unit, team, enemies, round_number=1)
+        ctx = _build_condition_ctx(syncretic_unit, team, enemies, round_number=1)
 
-        # Mono-VOID team: real distinct = 1; with L6, FLUX cards see 1 + 2 = 3.
+        # Mono-VOID team: real distinct = 1; with L6, SYNCRETIC cards see 1 + 2 = 3.
         assert ctx["team"]["distinct_elements"] == 3, (
-            f"L6 FLUX card sees distinct_elements="
+            f"L6 SYNCRETIC card sees distinct_elements="
             f"{ctx['team']['distinct_elements']}, expected 3 (mono + L6 bump)"
         )
 
-        # Sanity: a non-FLUX card on the same team sees the real distinct
-        # count (1), proving the L6 bump is FLUX-scoped, not team-scoped.
-        non_flux_unit = next(u for u in team if u.card.archetype != "FLUX")
-        ctx2 = _build_condition_ctx(non_flux_unit, team, enemies, round_number=1)
+        # Sanity: a non-SYNCRETIC card on the same team sees the real distinct
+        # count (1), proving the L6 bump is SYNCRETIC-scoped, not team-scoped.
+        non_syncretic_unit = next(u for u in team if u.card.archetype != "SYNCRETIC")
+        ctx2 = _build_condition_ctx(non_syncretic_unit, team, enemies, round_number=1)
         assert ctx2["team"]["distinct_elements"] == 1, (
-            f"L6 non-FLUX card sees distinct_elements="
-            f"{ctx2['team']['distinct_elements']}, expected 1 (no L6 bump for non-FLUX)"
+            f"L6 non-SYNCRETIC card sees distinct_elements="
+            f"{ctx2['team']['distinct_elements']}, expected 1 (no L6 bump for non-SYNCRETIC)"
         )
 
 

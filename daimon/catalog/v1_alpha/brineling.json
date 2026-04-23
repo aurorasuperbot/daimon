@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Brineling",
-  "flavor": "Drinks the salt from every wound.",
+  "name": "Namazu Fry",
+  "flavor": "Earthquake-catfish young; small turn, small tremor; the keystone-stone holds, for now.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "KAMI",
   "art": "art/common/brineling.png",
   "moves": []
 }

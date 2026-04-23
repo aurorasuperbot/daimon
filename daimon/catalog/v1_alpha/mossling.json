@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Mossling",
-  "flavor": "Patches itself with whatever the rock will spare.",
+  "name": "Kodama Sapling",
+  "flavor": "Tree-spirit's youngest form; the cedar-knock answers when none of the kin will speak.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "KAMI",
   "art": "art/common/mossling.png",
   "moves": []
 }

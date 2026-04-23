@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Plasma Kit",
-  "flavor": "Burns through the first thing it sees.",
+  "name": "Raijin Acolyte",
+  "flavor": "Young Raijin-servant; the drumstick is borrowed, the cadence is true.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/plasma_kit.png",
   "moves": []
 }

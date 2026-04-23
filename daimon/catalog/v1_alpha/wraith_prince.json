@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Wraith Prince",
-  "flavor": "A larger death; a wider splash.",
+  "name": "Wepwawet Herald",
+  "flavor": "Opener-of-Ways; where he falls the path opens, and the army follows the breach.",
   "rarity": "uncommon",
   "archetype": "REVENANT",
+  "canon": "NETJER",
   "art": "art/uncommon/wraith_prince.png",
   "moves": []
 }

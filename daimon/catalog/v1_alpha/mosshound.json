@@ -14,10 +14,11 @@
       "value": 3
     }
   ],
-  "name": "Mosshound",
-  "flavor": "Shakes off the blow with green flecks of bark.",
+  "name": "Inugami Pup",
+  "flavor": "Dog-spirit of the mossed shrine; faithful to the family that fed it, faithful past death.",
   "rarity": "common",
   "archetype": "BULWARK",
+  "canon": "KAMI",
   "art": "art/common/mosshound.png",
   "moves": []
 }

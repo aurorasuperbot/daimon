@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Seapup",
-  "flavor": "Bites the foe; spits the bandage.",
+  "name": "Ryūjin Whelp",
+  "flavor": "Dragon-king's young; his cradle is a tide-pool, his lullaby is a typhoon.",
   "rarity": "common",
   "archetype": "TIDAL",
+  "canon": "KAMI",
   "art": "art/common/seapup.png",
   "moves": []
 }

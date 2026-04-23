@@ -14,10 +14,11 @@
       "value": 2
     }
   ],
-  "name": "Shockling",
-  "flavor": "A small death; a faster team.",
+  "name": "Rai-Mote",
+  "flavor": "Thunder-spark; brief life, bright life, the cicada of the storm.",
   "rarity": "common",
   "archetype": "STORMCHAIN",
+  "canon": "KAMI",
   "art": "art/common/shockling.png",
   "moves": []
 }

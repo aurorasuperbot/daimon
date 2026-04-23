@@ -8,14 +8,15 @@
   "spd": 14,
   "triggers": [],
   "rule_change": "L4",
-  "name": "Tempest Apex",
-  "flavor": "The eye of the storm is a small, deliberate predator.",
+  "name": "Thor, Hammer-Bearer",
+  "flavor": "Red-bearded son of Odin; Mjölnir falls and the giants count themselves before the count.",
   "rarity": "legendary",
   "archetype": "STORMCHAIN",
+  "canon": "AESIR",
   "art": "art/legendary/tempest_apex.png",
   "moves": [
     {
-      "name": "Stormgrant Doctrine",
+      "name": "Mjölnir's Grant",
       "when": "RULE_CHANGE_L4"
     }
   ]

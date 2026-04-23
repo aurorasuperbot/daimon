@@ -7,14 +7,26 @@
   "hp": 28,
   "spd": 6,
   "triggers": [
-    { "when": "ON_ROUND_START", "op": "HEAL", "target": "ALL_ALLIES", "value": 1 }
+    {
+      "when": "ON_ROUND_START",
+      "op": "HEAL",
+      "target": "ALL_ALLIES",
+      "value": 1
+    }
   ],
-  "name": "Tidewyrm",
-  "flavor": "A small heartbeat for everyone.",
+  "name": "Rán, Drowning-Queen",
+  "flavor": "She casts her net in the cold green water and gathers the drowned to her hall.",
   "rarity": "rare",
+  "canon": "AESIR",
   "art": "art/rare/tidewyrm.png",
   "moves": [
-    {"name": "Surf Strike", "when": "ON_ATTACK"},
-    {"name": "Healing Tide", "when": "ON_ROUND_START"}
+    {
+      "name": "Net of Rán",
+      "when": "ON_ATTACK"
+    },
+    {
+      "name": "Drowning-Hall Welcome",
+      "when": "ON_ROUND_START"
+    }
   ]
 }

@@ -15,10 +15,11 @@
       "condition": "team.distinct_elements >= 2"
     }
   ],
-  "name": "Prismbolt",
-  "flavor": "Sees the team's colors; runs faster when there's more than one.",
+  "name": "Iris-Mote",
+  "flavor": "A fleck of the rainbow-courier's bow; the small message before the great one.",
   "rarity": "common",
-  "archetype": "FLUX",
+  "archetype": "SYNCRETIC",
+  "canon": "OLYMPIAN",
   "art": "art/common/prismbolt.png",
   "moves": []
 }
