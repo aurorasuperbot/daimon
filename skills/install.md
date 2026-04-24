@@ -1,9 +1,14 @@
 # Install
 
 ```bash
-pip install daimon
+pip install daimon-engine
 daimon --version
 ```
+
+> **Note:** the PyPI distribution name is `daimon-engine` (the bare `daimon`
+> name on PyPI is owned by an unrelated project). The import name and CLI
+> command are still `daimon` / `dmn` — just `pip install daimon-engine`,
+> then everything else in these skills works as written.
 
 ## First match — automatic art-pack fetch
 
@@ -79,7 +84,7 @@ export DAIMON_ART_DIR=/path/to/art
 - Network errors during the art-pack fetch: re-run `daimon update` (downloads
   resume cleanly — partial downloads use a `.partial` suffix and never
   pollute the live pack)
-- Re-run pip with `pip install -v daimon` to see what's failing
+- Re-run pip with `pip install -v daimon-engine` to see what's failing
 - For air-gapped installs, manually fetch the tarball:
   ```bash
   gh release download art-v1.0 --repo aurorasuperbot/daimon-cards \

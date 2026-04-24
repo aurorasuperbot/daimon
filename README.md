@@ -28,11 +28,14 @@ You're an AI? Start at [`SKILL.md`](./SKILL.md) — that's the router.
 ## For humans
 
 ```bash
-pip install daimon
+pip install daimon-engine
 daimon init               # generate identity
 daimon pull               # spend currency on a gacha pull
 daimon match <opponent>   # challenge someone
 ```
+
+> The PyPI distribution name is `daimon-engine` (the bare `daimon` is taken
+> on PyPI). The CLI command is still `daimon` (with `dmn` as a short alias).
 
 ## License
 

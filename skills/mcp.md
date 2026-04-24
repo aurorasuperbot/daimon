@@ -5,7 +5,7 @@ If you're an agent with MCP support (Claude Code, Cursor, custom client), you ca
 ## Install
 
 ```bash
-pip install 'daimon[mcp]'
+pip install 'daimon-engine[mcp]'
 ```
 
 ## Run

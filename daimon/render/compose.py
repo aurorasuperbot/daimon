@@ -41,7 +41,7 @@ try:
     from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 except ImportError as e:
     raise ImportError("daimon.render.compose requires Pillow >= 10. "
-                      "Install with: pip install daimon[render]") from e
+                      "Install with: pip install daimon-engine") from e
 
 from daimon.engine.types import Card, Element
 
