@@ -3,6 +3,21 @@
 V1 alpha: only `init`, `version`, `verify` are wired up. The rest are stubs
 that print a "not yet implemented" message and exit nonzero, so scripts can
 detect feature gaps.
+
+## Auto-update integration
+
+The group callback (``main``) calls ``ensure_art_available()`` for every
+subcommand EXCEPT the ones in ``ART_PURE_COMMANDS`` (init, whoami, update,
+mine, npcs — none of which touch art binaries). This means:
+
+  * First run of any art-using command auto-pulls the pack synchronously
+    (~900MB, one-time, with a progress bar).
+  * Subsequent runs spawn a detached background check (rate-limited 24h).
+  * ``DAIMON_NO_AUTO_UPDATE=1`` opts out entirely; pinned versions via
+    ``DAIMON_PIN_ART`` are honored.
+
+The explicit ``daimon update`` command re-uses the same engine (with
+``blocking=True``) for users who want to force a check.
 """
 
 from __future__ import annotations
@@ -14,10 +29,32 @@ import click
 from daimon import __version__
 
 
+# Subcommands that don't need art on disk — skipped by the auto-fetch hook.
+# Keep this list short and explicit; defaulting to "fetch" is the safer
+# behavior for an end-user CLI.
+ART_PURE_COMMANDS = frozenset({
+    "init", "whoami", "update", "mine", "npcs",
+})
+
+
 @click.group()
 @click.version_option(__version__, prog_name="daimon")
-def main() -> None:
+@click.pass_context
+def main(ctx: click.Context) -> None:
     """DAIMON — agentic-first autobattler."""
+    sub = ctx.invoked_subcommand
+    if sub and sub not in ART_PURE_COMMANDS:
+        from daimon.update import ArtUpdateError, ensure_art_available
+        try:
+            ensure_art_available()
+        except ArtUpdateError as e:
+            click.echo(f"error: failed to fetch art-pack: {e}", err=True)
+            click.echo(
+                "  hint: ensure network access, or set "
+                "DAIMON_NO_AUTO_UPDATE=1 to skip the fetch.",
+                err=True,
+            )
+            sys.exit(2)
 
 
 @main.command()
@@ -575,6 +612,79 @@ def play_render(state_path: str | None, renders_dir: str | None, once: bool) -> 
     term.start()
     term.wait()
     click.echo("\nbye.")
+
+
+@main.command()
+@click.option("--check", is_flag=True,
+              help="Only check + report — don't install. Honors 24h rate-limit.")
+@click.option("--force", is_flag=True,
+              help="Bypass rate-limit AND cross-major guard. "
+                   "Use after intentionally upgrading the engine.")
+@click.option("--version", "version_tag", default=None,
+              help="Install this exact tag (e.g. art-v1.0). "
+                   "Honors DAIMON_PIN_ART if not given.")
+def update(check: bool, force: bool, version_tag: str | None) -> None:
+    """Refresh the art-pack from GitHub Releases.
+
+    \b
+    Examples:
+      daimon update                    # check + install if newer
+      daimon update --check            # report status, no install
+      daimon update --version art-v1.0 # install a specific version
+      daimon update --force            # re-install even if up-to-date
+
+    Path layout:
+      \b
+      ~/.daimon/art/v1_alpha/             # live pack
+      ~/.daimon/cache/staging/            # download scratch
+      ~/.daimon/cache/last_check.json     # rate-limit state
+      ~/.daimon/cache/update.log          # background-check log
+
+    Override the root via ``DAIMON_ART_DIR``. Pin a version via
+    ``DAIMON_PIN_ART``. Disable auto-fetch entirely via
+    ``DAIMON_NO_AUTO_UPDATE=1``.
+    """
+    from daimon.update import (
+        ArtUpdateError,
+        art_pack_dir,
+        current_version,
+        do_update,
+    )
+    from daimon.update.api import gh_latest_release, gh_release_by_tag
+    from daimon.update.paths import art_repo, pinned_version
+
+    before = current_version()
+
+    if check:
+        # Status-only path — no download.
+        repo = art_repo()
+        target = version_tag or pinned_version()
+        try:
+            rel = (gh_release_by_tag(repo, target) if target
+                   else gh_latest_release(repo))
+        except Exception as e:
+            click.echo(f"error: GitHub API failed: {e}", err=True)
+            sys.exit(1)
+        click.echo(f"installed: {before or '(none)'}")
+        click.echo(f"latest:    {rel.tag if rel else '(no release found)'}")
+        if rel and before != rel.tag:
+            click.echo("status:    update available — run `daimon update` to install")
+        elif rel:
+            click.echo("status:    up to date")
+        return
+
+    try:
+        rel = do_update(target_version=version_tag, force=force,
+                        show_progress=True)
+    except ArtUpdateError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(1)
+
+    if before == rel.tag and not force:
+        click.echo(f"already up to date: {rel.tag}")
+    else:
+        click.echo(f"installed {rel.tag} (was: {before or 'none'})")
+        click.echo(f"  pack dir: {art_pack_dir()}")
 
 
 if __name__ == "__main__":

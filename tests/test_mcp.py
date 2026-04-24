@@ -392,10 +392,13 @@ def test_match_propagates_real_catalog_display_metadata(monkeypatch, tmp_path):
         assert card.short_name, f"missing short_name on {card.name}"
         assert len(card.short_name) <= 8
 
-    # Art paths flow through verbatim.
+    # Art paths flow through verbatim. Catalog migrated 2026-04-22 (commit
+    # 3b4efc3) from `art/<rarity>/<species>.png` flat layout to
+    # `art/v1_alpha/<species>/base.png` per-card-folder structure — matching
+    # the art-pack tarball layout shipped via GitHub Releases.
     assert (
         player_by_species["voltcat_apex"].art_path
-        == "art/rare/voltcat_apex.png"
+        == "art/v1_alpha/voltcat_apex/base.png"
     )
 
 

@@ -11,6 +11,37 @@ from daimon.engine.types import Card, Element
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def _no_art_autoupdate(monkeypatch, request):
+    """Block the CLI's auto-fetch hook for every test by default.
+
+    The ``main`` group callback in ``daimon.cli`` calls
+    ``ensure_art_available()`` for non-pure subcommands. In the test sandbox
+    that would try to hit the GitHub API on every CLI invocation — flaky,
+    slow, and pollutes the user's real ``~/.daimon`` if env-isolation slips.
+
+    We can't rely on ``DAIMON_NO_AUTO_UPDATE=1`` alone: by design, that flag
+    does NOT short-circuit the FIRST-RUN sync download (users without art
+    can't proceed). For tests we want the function to be a true no-op, so
+    we monkeypatch it at the import site (``daimon.cli`` imports it lazily
+    inside the callback, so we patch the source module).
+
+    Skipped for ``tests/test_update.py`` — that file exercises the real
+    update flow and needs the live function. We detect by module name so
+    no per-fixture opt-out is required there.
+    """
+    if request.module.__name__.endswith("test_update"):
+        return
+    monkeypatch.setenv("DAIMON_NO_AUTO_UPDATE", "1")
+    import daimon.update as _update_pkg
+    from daimon.update import checker as _checker
+    _noop = lambda *_a, **_kw: None  # noqa: E731
+    monkeypatch.setattr(_checker, "ensure_art_available", _noop)
+    # The CLI does `from daimon.update import ensure_art_available`, which
+    # binds against the re-export in __init__.py — patch that name too.
+    monkeypatch.setattr(_update_pkg, "ensure_art_available", _noop)
+
+
 def _load(name: str) -> Card:
     return load_card(FIXTURE_DIR / name)
 
