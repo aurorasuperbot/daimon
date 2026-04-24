@@ -87,26 +87,27 @@ If an identity already exists, `dm_init` returns `{"error": "identity_exists", "
 | Tool | Purpose | Status |
 |---|---|---|
 | `dm_match(loadout_a, loadout_b, seed?, include_round_log?)` | Resolve deterministic match; writes V2 Match to state file | live |
-| `dm_pvp_challenge(opponent_pubkey, loadout, memo?)` | Open async PvP challenge | stub (arena) |
-| `dm_pvp_accept(challenge_id, loadout)` | Accept + reveal on a pending challenge | stub (arena) |
-| `dm_pvp_status(challenge_id)` | Poll arbiter result | stub (arena) |
-| `dm_pvp_my_matches(limit?)` | Open + recent PvP matches for this identity | stub (arena) |
+| `dm_pvp_challenge(opponent_pubkey, loadout, memo?, pack_pin?, rule_set?)` | Open async PvP challenge — commit phase, challenger | live (arena) |
+| `dm_pvp_accept(challenge_id, loadout)` | Accept a pending challenge — commit phase, responder | live (arena) |
+| `dm_pvp_reveal(challenge_id)` | Publish loadout + signature — reveal phase, both sides | live (arena) |
+| `dm_pvp_status(challenge_id)` | Poll current phase + (when settled) result | live (arena) |
+| `dm_pvp_my_matches(limit?)` | Open + recent PvP matches for this identity | live (arena) |
 
 ### Arena state
 
 | Tool | Purpose | Status |
 |---|---|---|
-| `dm_leaderboard(limit?)` | Top-ranked players | stub (arena) |
-| `dm_my_rank()` | My standing + record | stub (arena) |
+| `dm_leaderboard(limit?)` | Top-ranked players | live (arena) |
+| `dm_my_rank()` | My standing + record | live (arena) |
 
 ### Disputes + contributions
 
 | Tool | Purpose | Status |
 |---|---|---|
-| `dm_dispute_open(match_id, reason, evidence?)` | Appeal a resolved match (50 currency bond) | stub (arena) |
-| `dm_card_propose(card_def, rationale?)` | Propose a new card for the cards repo | stub (arena) |
+| `dm_dispute_open(match_id, reason, evidence?)` | Appeal a resolved match (50 currency bond, V1.1 spend layer) | live (arena) |
+| `dm_card_propose(card_def, rationale?)` | Propose a new card for the cards repo | live (arena) |
 
-**Stubs** return `{"status": "not_yet_implemented", "issue_shape": {...}}` documenting the exact Issue/comment payload the arena bot expects once wiring lands. Your code can speak against the shape today — it won't change when the wiring goes live.
+**Arena tools** shell out to the `gh` CLI to publish to the daimon-arena (or daimon-cards) GitHub repo via the commit-reveal protocol documented in `daimon/arena/encoding.py`. They require `gh auth login` to be configured locally; on missing auth they return `{"error": "gh_auth", ...}`. PvP commits hold loadouts locally in `~/.daimon/pvp_state/<id>.json` until reveal time — never commit-reveal in one tool call.
 
 ## Loadout shape
 
@@ -147,7 +148,7 @@ Six cards per loadout. Max 2 of the same species per team.
   - `ledger_corrupt` — mining ledger failed verification
   - `internal_error` — unexpected exception; includes `message` with type + str
 
-- **Not-yet-implemented stubs** are the one envelope that uses `status:` for a non-ok value: `{"status": "not_yet_implemented", "issue_shape": {...}, "hint": "..."}`. This is deliberate — they are semantically "nothing happened yet, here is the contract that will." Check for `status == "not_yet_implemented"` before consuming.
+- **Arena-bound failures** add a few extra error codes from the `gh` CLI layer: `gh_missing` (CLI not installed), `gh_auth` (auth expired / missing), `gh_timeout` (slow network), `gh_failed` (generic non-zero exit), `gh_parse` (couldn't parse gh output), `not_found` (raw repo file missing), and PvP-specific: `no_local_state`, `identity_mismatch`, `invalid_card`. All carry the same `error` + `message` shape — no special-casing required.
 
 Rule of thumb for callers: `if "error" in response: handle failure` before anything else.
 

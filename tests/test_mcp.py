@@ -46,6 +46,7 @@ from daimon.mcp.server import (
     dm_pvp_accept,
     dm_pvp_challenge,
     dm_pvp_my_matches,
+    dm_pvp_reveal,
     dm_pvp_status,
     dm_register,
     dm_whoami,
@@ -641,7 +642,8 @@ def test_mine_status_with_ledger(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_all_tools_registered():
-    """Locked 21-tool surface + dm_init + 3 NPC tools + deprecated alias."""
+    """Locked 21-tool surface + dm_init + 3 NPC tools + deprecated alias +
+    dm_pvp_reveal (added 2026-04-24 when arena wiring landed)."""
     names = {
         # Identity + currency
         "dm_init", "dm_whoami", "dm_register",
@@ -655,15 +657,16 @@ def test_all_tools_registered():
         "dm_loadout_load",
         # Match + PvP
         "dm_match", "dm_npcs", "dm_npc", "dm_match_npc",
-        "dm_pvp_challenge", "dm_pvp_accept",
+        "dm_pvp_challenge", "dm_pvp_accept", "dm_pvp_reveal",
         "dm_pvp_status", "dm_pvp_my_matches",
         # Arena state
         "dm_leaderboard", "dm_my_rank",
         # Disputes
         "dm_dispute_open", "dm_card_propose",
     }
-    # 21 locked tools + dm_init + 3 NPC tools + 1 deprecated alias = 26
-    assert len(names) == 26
+    # 21 locked tools + dm_init + 3 NPC tools + 1 deprecated alias
+    # + dm_pvp_reveal = 27.
+    assert len(names) == 27
     for n in names:
         assert hasattr(mcp_server, n), f"{n} missing from server module"
 
@@ -895,25 +898,104 @@ def test_loadout_load_rejects_path_traversal(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Arena-bound stubs — return documented issue_shape envelope
+# Arena-bound tools — real wiring over mocked `gh` subprocess
+#
+# The tools below shell out to the `gh` CLI via
+# `daimon.arena.client._run()`. We monkeypatch that dispatcher per test so
+# the suite doesn't hit GitHub. Each test asserts both the argv shape
+# (right command was built) and the envelope the tool returned.
 # ---------------------------------------------------------------------------
 
-def test_register_stub_carries_pubkey(monkeypatch, tmp_path):
-    _isolate_paths(monkeypatch, tmp_path)
+def _isolate_arena(monkeypatch, tmp_path):
+    """Baseline isolation for arena tests: identity + pvp_state dir tmpified."""
+    cfg = _isolate_paths(monkeypatch, tmp_path)
+    # Redirect pvp_state into the tmp dir so dm_pvp_challenge / accept /
+    # reveal don't touch ~/.daimon/.
+    inbox = tmp_path / "daimon_inbox"
+    inbox.mkdir()
+    monkeypatch.setenv("DAIMON_INBOX", str(inbox))
+    # state module caches PVP_STATE_DIR at import time — swap it too.
+    from daimon.arena import state as arena_state
+    monkeypatch.setattr(arena_state, "PVP_STATE_DIR", inbox / "pvp_state")
+    return cfg
+
+
+class _FakeGh:
+    """Record argvs and reply with canned envelopes.
+
+    Queue-based: each call pops the next (or-the-default) response. Keeps
+    tests legible — each test declares the sequence of gh outputs it expects.
+    """
+
+    def __init__(self, responses=None):
+        self._responses = list(responses or [])
+        self.calls = []  # list[(argv, input_text)]
+
+    def __call__(self, argv, input_text=None, timeout=20):
+        self.calls.append((list(argv), input_text))
+        if self._responses:
+            return self._responses.pop(0)
+        return {"ok": True, "stdout": "", "stderr": ""}
+
+    def push(self, response):
+        self._responses.append(response)
+
+
+def _install_fake_gh(monkeypatch, fake):
+    """Swap the arena client's low-level dispatcher."""
+    from daimon.arena import client as arena_client
+    monkeypatch.setattr(arena_client, "_run", fake)
+
+
+def _create_issue_ok(issue_number: int,
+                     repo: str = "aurorasuperbot/daimon-arena"):
+    return {
+        "ok": True,
+        "stdout": f"https://github.com/{repo}/issues/{issue_number}\n",
+        "stderr": "",
+    }
+
+
+def _comment_ok(issue_number: int, comment_id: int = 999,
+                repo: str = "aurorasuperbot/daimon-arena"):
+    return {
+        "ok": True,
+        "stdout": (
+            f"https://github.com/{repo}/issues/{issue_number}"
+            f"#issuecomment-{comment_id}\n"
+        ),
+        "stderr": "",
+    }
+
+
+# --- dm_register -----------------------------------------------------------
+
+def test_register_opens_signed_issue(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
     from daimon.identity import generate_identity
     ident = generate_identity(force=True)
+    fake = _FakeGh([_create_issue_ok(101)])
+    _install_fake_gh(monkeypatch, fake)
+
     r = _call(dm_register, handle="aurora")
-    assert r["status"] == "not_yet_implemented"
-    assert r["tool"] == "dm_register"
-    assert "issue_shape" in r
-    # The pubkey the agent would sign with must be surfaced so skills docs
-    # can render accurate examples.
-    assert ident.pubkey_hex[:16] in r["issue_shape"]["title"]
-    assert r["issue_shape"]["body"]["pubkey_hex"] == ident.pubkey_hex
+    assert r["status"] == "ok"
+    assert r["issue_number"] == 101
+    assert r["pubkey_hex"] == ident.pubkey_hex
+    assert r["handle"] == "aurora"
+    assert r["phase"] == "pending-arbiter"
+
+    # The gh argv must have been a `gh issue create` with identity labels,
+    # and the body stdin must include the pubkey + a signature line.
+    argv, body = fake.calls[0]
+    assert argv[:3] == ["gh", "issue", "create"]
+    assert "identity" in argv
+    assert "pending-arbiter" in argv
+    assert ident.pubkey_hex in body
+    assert "signature: " in body
+    assert "protocol: daimon-register-v1" in body
 
 
 def test_register_no_identity(monkeypatch, tmp_path):
-    # No identity → must bail cleanly before stub-envelope.
     fake_dir = tmp_path / "empty"
     fake_dir.mkdir()
     monkeypatch.setattr("daimon.identity.keys.CONFIG_DIR", fake_dir)
@@ -922,6 +1004,21 @@ def test_register_no_identity(monkeypatch, tmp_path):
     r = _call(dm_register)
     assert r["error"] == "no_identity"
 
+
+def test_register_surfaces_gh_auth_error(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    fake = _FakeGh([{"ok": False, "error": "gh_auth",
+                     "message": "HTTP 401: Bad credentials",
+                     "exit_code": 1, "stderr": "401"}])
+    _install_fake_gh(monkeypatch, fake)
+    r = _call(dm_register)
+    assert r["error"] == "gh_auth"
+    assert "register failed" in r["message"]
+
+
+# --- dm_pvp_challenge ------------------------------------------------------
 
 def test_pvp_challenge_validates_opponent_pubkey():
     r = _call(dm_pvp_challenge, opponent_pubkey="too_short",
@@ -935,14 +1032,48 @@ def test_pvp_challenge_validates_loadout():
     assert r["error"] == "invalid_input"
 
 
-def test_pvp_challenge_stub_envelope():
-    r = _call(dm_pvp_challenge, opponent_pubkey="f" * 64,
-              loadout=_full_loadout_dict(), memo="gg hf")
-    assert r["status"] == "not_yet_implemented"
-    assert r["tool"] == "dm_pvp_challenge"
-    assert r["issue_shape"]["body"]["opponent_pubkey"] == "f" * 64
-    assert r["issue_shape"]["body"]["memo"] == "gg hf"
+def test_pvp_challenge_opens_issue_and_persists_state(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    fake = _FakeGh([_create_issue_ok(42)])
+    _install_fake_gh(monkeypatch, fake)
 
+    r = _call(dm_pvp_challenge,
+              opponent_pubkey="f" * 64,
+              loadout=_full_loadout_dict(),
+              memo="gg hf")
+    assert r["status"] == "ok"
+    assert r["issue_number"] == 42
+    assert r["challenge_id"] == "42"
+    assert r["phase"] == "pending-accept"
+    # commit is a 64-char sha256 hex
+    assert isinstance(r["loadout_commit"], str)
+    assert len(r["loadout_commit"]) == 64
+    int(r["loadout_commit"], 16)  # must parse as hex
+
+    # State file written into the tmp inbox — no leak to ~/.daimon.
+    from daimon.arena import state as arena_state
+    pending = arena_state.list_pending()
+    assert pending == [42]
+    record = arena_state.load(42)
+    assert record["side"] == "challenger"
+    assert record["opponent_pubkey"] == "f" * 64
+    assert record["loadout"]["cards"][0]["card_id"]  # survived round-trip
+
+    # Argv sanity
+    argv, body = fake.calls[0]
+    assert argv[:3] == ["gh", "issue", "create"]
+    assert "match-challenge" in argv
+    assert "pvp" in argv
+    assert "pending-accept" in argv
+    assert "gg hf" in body
+    # commit MUST be in body, nonce must NOT be in body
+    assert r["loadout_commit"] in body
+    assert record["nonce"] not in body
+
+
+# --- dm_pvp_accept ---------------------------------------------------------
 
 def test_pvp_accept_validates_inputs():
     r = _call(dm_pvp_accept, challenge_id="", loadout=_full_loadout_dict())
@@ -951,28 +1082,179 @@ def test_pvp_accept_validates_inputs():
     assert r["error"] == "invalid_input"
 
 
-def test_pvp_accept_stub_carries_target():
-    r = _call(dm_pvp_accept, challenge_id="chal-42",
-              loadout=_full_loadout_dict())
-    assert r["status"] == "not_yet_implemented"
-    assert r["issue_shape"]["target_issue"] == "chal-42"
+def test_pvp_accept_rejects_non_numeric_id(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    r = _call(dm_pvp_accept, challenge_id="abc", loadout=_full_loadout_dict())
+    # ops layer rejects non-numeric
+    assert r["error"] == "invalid_input"
 
 
-def test_pvp_status_stub():
-    r = _call(dm_pvp_status, challenge_id="chal-42")
-    assert r["status"] == "not_yet_implemented"
-    assert r["issue_shape"]["target_issue"] == "chal-42"
+def test_pvp_accept_posts_commit_comment(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    fake = _FakeGh([_comment_ok(42)])
+    _install_fake_gh(monkeypatch, fake)
 
+    r = _call(dm_pvp_accept, challenge_id="42", loadout=_full_loadout_dict())
+    assert r["status"] == "ok"
+    assert r["challenge_id"] == "42"
+    assert r["phase"] == "pending-arbiter"
+    assert len(r["loadout_commit"]) == 64
+
+    from daimon.arena import state as arena_state
+    assert arena_state.list_pending() == [42]
+    rec = arena_state.load(42)
+    assert rec["side"] == "responder"
+
+    argv, body = fake.calls[0]
+    assert argv[:3] == ["gh", "issue", "comment"]
+    assert argv[3] == "42"
+    assert body.startswith("/accept\n")
+    assert r["loadout_commit"] in body
+    # Full loadout must NOT be in the accept body — reveal happens later.
+    assert "```json" not in body
+
+
+# --- dm_pvp_reveal ---------------------------------------------------------
+
+def test_pvp_reveal_requires_challenge_id():
+    r = _call(dm_pvp_reveal, challenge_id="")
+    assert r["error"] == "invalid_input"
+
+
+def test_pvp_reveal_errors_without_local_state(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    r = _call(dm_pvp_reveal, challenge_id="7777")
+    assert r["error"] == "no_local_state"
+
+
+def test_pvp_reveal_posts_signed_payload_after_challenge(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    ident = generate_identity(force=True)
+    fake = _FakeGh([_create_issue_ok(42), _comment_ok(42)])
+    _install_fake_gh(monkeypatch, fake)
+
+    # Seed state by opening a challenge first.
+    ch = _call(dm_pvp_challenge, opponent_pubkey="a" * 64,
+               loadout=_full_loadout_dict())
+    assert ch["status"] == "ok"
+
+    rev = _call(dm_pvp_reveal, challenge_id="42")
+    assert rev["status"] == "ok"
+    assert rev["phase"] == "revealed"
+
+    # Reveal call was the second gh invocation.
+    assert len(fake.calls) == 2
+    argv, body = fake.calls[1]
+    assert argv[:3] == ["gh", "issue", "comment"]
+    assert body.startswith("/reveal\n")
+    assert f"pubkey: {ident.pubkey_hex}" in body
+    assert "signature: " in body
+    assert "nonce: " in body
+    # Must embed the full loadout as a fenced JSON block (reveal carries
+    # the plaintext the arbiter verifies against the commit).
+    assert "```json" in body
+
+
+def test_pvp_reveal_rejects_identity_mismatch(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    # Seed state under one identity, then swap in a fresh identity and try.
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    fake = _FakeGh([_create_issue_ok(42)])
+    _install_fake_gh(monkeypatch, fake)
+    _call(dm_pvp_challenge, opponent_pubkey="a" * 64,
+          loadout=_full_loadout_dict())
+
+    generate_identity(force=True)  # new key under same tmp dirs
+    r = _call(dm_pvp_reveal, challenge_id="42")
+    assert r["error"] == "identity_mismatch"
+
+
+# --- dm_pvp_status ---------------------------------------------------------
 
 def test_pvp_status_rejects_empty():
     r = _call(dm_pvp_status, challenge_id="")
     assert r["error"] == "invalid_input"
 
 
-def test_pvp_my_matches_stub():
-    r = _call(dm_pvp_my_matches, limit=10)
-    assert r["status"] == "not_yet_implemented"
+def test_pvp_status_pending_accept(monkeypatch):
+    fake = _FakeGh([{
+        "ok": True,
+        "stdout": json.dumps({
+            "number": 42, "title": "pvp-challenge",
+            "body": "challenger_pubkey: x\n",
+            "state": "OPEN",
+            "labels": [{"name": "pvp"}, {"name": "pending-accept"}],
+            "comments": [],
+            "url": "https://github.com/x/y/issues/42",
+        }),
+        "stderr": "",
+    }])
+    _install_fake_gh(monkeypatch, fake)
+    r = _call(dm_pvp_status, challenge_id="42")
+    assert r["status"] == "ok"
+    assert r["phase"] == "pending-accept"
+    assert r["issue_state"] == "open"
+    assert r["reveal_count"] == 0
 
+
+def test_pvp_status_resolved_fetches_match_record(monkeypatch):
+    issue_json = {
+        "number": 42, "title": "pvp-challenge",
+        "body": "challenger_pubkey: aa\nopponent_pubkey: bb\n",
+        "state": "CLOSED",
+        "labels": [{"name": "pvp"}, {"name": "resolved"}],
+        "comments": [
+            {"body": "/accept\n..."},
+            {"body": "/reveal\n..."},
+            {"body": "/reveal\n..."},
+        ],
+        "url": "https://github.com/x/y/issues/42",
+    }
+    match_json = {
+        "match_id": "42",
+        "challenger_pubkey": "aa",
+        "opponent_pubkey": "bb",
+        "winner": 0,
+        "round_count": 3,
+    }
+
+    # view_issue → raw.githubusercontent fetch will go through urllib, not gh.
+    # Stub both paths: first _run for view_issue, then the urllib path for
+    # the match file. We patch urlopen too.
+    fake = _FakeGh([
+        {"ok": True, "stdout": json.dumps(issue_json), "stderr": ""},
+    ])
+    _install_fake_gh(monkeypatch, fake)
+
+    import io
+    import urllib.request
+    def fake_urlopen(url, timeout=0):
+        # Return a context-manager-compatible file-like object.
+        class R:
+            def __enter__(self_inner):
+                return io.BytesIO(json.dumps(match_json).encode())
+            def __exit__(self_inner, *a):
+                return False
+        return R()
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    r = _call(dm_pvp_status, challenge_id="42")
+    assert r["status"] == "ok"
+    assert r["phase"] == "resolved"
+    assert r["match"]["winner"] == 0
+    assert r["winner_pubkey"] == "aa"
+    assert r["loser_pubkey"] == "bb"
+
+
+# --- dm_pvp_my_matches -----------------------------------------------------
 
 def test_pvp_my_matches_rejects_bad_limit():
     r = _call(dm_pvp_my_matches, limit=0)
@@ -981,19 +1263,123 @@ def test_pvp_my_matches_rejects_bad_limit():
     assert r["error"] == "invalid_input"
 
 
-def test_leaderboard_stub():
-    r = _call(dm_leaderboard, limit=25)
-    assert r["status"] == "not_yet_implemented"
-    assert "leaderboard.json" in r["issue_shape"]["source"]
-
-
-def test_my_rank_stub(monkeypatch, tmp_path):
-    _isolate_paths(monkeypatch, tmp_path)
+def test_pvp_my_matches_filters_by_pubkey(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
     from daimon.identity import generate_identity
     ident = generate_identity(force=True)
+    my_pk = ident.pubkey_hex
+    other = "c" * 64
+
+    fake = _FakeGh([{
+        "ok": True,
+        "stdout": json.dumps([
+            {"number": 1, "body": f"challenger_pubkey: {my_pk}\n"
+                                   f"opponent_pubkey: {other}\n",
+             "state": "OPEN",
+             "labels": [{"name": "pvp"}, {"name": "pending-accept"}],
+             "url": "u/1", "updatedAt": "t1"},
+            {"number": 2, "body": f"challenger_pubkey: {other}\n"
+                                   f"opponent_pubkey: {my_pk}\n",
+             "state": "CLOSED",
+             "labels": [{"name": "pvp"}, {"name": "resolved"}],
+             "url": "u/2", "updatedAt": "t2"},
+            {"number": 3, "body": "challenger_pubkey: deadbeef\n"
+                                   "opponent_pubkey: cafebabe\n",
+             "state": "OPEN", "labels": [{"name": "pvp"}],
+             "url": "u/3", "updatedAt": "t3"},
+        ]),
+        "stderr": "",
+    }])
+    _install_fake_gh(monkeypatch, fake)
+
+    r = _call(dm_pvp_my_matches, limit=10)
+    assert r["status"] == "ok"
+    # Only #1 and #2 involve us.
+    assert r["count"] == 2
+    nums = {m["issue_number"] for m in r["matches"]}
+    assert nums == {1, 2}
+    by_num = {m["issue_number"]: m for m in r["matches"]}
+    assert by_num[1]["role"] == "challenger"
+    assert by_num[2]["role"] == "responder"
+    assert by_num[2]["phase"] == "resolved"
+
+
+# --- dm_leaderboard + dm_my_rank ------------------------------------------
+
+def test_leaderboard_missing_file_returns_empty(monkeypatch):
+    # raw.githubusercontent 404 then gh api 404 → not_found.
+    import urllib.error
+    import urllib.request
+    def fake_urlopen(url, timeout=0):
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    r = _call(dm_leaderboard, limit=25)
+    assert r["status"] == "ok"
+    assert r["ranks"] == []
+    assert r["count"] == 0
+
+
+def test_leaderboard_ranks_and_tiers(monkeypatch):
+    payload = {
+        "last_updated": "2026-04-24T00:00:00Z",
+        "entries": {
+            "aa" * 32: {"wins": 60, "losses": 5, "draws": 0},   # Champion
+            "bb" * 32: {"wins": 30, "losses": 10, "draws": 1},  # Elite
+            "cc" * 32: {"wins": 12, "losses": 3, "draws": 0},   # Veteran
+            "dd" * 32: {"wins": 5, "losses": 2, "draws": 0},    # Novice
+            "ee" * 32: {"wins": 1, "losses": 4, "draws": 0},    # Rookie
+        },
+    }
+    import io
+    import urllib.request
+    def fake_urlopen(url, timeout=0):
+        class R:
+            def __enter__(self_inner):
+                return io.BytesIO(json.dumps(payload).encode())
+            def __exit__(self_inner, *a):
+                return False
+        return R()
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    r = _call(dm_leaderboard, limit=10)
+    assert r["status"] == "ok"
+    assert r["count"] == 5
+    assert r["total_players"] == 5
+    # Sorted by wins desc
+    assert [row["wins"] for row in r["ranks"]] == [60, 30, 12, 5, 1]
+    assert [row["tier"] for row in r["ranks"]] == [
+        "Champion", "Elite", "Veteran", "Novice", "Rookie",
+    ]
+
+
+def test_my_rank_finds_local_identity(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    ident = generate_identity(force=True)
+    payload = {
+        "last_updated": "2026-04-24T00:00:00Z",
+        "entries": {
+            ident.pubkey_hex: {"wins": 8, "losses": 2, "draws": 0},
+            "aa" * 32: {"wins": 20, "losses": 1, "draws": 0},
+        },
+    }
+    import io
+    import urllib.request
+    def fake_urlopen(url, timeout=0):
+        class R:
+            def __enter__(self_inner):
+                return io.BytesIO(json.dumps(payload).encode())
+            def __exit__(self_inner, *a):
+                return False
+        return R()
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
     r = _call(dm_my_rank)
-    assert r["status"] == "not_yet_implemented"
-    assert r["issue_shape"]["pubkey_hex"] == ident.pubkey_hex
+    assert r["status"] == "ok"
+    assert r["pubkey_hex"] == ident.pubkey_hex
+    assert r["rank"] == 2
+    assert r["wins"] == 8
+    assert r["tier"] == "Novice"
 
 
 def test_my_rank_no_identity(monkeypatch, tmp_path):
@@ -1006,6 +1392,8 @@ def test_my_rank_no_identity(monkeypatch, tmp_path):
     assert r["error"] == "no_identity"
 
 
+# --- dm_dispute_open -------------------------------------------------------
+
 def test_dispute_open_validates_inputs():
     r = _call(dm_dispute_open, match_id="", reason="")
     assert r["error"] == "invalid_input"
@@ -1013,22 +1401,59 @@ def test_dispute_open_validates_inputs():
     assert r["error"] == "invalid_input"
 
 
-def test_dispute_open_stub():
+def test_dispute_open_posts_signed_issue(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    fake = _FakeGh([_create_issue_ok(55)])
+    _install_fake_gh(monkeypatch, fake)
+
     r = _call(dm_dispute_open, match_id="match-42",
               reason="arbiter got hp wrong",
               evidence={"expected_winner": "player"})
-    assert r["status"] == "not_yet_implemented"
-    assert r["issue_shape"]["body"]["match_id"] == "match-42"
-    assert r["issue_shape"]["body"]["bond_amount"] == 50
+    assert r["status"] == "ok"
+    assert r["issue_number"] == 55
+    assert r["bond_amount"] == 50
+    assert r["match_id"] == "match-42"
 
+    argv, body = fake.calls[0]
+    assert "dispute-appeal" in argv
+    assert "subject: match-42" in body
+    assert "bond_amount: 50" in body
+    assert "protocol: daimon-dispute-v1" in body
+    assert "signature: " in body
+    assert "expected_winner" in body  # evidence block made it in
+
+
+# --- dm_card_propose -------------------------------------------------------
 
 def test_card_propose_rejects_non_dict():
     r = _call(dm_card_propose, card_def="not a card")
     assert r["error"] == "invalid_input"
 
 
-def test_card_propose_schema_valid_flag():
-    """Valid V2 card def → schema_valid: True."""
+def test_card_propose_rejects_invalid_card(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    # No gh call should happen — we return early on schema failure.
+    fake = _FakeGh([])
+    _install_fake_gh(monkeypatch, fake)
+
+    invalid = {"card_id": "broken"}  # missing required fields
+    r = _call(dm_card_propose, card_def=invalid)
+    assert r["error"] == "invalid_card"
+    assert r["schema_error"]
+    assert fake.calls == []  # never reached gh
+
+
+def test_card_propose_posts_valid_card(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    fake = _FakeGh([_create_issue_ok(77, repo="aurorasuperbot/daimon-cards")])
+    _install_fake_gh(monkeypatch, fake)
+
     valid = {
         "card_id": "glowrat",
         "species": "glowrat",
@@ -1037,30 +1462,32 @@ def test_card_propose_schema_valid_flag():
         "triggers": [],
     }
     r = _call(dm_card_propose, card_def=valid, rationale="fills common slot")
-    assert r["status"] == "not_yet_implemented"
-    assert r["schema_valid"] is True
-    assert r["schema_error"] is None
+    assert r["status"] == "ok"
+    assert r["card_id"] == "glowrat"
+    assert r["issue_number"] == 77
 
-
-def test_card_propose_schema_invalid_flag():
-    """Bogus card def → schema_valid: False + error surfaced."""
-    invalid = {"card_id": "broken"}  # missing species, element, stats
-    r = _call(dm_card_propose, card_def=invalid)
-    assert r["status"] == "not_yet_implemented"
-    assert r["schema_valid"] is False
-    assert r["schema_error"] is not None
+    argv, body = fake.calls[0]
+    # Card proposals land in the cards repo, not the arena repo.
+    assert "aurorasuperbot/daimon-cards" in argv
+    assert "card-proposal" in argv
+    assert "glowrat" in body
+    assert "protocol: daimon-card-propose-v1" in body
 
 
 def test_arena_repo_overrideable_via_env(monkeypatch, tmp_path):
-    """DAIMON_ARENA_REPO env var must change the arena_repo field in
-    stub responses — lets forks and test arenas point elsewhere."""
-    _isolate_paths(monkeypatch, tmp_path)
+    """DAIMON_ARENA_REPO env var must change the --repo argument gh sees."""
+    _isolate_arena(monkeypatch, tmp_path)
     from daimon.identity import generate_identity
     generate_identity(force=True)
-    # Patch the module-level constant (which was frozen at import time).
-    monkeypatch.setattr(mcp_server, "ARENA_REPO", "test-org/test-arena")
+    monkeypatch.setenv("DAIMON_ARENA_REPO", "test-org/test-arena")
+    fake = _FakeGh([_create_issue_ok(1, repo="test-org/test-arena")])
+    _install_fake_gh(monkeypatch, fake)
+
     r = _call(dm_register)
-    assert r["arena_repo"] == "test-org/test-arena"
+    assert r["status"] == "ok"
+    argv, _ = fake.calls[0]
+    # The --repo argument must reflect the env override.
+    assert "test-org/test-arena" in argv
 
 
 # ---------------------------------------------------------------------------

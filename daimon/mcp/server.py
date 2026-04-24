@@ -5,14 +5,15 @@ play autonomously. The server is **read-only with respect to the engine** —
 all engine entry points are pure functions, the server just adapts arguments
 and serializes results.
 
-V1 scope (this file) — 26 tools total (21 locked 2026-04-21 + dm_init
+V1 scope (this file) — 27 tools total (21 locked 2026-04-21 + dm_init
 follow-up shipped same day + 3 NPC roster tools shipped 2026-04-22 +
-dm_mine_status deprecated alias kept for back-compat):
+dm_mine_status deprecated alias + dm_pvp_reveal added 2026-04-24 when
+arena wiring landed):
 
 Identity + currency:
   dm_init              → bootstrap identity + BIP39 mnemonic (one-time)
   dm_whoami            → pubkey + handle + balance + totals (absorbed mine_status)
-  dm_register          → STUB: open identity registration Issue in arena
+  dm_register          → open identity registration Issue in arena
   dm_mine_status       → DEPRECATED alias for dm_whoami; kept for back-compat
 
 Catalog (pure-local):
@@ -36,18 +37,19 @@ Match / PvP:
   dm_npcs              → list the NPC tier roster (Rookie → Champion)
   dm_npc               → full record for one NPC, with resolved card payloads
   dm_match_npc         → resolve player loadout vs a named NPC opponent
-  dm_pvp_challenge     → STUB: open PvP challenge Issue in arena
-  dm_pvp_accept        → STUB: accept + reveal against a pending challenge
-  dm_pvp_status        → STUB: poll arbiter result for a challenge
-  dm_pvp_my_matches    → STUB: list my open + recent PvP matches
+  dm_pvp_challenge     → open PvP challenge Issue (commit phase)
+  dm_pvp_accept        → accept a pending challenge (commit phase, responder side)
+  dm_pvp_reveal        → publish loadout + signature (reveal phase, both sides)
+  dm_pvp_status        → poll arbiter result for a challenge
+  dm_pvp_my_matches    → list my open + recent PvP matches
 
 Arena state:
-  dm_leaderboard       → STUB: read leaderboard.json from arena repo
-  dm_my_rank           → STUB: my standing + record
+  dm_leaderboard       → read leaderboard.json from arena repo
+  dm_my_rank           → my standing + record
 
 Disputes + contributions:
-  dm_dispute_open      → STUB: appeal a resolved match (costs 50 currency)
-  dm_card_propose      → STUB: propose a new card definition
+  dm_dispute_open      → appeal a resolved match (costs 50 currency)
+  dm_card_propose      → propose a new card definition
 
 Design rules:
   - Tools are NAMED `dm_*` so card text containing tool calls can't masquerade
@@ -72,6 +74,7 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import FastMCP
 
 from daimon import __version__
+from daimon.arena import ops as arena_ops
 from daimon.cards import (
     CardDisplayFields,
     extract_display_fields,
@@ -292,23 +295,10 @@ def _catalog_summary(catalog_id: str) -> Dict[str, Any]:
     }
 
 
-def _stub_arena_response(tool_name: str,
-                         issue_shape: Dict[str, Any],
-                         hint: str) -> Dict[str, Any]:
-    """Uniform envelope for arena-bound tools that aren't wired up yet.
-
-    Returns the shape agents will get in V1.x once wiring lands; for now the
-    `status: not_yet_implemented` flag tells the agent to skip gracefully.
-    The `issue_shape` field documents the exact JSON an arena GitHub Issue
-    should carry, so skills-doc examples stay accurate.
-    """
-    return {
-        "status": "not_yet_implemented",
-        "tool": tool_name,
-        "arena_repo": ARENA_REPO,
-        "issue_shape": issue_shape,
-        "hint": hint,
-    }
+# NOTE: the old `_stub_arena_response()` helper was removed 2026-04-24 when
+# the arena ops module landed. The arena-bound tools below now do real work
+# and return real envelopes from `daimon.arena.ops`. Tests that asserted on
+# `status == "not_yet_implemented"` were updated in the same commit.
 
 
 # ---------------------------------------------------------------------------
@@ -1256,98 +1246,120 @@ def dm_loadout_load(name: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Arena-bound stubs
+# Arena-bound tools
 #
-# These tools need the `daimon-arena` GitHub repo + arbiter workflow to be
-# live to do their real work. Until then they return a documented
-# `not_yet_implemented` envelope whose `issue_shape` shows the exact payload
-# an agent will post once wiring lands. Agents + skills docs can code against
-# the shape today.
+# Every tool below is a thin shim over `daimon.arena.ops` — input
+# validation lives here, the actual gh-CLI dance + signing + state
+# persistence lives in the ops layer. The contract for each tool is
+# documented in detail in the corresponding `arena.ops` function.
+#
+# All envelopes follow the convention used by neighboring tools:
+#   success: {"status": "ok", ...}
+#   failure: {"error": "<category>", "message": "..."}
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
 def dm_register(handle: Optional[str] = None) -> Dict[str, Any]:
     """Register this local identity with the arena.
 
-    Opens an identity Issue in `DAIMON_ARENA_REPO` carrying a signed
-    assertion `{"pubkey_hex": "...", "handle": "...", "signed_at": "..."}`
-    so the arbiter can bind pubkey → GitHub account + display handle.
+    Opens an identity Issue in ``DAIMON_ARENA_REPO`` carrying a signed
+    assertion ``{pubkey_hex, handle, signed_at, signature}`` so the arbiter
+    can bind pubkey → GitHub account + display handle. The signature uses
+    the `daimon-register-v1` domain-separated payload so it can't be
+    replayed in another protocol context.
 
-    V1 STUB — arena wiring not yet live; returns issue_shape doc.
+    Args:
+      handle: Display handle to bind to this pubkey. Optional; defaults to
+              ``"(auto)"`` (the arbiter may derive one from the GitHub
+              account on its side).
+
+    Returns on success::
+        {"status": "ok", "issue_number": int, "url": "...",
+         "pubkey_hex": "...", "handle": "...", "phase": "pending-arbiter"}
+
+    Returns on failure::
+        {"error": "no_identity", "hint": "..."}              # no key on disk
+        {"error": "<gh_*>", "message": "..."}                # gh CLI failed
     """
-    # Surface the caller's pubkey in the docstring shape so agents can see
-    # what we *would* post. Safe — pubkeys are public.
-    try:
-        from daimon.identity import load_identity
-        identity = load_identity()
-        pubkey_hex = identity.pubkey_hex
-    except FileNotFoundError:
-        return {"error": "no_identity", "hint": "Run `daimon init` first."}
-
-    return _stub_arena_response(
-        "dm_register",
-        issue_shape={
-            "title": f"register: {pubkey_hex[:16]}…",
-            "body": {
-                "pubkey_hex": pubkey_hex,
-                "handle": handle or "(auto-derived from github)",
-                "signed_at": "ISO-8601 UTC",
-                "signature": "ed25519(pubkey || handle || ts) hex",
-            },
-            "labels": ["identity", "pending-arbiter"],
-        },
-        hint=(
-            "arena wiring lands with V1 launch; until then this is local-only"
-        ),
-    )
+    return arena_ops.register(handle=handle)
 
 
 @mcp.tool()
 def dm_pvp_challenge(opponent_pubkey: str,
                      loadout: Any,
-                     memo: Optional[str] = None) -> Dict[str, Any]:
-    """Open an async PvP challenge against another registered player.
+                     memo: Optional[str] = None,
+                     pack_pin: str = "starter-v1.0.0",
+                     rule_set: str = "standard-v1") -> Dict[str, Any]:
+    """Open an async PvP challenge — commit phase, challenger side.
 
-    Commits the challenger's loadout (commit half of commit-reveal) to the
-    arena queue. The opponent reveals their loadout via `dm_pvp_accept`;
-    arbiter then runs `resolve_match` and writes the result.
+    Generates a fresh 32-byte nonce, commits SHA-256(canonical(loadout) ||
+    nonce) to the arena Issue, and saves the loadout + nonce locally for
+    a later ``dm_pvp_reveal``. Two-phase commit-reveal so neither side can
+    react to the other's loadout.
 
-    V1 STUB — arena wiring not yet live; returns issue_shape doc.
+    Args:
+      opponent_pubkey: 64-char hex pubkey of the player you're challenging.
+      loadout: Either ``{"cards": [...]}`` or a bare card list.
+      memo: Optional human-readable note attached to the Issue body.
+      pack_pin: Catalog version pin (default ``"starter-v1.0.0"``); arbiter
+                rejects matches whose loadouts reference cards outside this
+                pack version.
+      rule_set: Engine rule-set tag (default ``"standard-v1"``).
+
+    Returns on success::
+        {"status": "ok", "challenge_id": "<issue_number>",
+         "issue_number": int, "url": "...", "loadout_commit": "<hex>",
+         "phase": "pending-accept", "next_step": "..."}
+
+    Returns on failure::
+        {"error": "no_identity", "hint": "..."}
+        {"error": "invalid_input", "message": "..."}
+        {"error": "<gh_*>", "message": "..."}
+
+    Next step after success: wait for opponent's ``dm_pvp_accept``, then
+    call ``dm_pvp_reveal(challenge_id)`` to publish your loadout.
     """
     if not isinstance(opponent_pubkey, str) or len(opponent_pubkey) != 64:
         return {"error": "invalid_input",
                 "message": "opponent_pubkey must be 64-char hex"}
+    # Reject early on shape; the ops layer will re-validate but it's a worse
+    # UX to discover this after spending a gh round-trip.
     try:
         _raw_cards_from_payload(loadout, "loadout")
     except (ValueError, TypeError) as e:
         return {"error": "invalid_input", "message": str(e)}
-
-    return _stub_arena_response(
-        "dm_pvp_challenge",
-        issue_shape={
-            "title": "pvp-challenge",
-            "body": {
-                "challenger_pubkey": "hex(local)",
-                "opponent_pubkey": opponent_pubkey,
-                "loadout_commit": "sha256(loadout_json || salt) hex",
-                "challenged_at": "ISO-8601 UTC",
-                "memo": memo,
-                "signature": "ed25519(title || body) hex",
-            },
-            "labels": ["pvp", "pending-accept"],
-        },
-        hint="reveal via dm_pvp_accept once opponent accepts",
+    return arena_ops.pvp_challenge(
+        opponent_pubkey=opponent_pubkey,
+        loadout=loadout,
+        memo=memo,
+        pack_pin=pack_pin,
+        rule_set=rule_set,
     )
 
 
 @mcp.tool()
 def dm_pvp_accept(challenge_id: str, loadout: Any) -> Dict[str, Any]:
-    """Accept a pending PvP challenge + reveal responder's loadout.
+    """Accept a pending PvP challenge — commit phase, responder side.
 
-    Posts the reveal payload (responder loadout + salt + signature) as a
-    comment on the challenge Issue. Arbiter picks it up + resolves.
+    Posts a ``/accept`` comment carrying just the responder's commit hash
+    (SHA-256 of canonical(loadout) || nonce). The full loadout is held
+    locally until ``dm_pvp_reveal`` — same commit-reveal flow the
+    challenger uses.
 
-    V1 STUB — arena wiring not yet live; returns issue_shape doc.
+    Args:
+      challenge_id: Issue number from ``dm_pvp_challenge``.
+      loadout: Either ``{"cards": [...]}`` or a bare card list.
+
+    Returns on success::
+        {"status": "ok", "challenge_id": "...", "loadout_commit": "<hex>",
+         "phase": "pending-arbiter", "next_step": "..."}
+
+    Returns on failure::
+        {"error": "no_identity", ...}
+        {"error": "invalid_input", "message": "..."}
+        {"error": "<gh_*>", "message": "..."}
+
+    Next step after success: call ``dm_pvp_reveal(challenge_id)``.
     """
     if not isinstance(challenge_id, str) or not challenge_id:
         return {"error": "invalid_input",
@@ -1356,156 +1368,146 @@ def dm_pvp_accept(challenge_id: str, loadout: Any) -> Dict[str, Any]:
         _raw_cards_from_payload(loadout, "loadout")
     except (ValueError, TypeError) as e:
         return {"error": "invalid_input", "message": str(e)}
-
-    return _stub_arena_response(
-        "dm_pvp_accept",
-        issue_shape={
-            "target_issue": challenge_id,
-            "comment_body": {
-                "responder_pubkey": "hex(local)",
-                "responder_loadout": "full loadout JSON",
-                "salt": "hex(32 bytes)",
-                "accepted_at": "ISO-8601 UTC",
-                "signature": "ed25519(...) hex",
-            },
-            "labels_to_add": ["pending-arbiter"],
-        },
-        hint="arbiter writes result on the same Issue after ~1 min",
-    )
+    return arena_ops.pvp_accept(challenge_id=challenge_id, loadout=loadout)
 
 
 @mcp.tool()
-def dm_pvp_status(challenge_id: str) -> Dict[str, Any]:
-    """Poll the arbiter result for a PvP challenge.
+def dm_pvp_reveal(challenge_id: str) -> Dict[str, Any]:
+    """Reveal a previously-committed loadout — reveal phase, both sides.
 
-    Returns the current phase (`pending-accept` / `pending-arbiter` /
-    `resolved` / `disputed`) and, when resolved, the match_id + winner.
+    Reads the local ``~/.daimon/pvp_state/<id>.json`` record (saved by
+    ``dm_pvp_challenge`` or ``dm_pvp_accept``), signs the canonical reveal
+    payload with the local ed25519 key, and posts a ``/reveal`` comment
+    carrying ``{pubkey, nonce, signature, loadout_json}``. The arbiter
+    matches reveals to sides by pubkey (not by comment order) so either
+    side can reveal first.
 
-    V1 STUB — arena wiring not yet live; returns issue_shape doc.
+    Args:
+      challenge_id: Issue number — must match a saved local state file.
+
+    Returns on success::
+        {"status": "ok", "challenge_id": "...", "phase": "revealed",
+         "next_step": "wait for opponent's reveal + arbiter settlement"}
+
+    Returns on failure::
+        {"error": "no_identity", ...}
+        {"error": "invalid_input", ...}
+        {"error": "no_local_state", "hint": "..."}      # no saved nonce
+        {"error": "identity_mismatch", ...}             # state from a different key
+        {"error": "<gh_*>", "message": "..."}
     """
     if not isinstance(challenge_id, str) or not challenge_id:
         return {"error": "invalid_input",
                 "message": "challenge_id must be non-empty string"}
+    return arena_ops.pvp_reveal(challenge_id=challenge_id)
 
-    return _stub_arena_response(
-        "dm_pvp_status",
-        issue_shape={
-            "target_issue": challenge_id,
-            "response_shape_when_resolved": {
-                "phase": "resolved",
-                "match_id": "...",
-                "winner_pubkey": "hex",
-                "loser_pubkey": "hex",
-                "round_count": "int",
-                "trace_path": "matches/<match_id>/trace.json",
-            },
-        },
-        hint="arbiter updates Issue body with result JSON",
-    )
+
+@mcp.tool()
+def dm_pvp_status(challenge_id: str) -> Dict[str, Any]:
+    """Poll the current phase + (when settled) result for a PvP match.
+
+    Reads the Issue body, labels, and comments to determine whether the
+    match is ``pending-accept`` / ``revealing`` / ``pending-arbiter`` /
+    ``resolved``. When resolved, also fetches ``matches/<id>.json`` from
+    the arena repo and decodes winner/loser pubkeys.
+
+    Args:
+      challenge_id: Issue number from ``dm_pvp_challenge``.
+
+    Returns on success (any phase)::
+        {"status": "ok", "challenge_id": "...", "issue_number": int,
+         "url": "...", "title": "...", "labels": [...],
+         "issue_state": "open|closed", "phase": "...",
+         "comment_count": int, "reveal_count": int,
+         "match"?: {...}, "winner_pubkey"?: "...", "loser_pubkey"?: "..."}
+
+    Returns on failure::
+        {"error": "invalid_input", ...}
+        {"error": "<gh_*>", "message": "..."}
+    """
+    if not isinstance(challenge_id, str) or not challenge_id:
+        return {"error": "invalid_input",
+                "message": "challenge_id must be non-empty string"}
+    return arena_ops.pvp_status(challenge_id=challenge_id)
 
 
 @mcp.tool()
 def dm_pvp_my_matches(limit: int = 20) -> Dict[str, Any]:
-    """List open + recent PvP matches for this identity.
+    """List open + recent PvP matches involving this identity.
 
-    Queries the arena repo for Issues labeled `pvp` where the local pubkey
-    is either challenger or responder.
+    Pulls all ``pvp``-labeled Issues from the arena repo and filters
+    client-side by pubkey embedded in the body kv pairs (challenger or
+    opponent). Returns lightweight summaries — call ``dm_pvp_status`` for
+    the full per-match record.
 
-    V1 STUB — arena wiring not yet live; returns issue_shape doc.
+    Args:
+      limit: Max matches to return. Range [1, 100]. Default 20.
+
+    Returns on success::
+        {"status": "ok", "count": int, "matches": [
+            {"challenge_id": "...", "issue_number": int, "phase": "...",
+             "role": "challenger|responder", "opponent_pubkey": "...",
+             "url": "...", "updated_at": "..."}, ...]}
+
+    Returns on failure::
+        {"error": "no_identity", ...}
+        {"error": "invalid_input", ...}
+        {"error": "<gh_*>", "message": "..."}
     """
     if not isinstance(limit, int) or limit < 1 or limit > 100:
         return {"error": "invalid_input",
                 "message": "limit must be int in [1, 100]"}
-
-    return _stub_arena_response(
-        "dm_pvp_my_matches",
-        issue_shape={
-            "query": (
-                f"repo:{ARENA_REPO} is:issue label:pvp "
-                "(involves:<pubkey_hex>)"
-            ),
-            "response_shape": {
-                "matches": [
-                    {
-                        "challenge_id": "...",
-                        "phase": "resolved|pending-accept|pending-arbiter",
-                        "role": "challenger|responder",
-                        "opponent_pubkey": "hex",
-                        "outcome": "win|loss|draw|pending",
-                        "updated_at": "ISO-8601 UTC",
-                    }
-                ],
-                "count": "int",
-            },
-        },
-        hint="backed by GitHub search API when wiring lands",
-    )
+    return arena_ops.pvp_my_matches(limit=limit)
 
 
 @mcp.tool()
 def dm_leaderboard(limit: int = 25) -> Dict[str, Any]:
     """Read the arena leaderboard.
 
-    Fetches `leaderboard.json` from the arena repo root. The arbiter updates
-    this file after every resolved match + every tournament round.
+    Fetches ``leaderboard.json`` from the arena repo root and ranks
+    entries by wins desc (losses asc tiebreak). Tier label is computed
+    locally from wins via ``arena.ops.tier_of``.
 
-    V1 STUB — arena wiring not yet live; returns issue_shape doc.
+    Args:
+      limit: Max ranks to return. Range [1, 100]. Default 25.
+
+    Returns on success::
+        {"status": "ok", "updated_at": "...", "total_players": int,
+         "count": int, "ranks": [
+            {"rank": int, "pubkey_hex": "...", "wins": int, "losses": int,
+             "draws": int, "tier": "Rookie|Novice|Veteran|Elite|Champion"},
+            ...]}
+
+    Returns on failure::
+        {"error": "invalid_input", ...}
+        {"error": "<gh_*>", "message": "..."}
+
+    If the leaderboard file doesn't exist yet (cold-start arena), returns
+    success with empty ranks and a ``note`` field explaining why.
     """
     if not isinstance(limit, int) or limit < 1 or limit > 100:
         return {"error": "invalid_input",
                 "message": "limit must be int in [1, 100]"}
-
-    return _stub_arena_response(
-        "dm_leaderboard",
-        issue_shape={
-            "source": f"https://raw.githubusercontent.com/{ARENA_REPO}"
-                      "/main/leaderboard.json",
-            "response_shape": {
-                "updated_at": "ISO-8601 UTC",
-                "ranks": [
-                    {
-                        "rank": 1,
-                        "handle": "...",
-                        "pubkey_hex": "...",
-                        "tier": "Champion|Elite|Veteran|Novice|Rookie",
-                        "wins": "int", "losses": "int",
-                        "rating": "int",
-                    }
-                ],
-            },
-        },
-        hint="cached locally for 5 min once wiring lands",
-    )
+    return arena_ops.leaderboard(limit=limit)
 
 
 @mcp.tool()
 def dm_my_rank() -> Dict[str, Any]:
     """Return the local identity's arena standing.
 
-    V1 STUB — arena wiring not yet live; returns issue_shape doc.
-    """
-    try:
-        from daimon.identity import load_identity
-        pubkey_hex = load_identity().pubkey_hex
-    except FileNotFoundError:
-        return {"error": "no_identity", "hint": "Run `daimon init` first."}
+    Reads the leaderboard, finds the local pubkey, returns rank + record.
+    Players with no matches yet get ``rank: null`` and a friendly note.
 
-    return _stub_arena_response(
-        "dm_my_rank",
-        issue_shape={
-            "pubkey_hex": pubkey_hex,
-            "source": f"https://raw.githubusercontent.com/{ARENA_REPO}"
-                      "/main/leaderboard.json",
-            "response_shape": {
-                "pubkey_hex": pubkey_hex,
-                "rank": "int or null",
-                "tier": "Rookie|Novice|Veteran|Elite|Champion",
-                "wins": "int", "losses": "int", "draws": "int",
-                "rating": "int",
-            },
-        },
-        hint="tier gates which NPC pool dm_match draws from",
-    )
+    Returns on success::
+        {"status": "ok", "pubkey_hex": "...", "rank": int|null,
+         "tier": "...", "wins": int, "losses": int, "draws": int,
+         "total_players": int, "note"?: "..."}
+
+    Returns on failure::
+        {"error": "no_identity", ...}
+        {"error": "<gh_*>", "message": "..."}
+    """
+    return arena_ops.my_rank()
 
 
 @mcp.tool()
@@ -1513,11 +1515,26 @@ def dm_dispute_open(match_id: str, reason: str,
                     evidence: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Open an arbiter dispute on a resolved match.
 
-    Costs 50 currency (refunded if upheld). Arbiter re-runs the engine
-    deterministically; if their result differs from the original, the
-    dispute is upheld and the match result is reversed.
+    Currently V1: the dispute is recorded with a ``bond_amount: 50`` field
+    in the Issue body (documentation-only — the engine-side currency-spend
+    layer ships in V1.1; arbiter will refund/forfeit when it lands).
+    The dispute body is signed with the ``daimon-dispute-v1`` payload so
+    nobody can replay a signature into a different context.
 
-    V1 STUB — arena wiring not yet live; returns issue_shape doc.
+    Args:
+      match_id: The match identifier (typically the issue number string).
+      reason: Free-text reason — kept on a single line in the kv body.
+      evidence: Optional structured payload embedded as a JSON block.
+
+    Returns on success::
+        {"status": "ok", "issue_number": int, "url": "...",
+         "match_id": "...", "bond_amount": 50,
+         "phase": "pending-review", "note": "..."}
+
+    Returns on failure::
+        {"error": "no_identity", ...}
+        {"error": "invalid_input", ...}
+        {"error": "<gh_*>", "message": "..."}
     """
     if not isinstance(match_id, str) or not match_id:
         return {"error": "invalid_input",
@@ -1525,26 +1542,8 @@ def dm_dispute_open(match_id: str, reason: str,
     if not isinstance(reason, str) or not reason.strip():
         return {"error": "invalid_input",
                 "message": "reason must be non-empty string"}
-
-    return _stub_arena_response(
-        "dm_dispute_open",
-        issue_shape={
-            "title": f"dispute: {match_id}",
-            "body": {
-                "match_id": match_id,
-                "reason": reason,
-                "evidence": evidence or {},
-                "disputant_pubkey": "hex(local)",
-                "bond_amount": 50,
-                "opened_at": "ISO-8601 UTC",
-                "signature": "ed25519(match_id || reason || ts) hex",
-            },
-            "labels": ["dispute", "pending-arbiter"],
-        },
-        hint=(
-            "bond is deducted from balance on open; refunded on upheld, "
-            "forfeited on rejected"
-        ),
+    return arena_ops.dispute_open(
+        match_id=match_id, reason=reason, evidence=evidence,
     )
 
 
@@ -1553,45 +1552,31 @@ def dm_card_propose(card_def: Dict[str, Any],
                     rationale: Optional[str] = None) -> Dict[str, Any]:
     """Propose a new card definition for inclusion in a future catalog.
 
-    Opens an Issue in `daimon-cards` with the signed card JSON. Human
-    CODEOWNERS review + approve for the next catalog release.
+    Validates ``card_def`` against the engine's card loader BEFORE opening
+    an Issue (proposing a card the engine can't load wastes everyone's
+    time). On schema failure returns ``{"error": "invalid_card", ...}``
+    immediately. On schema pass, opens an Issue in the cards repo with
+    the signed card JSON. Human CODEOWNERS review + approve for the next
+    catalog release.
 
-    V1 STUB — cards-repo wiring not yet live; returns issue_shape doc.
+    Args:
+      card_def: Full card-definition dict (engine-loadable shape).
+      rationale: Optional design rationale, kept single-line in the body.
+
+    Returns on success::
+        {"status": "ok", "issue_number": int, "url": "...",
+         "card_id": "...", "phase": "pending-review"}
+
+    Returns on failure::
+        {"error": "no_identity", ...}
+        {"error": "invalid_input", ...}
+        {"error": "invalid_card", "schema_error": "..."}
+        {"error": "<gh_*>", "message": "..."}
     """
     if not isinstance(card_def, dict):
         return {"error": "invalid_input",
                 "message": "card_def must be a JSON object"}
-    # Best-effort schema check: loader accepts it? Don't raise — return a hint.
-    try:
-        load_card_dict(card_def)
-        schema_ok = True
-        schema_error: Optional[str] = None
-    except (ValueError, TypeError) as e:
-        schema_ok = False
-        schema_error = str(e)
-
-    return {
-        "status": "not_yet_implemented",
-        "tool": "dm_card_propose",
-        "cards_repo": "aurorasuperbot/daimon-cards",
-        "schema_valid": schema_ok,
-        "schema_error": schema_error,
-        "issue_shape": {
-            "title": f"card proposal: {card_def.get('card_id', '(no id)')}",
-            "body": {
-                "card_def": card_def,
-                "rationale": rationale or "",
-                "proposer_pubkey": "hex(local)",
-                "proposed_at": "ISO-8601 UTC",
-                "signature": "ed25519(card_def || ts) hex",
-            },
-            "labels": ["card-proposal", "pending-review"],
-        },
-        "hint": (
-            "proposals route through CODEOWNERS PR review; approval bundles "
-            "into the next catalog release"
-        ),
-    }
+    return arena_ops.card_propose(card_def=card_def, rationale=rationale)
 
 
 # ---------------------------------------------------------------------------
