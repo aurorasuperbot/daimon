@@ -24,18 +24,25 @@ from daimon.identity.keys import (
 
 @pytest.fixture
 def isolated_config(tmp_path, monkeypatch):
-    """Redirect ~/.config/daimon to a tmp dir for test isolation."""
-    fake_home = tmp_path / "home"
-    fake_home.mkdir()
-    monkeypatch.setenv("HOME", str(fake_home))
+    """Redirect identity paths to a tmp dir for test isolation.
 
-    # Re-import to pick up new HOME
-    import importlib
+    Patches the module-level CONFIG_DIR + path constants directly. This is
+    the same pattern ``tests/test_mcp.py::_isolate_paths`` and
+    ``tests/test_arena_smoke.py`` use, and it is immune to ambient
+    ``HOME`` / ``XDG_CONFIG_HOME`` / ``DAIMON_HOME`` environment state —
+    GitHub Actions ubuntu runners pre-set ``XDG_CONFIG_HOME`` so the older
+    HOME-monkeypatch + reload approach was silently bypassed in CI and
+    leaked writes into the runner's real config dir.
+    """
     import daimon.identity.keys as kmod
-    importlib.reload(kmod)
 
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    monkeypatch.setattr(kmod, "CONFIG_DIR", cfg)
+    monkeypatch.setattr(kmod, "PRIVATE_KEY_PATH", cfg / "identity.key")
+    monkeypatch.setattr(kmod, "PUBLIC_KEY_PATH", cfg / "identity.pub")
+    monkeypatch.setattr(kmod, "METADATA_PATH", cfg / "identity.json")
     yield kmod
-    importlib.reload(kmod)  # reset
 
 
 def test_seed_to_identity_deterministic():
