@@ -138,22 +138,48 @@ def test_compose_card_from_pack_dict(tmp_path):
     assert out.exists()
 
 
-def test_compose_card_from_pack_dict_real_starter(tmp_path):
-    """Render a real starter card from the cards repo to verify integration."""
-    cards_root = Path(
-        "/opt/agents/projects/daimon-workspace/daimon-cards/packs/starter"
-    )
-    card_file = cards_root / "starter_scout_head.json"
-    if not card_file.exists():
-        pytest.skip("starter cards not available in this checkout")
+@pytest.mark.parametrize(
+    "card_id,expected_rarity",
+    [
+        ("abyss_minnow",   "common"),
+        ("abyssbreaker",   "uncommon"),
+        ("abyss_warden",   "rare"),
+        ("arc_predator",   "epic"),
+        ("magma_tyrant",   "legendary"),
+    ],
+)
+def test_compose_card_from_pack_dict_bundled_catalog(card_id, expected_rarity, tmp_path):
+    """Integration: render real V2 cards from the engine's bundled catalog.
+
+    Replaces the legacy ``_real_starter`` test that was perpetually skipped
+    after the monster pivot retired the V1 slot-based cards repo. The bundled
+    catalog at ``daimon/catalog/v1_alpha/`` is the production source of truth
+    for V2 monster cards (200 cards) and ships inside the engine wheel — no
+    external repo dependency, no platform-specific paths, no skip conditions.
+
+    Each of the 5 rarities is exercised so the palette + render-info pipeline
+    is covered end-to-end against real production data. Art is intentionally
+    routed through a tmp_path so the placeholder fallback is exercised; the
+    bundled WezTerm + KGP painter coverage lives in ``test_kgp_painter.py``.
+    """
+    catalog_root = Path(__file__).parent.parent / "daimon" / "catalog" / "v1_alpha"
+    card_file = catalog_root / f"{card_id}.json"
+    assert card_file.exists(), f"bundled catalog missing {card_id}.json"
+
     pack = json.loads(card_file.read_text())
-    # External cards repo may still be on V1 schema (has 'slot', lacks 'element').
-    # Skip in that case — the engine/render tests already cover V2 loading.
-    if "slot" in pack and "element" not in pack:
-        pytest.skip("starter cards repo still on V1 schema; skip until migrated")
-    out = tmp_path / "scout.png"
-    compose_card_from_pack_dict(pack, cards_root, out)
+
+    # Sanity-check the catalog actually shipped V2 schema (post-monster-pivot).
+    assert "element" in pack, f"{card_id} missing 'element' (catalog regressed to V1?)"
+    assert "slot" not in pack, f"{card_id} has legacy 'slot' field (V1 fossil)"
+    assert pack.get("rarity") == expected_rarity, (
+        f"catalog drift: {card_id} rarity={pack.get('rarity')!r}, expected {expected_rarity!r}"
+    )
+
+    out = tmp_path / f"{card_id}.png"
+    compose_card_from_pack_dict(pack, tmp_path, out)
     assert out.exists()
+    # PNG magic bytes — proves we wrote a real image, not just an empty file.
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_render_info_accepts_top_level_fields():
