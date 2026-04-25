@@ -729,13 +729,20 @@ def _format_secs(secs: int) -> str:
 @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
 @click.option("--slot", "slot_idx", default=None, type=int,
               help="Show details for one slot only.")
+@click.option("--no-tui", "no_tui", is_flag=True,
+              help="Skip the interactive TUI; print a plain text listing.")
 @click.pass_context
-def shop(ctx: click.Context, as_json: bool, slot_idx: int | None) -> None:
+def shop(ctx: click.Context, as_json: bool, slot_idx: int | None,
+         no_tui: bool) -> None:
     """Browse today's 6-slot skin shop. Refreshes daily at 00:00 UTC.
+
+    By default launches an interactive TUI (←→ select, ENTER buy, R refresh,
+    Q quit) when stdout is a TTY. ``--no-tui`` and ``--json`` produce a plain
+    text dump suitable for agents and pipes.
 
     \b
     Subcommands:
-      daimon shop                  list today's slots
+      daimon shop                  interactive TUI (or text dump if --no-tui)
       daimon shop --slot N         detail one slot
       daimon shop buy <slot|key>   purchase by index or 'card_id/skin_slug'
       daimon shop refresh-status   seconds until next rotation
@@ -745,6 +752,19 @@ def shop(ctx: click.Context, as_json: bool, slot_idx: int | None) -> None:
     import json as _json
 
     from daimon.shop import get_shop_state
+
+    # Interactive TUI is the default when running in a real terminal.
+    # ``--json`` / ``--slot`` / ``--no-tui`` all opt out so agents and
+    # pipelines get deterministic text. Non-TTY stdout (e.g. captured by
+    # an agent) also auto-falls-back to the text dump so we never write
+    # raw escape codes into a log file.
+    want_tui = (not as_json
+                and not no_tui
+                and slot_idx is None
+                and sys.stdout.isatty())
+    if want_tui:
+        from daimon.play.shop_ui import run_shop_tui
+        sys.exit(run_shop_tui())
 
     try:
         state = get_shop_state()
@@ -962,22 +982,39 @@ def _rarity_sort_key(r: str) -> int:
               help="Filter to one rarity (common/uncommon/rare/epic/legendary).")
 @click.option("--card", default=None,
               help="Filter to one card_id (shows every serial of that card).")
-def collection(as_json: bool, rarity: str | None, card: str | None) -> None:
-    """List cards owned by this identity.
+@click.option("--no-tui", "no_tui", is_flag=True,
+              help="Skip the interactive TUI; print a plain text listing.")
+def collection(as_json: bool, rarity: str | None, card: str | None,
+               no_tui: bool) -> None:
+    """Browse cards owned by this identity.
 
-    Reads ``~/.config/daimon/collection.json``. Cards are grouped by
-    card_id and shown with rarity + serial count. ``--rarity`` and
-    ``--card`` are independent filters; combining them is fine.
+    By default launches an interactive TUI (↑↓ select, S sort, F rarity-filter,
+    E element-filter, Q quit) when stdout is a TTY. ``--no-tui``, ``--json``,
+    or any explicit ``--rarity`` / ``--card`` filter flag falls back to a
+    plain text dump suitable for agents and pipes.
 
     Example:
-      daimon collection
-      daimon collection --rarity legendary
-      daimon collection --card magma_tyrant
-      daimon collection --json
+      daimon collection                       interactive TUI
+      daimon collection --no-tui              plain text dump
+      daimon collection --rarity legendary    text dump filtered to legendaries
+      daimon collection --card magma_tyrant   text dump for one card_id
+      daimon collection --json                JSON dump
     """
     import json as _json
 
     from daimon.collection import list_serials
+
+    # Interactive TUI is the default when running in a real terminal AND no
+    # explicit filter / output-format flag is set. Filters force text dump
+    # so the user gets exactly what they asked for.
+    want_tui = (not as_json
+                and not no_tui
+                and rarity is None
+                and card is None
+                and sys.stdout.isatty())
+    if want_tui:
+        from daimon.play.collection_ui import run_collection_tui
+        sys.exit(run_collection_tui())
 
     serials = list_serials()
     if rarity:
@@ -1322,7 +1359,7 @@ def catalog_compare(card_a: str, card_b: str, expansion: str | None,
 
 @main.group("loadout")
 def loadout_group() -> None:
-    """Save / load / list / validate / scaffold loadouts.
+    """Save / load / list / validate / scaffold / edit loadouts.
 
     \b
     Subcommands:
@@ -1331,6 +1368,7 @@ def loadout_group() -> None:
       daimon loadout load <name>           print a saved loadout JSON
       daimon loadout validate <path>       check a file's shape + cards
       daimon loadout new                   print a starter showcase template
+      daimon loadout edit <name>           interactive split-pane editor
 
     Saved loadouts live at ``~/.config/daimon/loadouts/<name>.json`` and are
     addressable by name in ``daimon loadout load`` / future arena flows.
@@ -1571,6 +1609,50 @@ def loadout_new(out: str | None, catalog: str | None) -> None:
         return
 
     click.echo(text, nl=False)
+
+
+@loadout_group.command("edit")
+@click.argument("name")
+@click.option("--catalog", "catalog_id", default="v1_alpha",
+              help="Catalog id to draw cards from (default: v1_alpha).")
+@click.option("--no-tui", "no_tui", is_flag=True,
+              help="Refuse to launch the TUI (returns 2). For non-TTY agents.")
+def loadout_edit(name: str, catalog_id: str, no_tui: bool) -> None:
+    """Open the interactive split-pane loadout editor for ``name``.
+
+    Catalog appears on the left, your 6-slot team on the right. Live
+    validation against engine.Loadout (TEAM_SIZE=6, ≤2 same-species).
+
+    \b
+    Keys:
+      ↑/↓             move cursor in focused pane
+      TAB / ←→        swap focus between CATALOG and LOADOUT
+      ENTER / +       add cursor card to first empty slot
+      -               drop the cursor's loadout slot
+      s               save and exit (refuses if invalid)
+      q / ESC         quit without saving
+
+    The saved file lives at ``~/.config/daimon/loadouts/<name>.json`` —
+    the same path used by ``daimon loadout load`` / ``daimon match-npc``.
+    A missing file is created from an empty 6-slot template.
+    """
+    if no_tui:
+        click.echo(
+            "error: `loadout edit` requires an interactive TTY. "
+            "Use `daimon loadout new` + `daimon loadout save` instead.",
+            err=True,
+        )
+        sys.exit(2)
+    if not sys.stdout.isatty():
+        click.echo(
+            "error: `loadout edit` requires a terminal "
+            "(stdout is not a TTY).",
+            err=True,
+        )
+        sys.exit(2)
+
+    from daimon.play.loadout_editor import run_loadout_editor
+    sys.exit(run_loadout_editor(name, catalog_id=catalog_id))
 
 
 if __name__ == "__main__":
