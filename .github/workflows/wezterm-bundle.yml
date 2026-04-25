@@ -1,0 +1,151 @@
+name: WezTerm Bundle Release
+
+# Builds and uploads DAIMON-flavoured WezTerm bundles to a GitHub Release.
+#
+# Triggers:
+#   * Tag push matching `wezterm-bundle-v*` — auto-creates the release and
+#     uploads every (os, arch) artifact + .sha256 sidecar.
+#   * Manual workflow_dispatch — produces artifacts you can download from the
+#     run summary without creating a release (useful for dry-runs).
+#
+# Matrix:
+#   linux/x86_64       — ubuntu-latest runner, upstream Ubuntu22.04.tar.xz
+#   macos/x86_64       — macos-13 runner (intel),  upstream macOS .zip
+#   macos/aarch64      — macos-14 runner (apple silicon), same upstream zip
+#   windows/x86_64     — windows-latest runner, upstream Windows .zip
+#
+# Linux aarch64 is intentionally absent — upstream WezTerm has no official
+# Linux ARM build. Adding it requires a build-from-source job (deferred V1).
+#
+# The DAIMON release tag controls our bundle version; the upstream WezTerm
+# version is pinned by `WEZTERM_VERSION` below.
+
+on:
+  push:
+    tags:
+      - "wezterm-bundle-v*"
+  workflow_dispatch:
+    inputs:
+      wezterm_version:
+        description: "Upstream WezTerm release tag to bundle"
+        required: false
+        default: "20240203-110809-5046fc22"
+
+env:
+  # Default upstream WezTerm release; overridable via workflow_dispatch input.
+  WEZTERM_VERSION: ${{ github.event.inputs.wezterm_version || '20240203-110809-5046fc22' }}
+
+permissions:
+  contents: write  # needed to create release + upload assets
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # don't cancel a release mid-upload
+
+jobs:
+  build:
+    name: build ${{ matrix.target_os }}-${{ matrix.target_arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target_os: linux
+            target_arch: x86_64
+          - runner: macos-13
+            target_os: macos
+            target_arch: x86_64
+          - runner: macos-14
+            target_os: macos
+            target_arch: aarch64
+          - runner: windows-latest
+            target_os: windows
+            target_arch: x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build bundle (${{ matrix.target_os }}/${{ matrix.target_arch }})
+        # Pure-stdlib script: no `pip install` needed on the runner.
+        run: |
+          python scripts/build_wezterm_bundle.py \
+            --wezterm-version "${WEZTERM_VERSION}" \
+            --target-os "${{ matrix.target_os }}" \
+            --target-arch "${{ matrix.target_arch }}" \
+            --output-dir dist
+        shell: bash
+
+      - name: List built artifacts
+        run: ls -la dist/
+        shell: bash
+
+      - name: Upload run artifacts
+        # Always upload — useful for workflow_dispatch dry-runs and for
+        # debugging release jobs that fail at the upload step.
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.target_os }}-${{ matrix.target_arch }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: publish release
+    # Only run on tag pushes, after every matrix bundle is built.
+    if: startsWith(github.ref, 'refs/tags/wezterm-bundle-v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # Needed so the release notes can reference the script that built
+        # the bundles + the upstream version pinned at this commit.
+        uses: actions/checkout@v4
+
+      - name: Download all bundle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          # Flatten artifact directories so every .tar.gz + .sha256 lands at
+          # dist/<filename> rather than dist/bundle-<os>-<arch>/<filename>.
+          merge-multiple: true
+
+      - name: List release artifacts
+        run: ls -la dist/
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Tag the user pushed (e.g. wezterm-bundle-v1.0).
+          tag_name: ${{ github.ref_name }}
+          name: "DAIMON WezTerm Bundle ${{ github.ref_name }}"
+          body: |
+            DAIMON-flavoured WezTerm bundle.
+
+            **Upstream WezTerm version:** `${{ env.WEZTERM_VERSION }}`
+            **Built from:** `${{ github.sha }}`
+
+            Each `daimon-wezterm-{os}-{arch}.tar.gz` is a flat archive of the
+            WezTerm binaries DAIMON ships. Verify with the matching
+            `.sha256` sidecar before extracting:
+
+            ```
+            sha256sum -c daimon-wezterm-linux-x86_64.tar.gz.sha256
+            ```
+
+            The `daimon install` CLI command resolves this release
+            automatically — users do not download these by hand.
+          files: |
+            dist/*.tar.gz
+            dist/*.sha256
+          fail_on_unmatched_files: true
+          # Don't draft — `daimon install` looks up tagged releases via the
+          # GitHub API and drafts are filtered out.
+          draft: false
+          prerelease: false
