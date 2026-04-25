@@ -119,6 +119,61 @@ def init(force: bool) -> None:
 
 
 @main.command()
+@click.option("--mnemonic", "mnemonic_arg", default=None,
+              help="The 24-word BIP39 mnemonic. If omitted, prompts on stdin "
+                   "(safer — won't appear in shell history).")
+@click.option("--force", is_flag=True,
+              help="Overwrite an existing identity (DESTRUCTIVE — old key + "
+                   "any unsigned local collection is lost unless backed up).")
+def recover(mnemonic_arg: str | None, force: bool) -> None:
+    """Restore an identity from its 24-word recovery mnemonic.
+
+    The mnemonic alone is sufficient to reconstruct the ed25519 keypair —
+    the private key, public key, and metadata file are all rewritten from it.
+
+    Refuses to overwrite an existing identity unless ``--force`` is passed.
+    Verifies the mnemonic checksum before touching disk; an invalid mnemonic
+    fails fast with no side effects.
+    """
+    from daimon.identity import restore_from_mnemonic
+    from daimon.identity.keys import PRIVATE_KEY_PATH
+
+    if mnemonic_arg is None:
+        # Prompt without echoing — keeps the mnemonic out of shell history
+        # and `ps` listings. Click's hide_input handles terminal echo.
+        mnemonic_arg = click.prompt(
+            "Enter your 24-word recovery mnemonic",
+            hide_input=True,
+            type=str,
+        )
+
+    mnemonic = " ".join(mnemonic_arg.strip().split())
+    word_count = len(mnemonic.split())
+    if word_count != 24:
+        click.echo(
+            f"error: expected 24 words, got {word_count}. "
+            "Check for missing words or extra whitespace.",
+            err=True,
+        )
+        sys.exit(2)
+
+    try:
+        identity = restore_from_mnemonic(mnemonic, force=force)
+    except ValueError as e:
+        # BIP39 checksum failure — mnemonic is invalid before any write.
+        click.echo(f"error: {e}", err=True)
+        sys.exit(2)
+    except FileExistsError as e:
+        click.echo(f"error: {e}", err=True)
+        click.echo("hint: pass --force to overwrite the existing identity.", err=True)
+        sys.exit(1)
+
+    click.echo("Identity restored from mnemonic.\n")
+    click.echo(f"  pubkey:  {identity.pubkey_hex}")
+    click.echo(f"  stored:  {PRIVATE_KEY_PATH} (mode 0600)")
+
+
+@main.command()
 @click.option("--version", "version", default=None,
               help="Pin to a specific bundle release tag (e.g. wezterm-bundle-v1.0). "
                    "Defaults to latest. Honors $DAIMON_PIN_BUNDLE.")

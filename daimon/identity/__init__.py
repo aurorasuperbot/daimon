@@ -5,6 +5,7 @@ from daimon.identity.keys import (
     Identity,
     generate_identity,
     load_identity,
+    restore_from_mnemonic,
     sign,
     verify,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "generate_identity",
     "load_identity",
     "mnemonic_from_seed",
+    "restore_from_mnemonic",
     "seed_from_mnemonic",
     "sign",
     "verify",
