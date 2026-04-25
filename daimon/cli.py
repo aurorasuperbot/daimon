@@ -34,6 +34,8 @@ from daimon import __version__
 # behavior for an end-user CLI.
 ART_PURE_COMMANDS = frozenset({
     "init", "whoami", "update", "mine", "npcs",
+    # Pure-local browsers — never touch art binaries:
+    "collection", "catalog", "loadout",
 })
 
 
@@ -913,6 +915,640 @@ def skin_unequip_cmd(card_id: str) -> None:
 
     unequip_skin(card_id)
     click.echo(f"unequipped: {card_id} → canonical base art")
+
+
+# ---------------------------------------------------------------------------
+# `daimon collection` — owned cards (mirrors dm_collection MCP tool)
+# ---------------------------------------------------------------------------
+
+# Rarity ordering used everywhere in the collection / catalog views. Matches
+# the catalog manifest weights — keeps display consistent with `daimon
+# catalog list` output.
+_RARITY_ORDER = ("common", "uncommon", "rare", "epic", "legendary")
+
+
+def _rarity_sort_key(r: str) -> int:
+    try:
+        return _RARITY_ORDER.index(r)
+    except ValueError:
+        return len(_RARITY_ORDER)  # unknown rarities sort last
+
+
+@main.command("collection")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+@click.option("--rarity", default=None,
+              help="Filter to one rarity (common/uncommon/rare/epic/legendary).")
+@click.option("--card", default=None,
+              help="Filter to one card_id (shows every serial of that card).")
+def collection(as_json: bool, rarity: str | None, card: str | None) -> None:
+    """List cards owned by this identity.
+
+    Reads ``~/.config/daimon/collection.json``. Cards are grouped by
+    card_id and shown with rarity + serial count. ``--rarity`` and
+    ``--card`` are independent filters; combining them is fine.
+
+    Example:
+      daimon collection
+      daimon collection --rarity legendary
+      daimon collection --card magma_tyrant
+      daimon collection --json
+    """
+    import json as _json
+
+    from daimon.collection import list_serials
+
+    serials = list_serials()
+    if rarity:
+        serials = [s for s in serials if s.get("rarity") == rarity]
+    if card:
+        serials = [s for s in serials if s.get("card_id") == card]
+
+    # Group by card_id for the human-readable view; rarity rollup lives at
+    # the top so a quick glance shows pull-luck distribution.
+    by_card: dict[str, list[dict]] = {}
+    rarity_counts: dict[str, int] = {}
+    for s in serials:
+        by_card.setdefault(s.get("card_id", "?"), []).append(s)
+        r = s.get("rarity", "?")
+        rarity_counts[r] = rarity_counts.get(r, 0) + 1
+
+    if as_json:
+        click.echo(_json.dumps({
+            "count": len(serials),
+            "unique_cards": len(by_card),
+            "rarity_counts": rarity_counts,
+            "serials": serials,
+        }, indent=2))
+        return
+
+    if not serials:
+        if rarity or card:
+            click.echo("(no matching cards in your collection)")
+        else:
+            click.echo("(empty collection — run `daimon pull` to mint your first card)")
+        return
+
+    click.echo(f"total:  {len(serials)} serial(s) across {len(by_card)} unique card(s)")
+    if rarity_counts:
+        parts = [
+            f"{r}={n}"
+            for r, n in sorted(rarity_counts.items(), key=lambda kv: _rarity_sort_key(kv[0]))
+        ]
+        click.echo(f"rarity: {'  '.join(parts)}")
+    click.echo()
+    for cid in sorted(by_card.keys()):
+        rows = by_card[cid]
+        # Rarity is identical across serials of the same card_id, so just
+        # take the first row's value.
+        r = rows[0].get("rarity", "?")
+        click.echo(f"  {cid:28s}  x{len(rows):<3}  {r}")
+
+
+# ---------------------------------------------------------------------------
+# `daimon catalog` — read-only catalog browser
+# ---------------------------------------------------------------------------
+
+@main.group("catalog")
+def catalog_group() -> None:
+    """Browse the bundled card catalog (cards, expansions, comparisons).
+
+    \b
+    Subcommands:
+      daimon catalog expansions          list installed catalogs
+      daimon catalog list                list every card in a catalog
+      daimon catalog card <card_id>      print one card's full definition
+      daimon catalog compare <a> <b>     side-by-side stat + trigger diff
+    """
+
+
+@catalog_group.command("expansions")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def catalog_expansions(as_json: bool) -> None:
+    """List all installed card catalogs."""
+    import json as _json
+
+    from daimon.catalog import list_catalogs, load_catalog
+
+    try:
+        ids = list_catalogs()
+    except Exception as e:  # noqa: BLE001
+        click.echo(f"error: catalog load failed: {e}", err=True)
+        sys.exit(1)
+
+    rows = []
+    for cid in ids:
+        try:
+            cat = load_catalog(cid)
+            rarity_counts: dict[str, int] = {}
+            for c in cat.cards:
+                rarity_counts[c.rarity] = rarity_counts.get(c.rarity, 0) + 1
+            rows.append({
+                "pack_id": cat.pack_id,
+                "version": cat.version,
+                "description": cat.description,
+                "card_count": len(cat.cards),
+                "rarity_counts": rarity_counts,
+            })
+        except Exception as e:  # noqa: BLE001
+            rows.append({"pack_id": cid, "error": str(e)})
+
+    if as_json:
+        click.echo(_json.dumps({"expansions": rows, "count": len(rows)}, indent=2))
+        return
+
+    if not rows:
+        click.echo("(no catalogs installed)")
+        return
+    for r in rows:
+        if "error" in r:
+            click.echo(f"  {r['pack_id']:14s}  ERROR: {r['error']}")
+            continue
+        click.echo(f"  {r['pack_id']:14s}  v{r['version']:8s}  "
+                   f"{r['card_count']} cards  {r['description']}")
+        rc = r.get("rarity_counts", {})
+        if rc:
+            parts = [
+                f"{rar}={n}"
+                for rar, n in sorted(rc.items(), key=lambda kv: _rarity_sort_key(kv[0]))
+            ]
+            click.echo(f"  {'':14s}  {'  '.join(parts)}")
+
+
+@catalog_group.command("list")
+@click.option("--expansion", default=None, help="Catalog id (default: v1_alpha).")
+@click.option("--rarity", default=None,
+              help="Filter to one rarity (common/uncommon/rare/epic/legendary).")
+@click.option("--element", default=None,
+              help="Filter to one element (FIRE/WATER/NATURE/...).")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def catalog_list(expansion: str | None, rarity: str | None,
+                 element: str | None, as_json: bool) -> None:
+    """List every card in a catalog with quick-look stats."""
+    import json as _json
+
+    from daimon.catalog import DEFAULT_CATALOG_ID, load_catalog
+
+    cid = expansion or DEFAULT_CATALOG_ID
+    try:
+        cat = load_catalog(cid)
+    except FileNotFoundError:
+        click.echo(f"error: unknown catalog {cid!r}", err=True)
+        click.echo("hint: run `daimon catalog expansions` to list installed catalogs.",
+                   err=True)
+        sys.exit(1)
+
+    rows = []
+    for cc in cat.cards:
+        p = cc.payload
+        if rarity and cc.rarity != rarity:
+            continue
+        if element and p.get("element") != element:
+            continue
+        rows.append({
+            "card_id": cc.card_id,
+            "species": p.get("species", cc.card_id),
+            "element": p.get("element", "UNKNOWN"),
+            "rarity": cc.rarity,
+            "atk": p.get("atk", 0),
+            "def": p.get("def", 0),
+            "hp": p.get("hp", 0),
+            "spd": p.get("spd", 0),
+            "trigger_count": len(p.get("triggers", []) or []),
+        })
+
+    if as_json:
+        click.echo(_json.dumps({
+            "pack_id": cat.pack_id, "version": cat.version,
+            "count": len(rows), "cards": rows,
+        }, indent=2))
+        return
+
+    click.echo(f"catalog:  {cat.pack_id}  v{cat.version}  ({len(rows)} cards)")
+    if not rows:
+        click.echo("(no cards match the filter)")
+        return
+    click.echo()
+    click.echo(f"  {'card_id':28s}  {'element':9s}  {'rarity':10s}  "
+               f"{'atk':>3}/{'def':>3}/{'hp':>3}/{'spd':>3}  triggers")
+    rows.sort(key=lambda r: (_rarity_sort_key(r["rarity"]), r["card_id"]))
+    for r in rows:
+        click.echo(
+            f"  {r['card_id']:28s}  {r['element']:9s}  {r['rarity']:10s}  "
+            f"{r['atk']:>3}/{r['def']:>3}/{r['hp']:>3}/{r['spd']:>3}  "
+            f"{r['trigger_count']}"
+        )
+
+
+@catalog_group.command("card")
+@click.argument("card_id")
+@click.option("--expansion", default=None, help="Catalog id (default: v1_alpha).")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def catalog_card(card_id: str, expansion: str | None, as_json: bool) -> None:
+    """Print the full card definition for a catalog card."""
+    import json as _json
+
+    from daimon.catalog import DEFAULT_CATALOG_ID, load_catalog
+
+    cid = expansion or DEFAULT_CATALOG_ID
+    try:
+        cat = load_catalog(cid)
+    except FileNotFoundError:
+        click.echo(f"error: unknown catalog {cid!r}", err=True)
+        sys.exit(1)
+
+    cc = cat.by_id.get(card_id)
+    if cc is None:
+        click.echo(f"error: unknown card {card_id!r} in catalog {cid!r}", err=True)
+        click.echo("hint: run `daimon catalog list` to see all cards.", err=True)
+        sys.exit(1)
+
+    p = cc.payload
+    if as_json:
+        click.echo(_json.dumps({
+            "card_id": cc.card_id, "pack": cc.pack, "rarity": cc.rarity,
+            "payload": p,
+        }, indent=2))
+        return
+
+    click.echo(f"card_id:   {cc.card_id}")
+    click.echo(f"pack:      {cc.pack}")
+    click.echo(f"rarity:    {cc.rarity}")
+    if p.get("name"):
+        click.echo(f"name:      {p['name']}")
+    if p.get("species"):
+        click.echo(f"species:   {p['species']}")
+    click.echo(f"element:   {p.get('element', 'UNKNOWN')}")
+    click.echo(f"stats:     atk={p.get('atk', 0)}  def={p.get('def', 0)}  "
+               f"hp={p.get('hp', 0)}  spd={p.get('spd', 0)}")
+    triggers = p.get("triggers", []) or []
+    if triggers:
+        click.echo(f"triggers:  ({len(triggers)})")
+        for t in triggers:
+            if isinstance(t, dict):
+                click.echo(
+                    f"  - when={t.get('when'):16s} "
+                    f"op={t.get('op'):20s} "
+                    f"target={t.get('target'):8s} "
+                    f"value={t.get('value')}"
+                )
+    if p.get("flavor"):
+        click.echo(f"flavor:    \"{p['flavor']}\"")
+    if p.get("rule_change"):
+        click.echo(f"rule:      {p['rule_change']}  (legendary mutation)")
+
+
+@catalog_group.command("compare")
+@click.argument("card_a")
+@click.argument("card_b")
+@click.option("--expansion", default=None, help="Catalog id (default: v1_alpha).")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def catalog_compare(card_a: str, card_b: str, expansion: str | None,
+                    as_json: bool) -> None:
+    """Side-by-side stat + trigger diff between two catalog cards."""
+    import json as _json
+
+    from daimon.catalog import DEFAULT_CATALOG_ID, load_catalog
+
+    cid = expansion or DEFAULT_CATALOG_ID
+    try:
+        cat = load_catalog(cid)
+    except FileNotFoundError:
+        click.echo(f"error: unknown catalog {cid!r}", err=True)
+        sys.exit(1)
+
+    cc_a = cat.by_id.get(card_a)
+    cc_b = cat.by_id.get(card_b)
+    missing = [x for x, cc in ((card_a, cc_a), (card_b, cc_b)) if cc is None]
+    if missing:
+        click.echo(f"error: unknown card(s) in catalog {cid!r}: {', '.join(missing)}",
+                   err=True)
+        sys.exit(1)
+    pa, pb = cc_a.payload, cc_b.payload
+
+    def _tsig(p):
+        return [
+            (t.get("when"), t.get("op"), t.get("target"), t.get("value"))
+            for t in (p.get("triggers", []) or [])
+            if isinstance(t, dict)
+        ]
+
+    sa, sb = _tsig(pa), _tsig(pb)
+    shared = [t for t in sa if t in sb]
+    a_only = [t for t in sa if t not in sb]
+    b_only = [t for t in sb if t not in sa]
+
+    if as_json:
+        out = {
+            "a": {"card_id": cc_a.card_id, "rarity": cc_a.rarity,
+                  "element": pa.get("element"),
+                  "atk": pa.get("atk", 0), "def": pa.get("def", 0),
+                  "hp": pa.get("hp", 0), "spd": pa.get("spd", 0)},
+            "b": {"card_id": cc_b.card_id, "rarity": cc_b.rarity,
+                  "element": pb.get("element"),
+                  "atk": pb.get("atk", 0), "def": pb.get("def", 0),
+                  "hp": pb.get("hp", 0), "spd": pb.get("spd", 0)},
+            "diff": {k: {"a": pa.get(k, 0), "b": pb.get(k, 0),
+                         "delta": pb.get(k, 0) - pa.get(k, 0)}
+                     for k in ("atk", "def", "hp", "spd")},
+            "trigger_diff": {
+                "a_only": [{"when": w, "op": o, "target": t, "value": v}
+                           for w, o, t, v in a_only],
+                "b_only": [{"when": w, "op": o, "target": t, "value": v}
+                           for w, o, t, v in b_only],
+                "shared": [{"when": w, "op": o, "target": t, "value": v}
+                           for w, o, t, v in shared],
+            },
+        }
+        click.echo(_json.dumps(out, indent=2))
+        return
+
+    def _stat_line(label, ka, kb):
+        delta = kb - ka
+        sign = "+" if delta > 0 else ""
+        return f"  {label:7s}  {ka:>4}  vs  {kb:>4}    ({sign}{delta})"
+
+    click.echo(f"{cc_a.card_id}  vs  {cc_b.card_id}    "
+               f"({cc_a.rarity} vs {cc_b.rarity})")
+    click.echo()
+    click.echo(_stat_line("atk", pa.get("atk", 0), pb.get("atk", 0)))
+    click.echo(_stat_line("def", pa.get("def", 0), pb.get("def", 0)))
+    click.echo(_stat_line("hp",  pa.get("hp", 0),  pb.get("hp", 0)))
+    click.echo(_stat_line("spd", pa.get("spd", 0), pb.get("spd", 0)))
+    click.echo(f"  element  {pa.get('element', '?'):>4}  vs  {pb.get('element', '?'):>4}")
+    click.echo()
+    if shared:
+        click.echo(f"shared triggers ({len(shared)}):")
+        for w, o, t, v in shared:
+            click.echo(f"  - {w} {o} {t} {v}")
+    if a_only:
+        click.echo(f"\n{cc_a.card_id} only ({len(a_only)}):")
+        for w, o, t, v in a_only:
+            click.echo(f"  - {w} {o} {t} {v}")
+    if b_only:
+        click.echo(f"\n{cc_b.card_id} only ({len(b_only)}):")
+        for w, o, t, v in b_only:
+            click.echo(f"  - {w} {o} {t} {v}")
+
+
+# ---------------------------------------------------------------------------
+# `daimon loadout` — saved-team CRUD (mirrors dm_loadout_* MCP tools)
+# ---------------------------------------------------------------------------
+
+# Same path the MCP tools use — single source of truth lives in mcp.server.
+# Re-import here at use time (lazy) to avoid pulling in the whole MCP module
+# at CLI startup.
+
+@main.group("loadout")
+def loadout_group() -> None:
+    """Save / load / list / validate / scaffold loadouts.
+
+    \b
+    Subcommands:
+      daimon loadout list                  list saved loadouts
+      daimon loadout save <path> <name>    save a file under a name
+      daimon loadout load <name>           print a saved loadout JSON
+      daimon loadout validate <path>       check a file's shape + cards
+      daimon loadout new                   print a starter showcase template
+
+    Saved loadouts live at ``~/.config/daimon/loadouts/<name>.json`` and are
+    addressable by name in ``daimon loadout load`` / future arena flows.
+    Names are restricted to ``[A-Za-z0-9_-]`` (1-48 chars).
+    """
+
+
+def _loadouts_dir() -> "Path":
+    """Return the canonical loadouts directory (mirrors mcp.server)."""
+    from pathlib import Path
+
+    from daimon.identity.keys import CONFIG_DIR
+    return Path(CONFIG_DIR) / "loadouts"
+
+
+@loadout_group.command("list")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def loadout_list(as_json: bool) -> None:
+    """List saved loadouts on this machine."""
+    import json as _json
+
+    d = _loadouts_dir()
+    if not d.exists():
+        if as_json:
+            click.echo(_json.dumps({"loadouts": [], "count": 0}))
+        else:
+            click.echo("(no saved loadouts — try `daimon loadout save <file> <name>`)")
+        return
+
+    rows = []
+    for entry in sorted(d.iterdir()):
+        if not entry.is_file() or entry.suffix != ".json":
+            continue
+        name = entry.stem
+        try:
+            doc = _json.loads(entry.read_text(encoding="utf-8"))
+            cards = doc.get("cards", [])
+            if not isinstance(cards, list):
+                raise ValueError("cards not a list")
+            rows.append({"name": name, "card_count": len(cards),
+                         "path": str(entry), "mtime": entry.stat().st_mtime})
+        except Exception as e:  # noqa: BLE001
+            rows.append({"name": name, "corrupt": True, "message": str(e),
+                         "path": str(entry)})
+
+    if as_json:
+        click.echo(_json.dumps({"loadouts": rows, "count": len(rows)}, indent=2))
+        return
+
+    if not rows:
+        click.echo("(no saved loadouts — try `daimon loadout save <file> <name>`)")
+        return
+    click.echo(f"{len(rows)} saved loadout(s):\n")
+    for r in rows:
+        if r.get("corrupt"):
+            click.echo(f"  {r['name']:24s}  CORRUPT  {r['message']}")
+            continue
+        click.echo(f"  {r['name']:24s}  {r['card_count']} cards  {r['path']}")
+
+
+@loadout_group.command("save")
+@click.argument("loadout_path")
+@click.argument("name")
+def loadout_save(loadout_path: str, name: str) -> None:
+    """Save a loadout file under ``name`` for future use.
+
+    The file is validated through the unified loader (accepts bare list,
+    {"cards":[...]}, or showcase format) before being written. Showcase
+    files are resolved through the catalog and saved as the full
+    stat-block form so subsequent ``daimon match`` calls don't need the
+    catalog at runtime.
+
+    Names are restricted to ``[A-Za-z0-9_-]`` (1-48 chars).
+    """
+    import json as _json
+
+    from daimon.loadouts import load_loadout_file
+    from daimon.mcp.server import _validate_loadout_name
+
+    try:
+        safe_name = _validate_loadout_name(name)
+    except ValueError as e:
+        click.echo(f"error: invalid name: {e}", err=True)
+        sys.exit(1)
+
+    try:
+        _lo, raw = load_loadout_file(loadout_path)
+    except (FileNotFoundError, ValueError) as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(1)
+
+    d = _loadouts_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    target = d / f"{safe_name}.json"
+    overwrote = target.exists()
+    doc = {"name": safe_name, "cards": raw}
+    target.write_text(_json.dumps(doc, indent=2), encoding="utf-8")
+
+    click.echo(f"saved:    {safe_name}  ({len(raw)} cards) → {target}")
+    if overwrote:
+        click.echo("note:     overwrote an existing loadout with the same name.")
+
+
+@loadout_group.command("load")
+@click.argument("name")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def loadout_load(name: str, as_json: bool) -> None:
+    """Print a saved loadout's contents (full JSON in --json mode)."""
+    import json as _json
+
+    from daimon.mcp.server import _validate_loadout_name
+
+    try:
+        safe_name = _validate_loadout_name(name)
+    except ValueError as e:
+        click.echo(f"error: invalid name: {e}", err=True)
+        sys.exit(1)
+
+    target = _loadouts_dir() / f"{safe_name}.json"
+    if not target.is_file():
+        click.echo(f"error: unknown loadout {safe_name!r}", err=True)
+        click.echo("hint: run `daimon loadout list` to see saved loadouts.", err=True)
+        sys.exit(1)
+
+    try:
+        doc = _json.loads(target.read_text(encoding="utf-8"))
+    except _json.JSONDecodeError as e:
+        click.echo(f"error: corrupt loadout file: {e}", err=True)
+        sys.exit(1)
+
+    if as_json:
+        click.echo(_json.dumps(doc, indent=2))
+        return
+
+    cards = doc.get("cards", [])
+    click.echo(f"name:        {safe_name}")
+    click.echo(f"path:        {target}")
+    click.echo(f"card count:  {len(cards)}")
+    click.echo()
+    for i, c in enumerate(cards):
+        if isinstance(c, dict):
+            cid = c.get("card_id", "?")
+            sp = c.get("species", "?")
+            click.echo(f"  [{i}] {cid:28s}  ({sp})")
+        else:
+            click.echo(f"  [{i}] {c!r}")
+
+
+@loadout_group.command("validate")
+@click.argument("loadout_path")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def loadout_validate(loadout_path: str, as_json: bool) -> None:
+    """Check that a loadout file parses + resolves without errors."""
+    import json as _json
+
+    from daimon.loadouts import load_loadout_file
+
+    try:
+        lo, raw = load_loadout_file(loadout_path)
+    except (FileNotFoundError, ValueError) as e:
+        if as_json:
+            click.echo(_json.dumps({"valid": False, "error": str(e)}))
+        else:
+            click.echo(f"INVALID: {e}", err=True)
+        sys.exit(1)
+
+    if as_json:
+        click.echo(_json.dumps({
+            "valid": True,
+            "card_count": len(lo.cards),
+            "cards": [{"card_id": c.card_id, "species": c.species,
+                       "element": c.element.name}
+                      for c in lo.cards],
+        }, indent=2))
+        return
+
+    click.echo(f"VALID: {len(lo.cards)} cards loaded from {loadout_path}")
+    for i, c in enumerate(lo.cards):
+        click.echo(f"  [{i}] {c.card_id:28s}  ({c.species}, {c.element.name})")
+
+
+@loadout_group.command("new")
+@click.option("--out", default=None,
+              help="Write the template to this path instead of stdout.")
+@click.option("--catalog", default=None,
+              help="Catalog id to draw card_ids from (default: v1_alpha).")
+def loadout_new(out: str | None, catalog: str | None) -> None:
+    """Print a starter loadout template (showcase format).
+
+    Picks the first 6 catalog cards as a placeholder skeleton — edit the
+    ``loadout`` array with your chosen ``card_id``\\s, then save with::
+
+        daimon loadout save <file> <name>
+
+    or play directly::
+
+        daimon match-npc <file> sparring_sam
+    """
+    import json as _json
+    from pathlib import Path
+
+    from daimon.catalog import DEFAULT_CATALOG_ID, load_catalog
+
+    cid = catalog or DEFAULT_CATALOG_ID
+    try:
+        cat = load_catalog(cid)
+    except FileNotFoundError:
+        click.echo(f"error: unknown catalog {cid!r}", err=True)
+        sys.exit(1)
+
+    if len(cat.cards) < 6:
+        click.echo(f"error: catalog {cid!r} has fewer than 6 cards "
+                   f"({len(cat.cards)}); cannot scaffold a loadout.", err=True)
+        sys.exit(1)
+
+    # Take the first 6 cards in catalog order — a placeholder, not balanced.
+    template = {
+        "loadout_id": "my_loadout",
+        "name": "My Loadout",
+        "demonstrates": "",
+        "flavor": "edit me",
+        "description": "Replace card_ids with your chosen team. "
+                       "Run `daimon catalog list` to browse options.",
+        "loadout": [cc.card_id for cc in cat.cards[:6]],
+    }
+    text = _json.dumps(template, indent=2) + "\n"
+
+    if out:
+        target = Path(out)
+        if target.exists():
+            click.echo(f"error: {target} already exists; refusing to overwrite",
+                       err=True)
+            sys.exit(1)
+        target.write_text(text, encoding="utf-8")
+        click.echo(f"wrote starter template to {target}")
+        click.echo("next: edit the `loadout` array, then run "
+                   "`daimon loadout validate` and `daimon match-npc`.")
+        return
+
+    click.echo(text, nl=False)
 
 
 if __name__ == "__main__":
