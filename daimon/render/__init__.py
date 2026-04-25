@@ -17,9 +17,11 @@ scripts/render_legacy/ for reference.
 
 from daimon.render.art import art_path_for
 from daimon.render.compose import (
+    FRAMES_PER_RARITY,
     CardRenderInfo,
     Palette,
     compose_card,
+    compose_card_frames,
     compose_card_from_pack_dict,
     palette_for,
     render_info_from_pack_dict,
@@ -27,9 +29,11 @@ from daimon.render.compose import (
 
 __all__ = [
     "CardRenderInfo",
+    "FRAMES_PER_RARITY",
     "Palette",
     "art_path_for",
     "compose_card",
+    "compose_card_frames",
     "compose_card_from_pack_dict",
     "palette_for",
     "render_info_from_pack_dict",

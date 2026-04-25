@@ -210,6 +210,130 @@ def test_render_info_accepts_nested_render_only():
 
 
 # ---------------------------------------------------------------------------
+# Rarity ladder — frame counts + APNG output for animated tiers
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "rarity,expected_frames",
+    [
+        ("common",    1),
+        ("uncommon",  1),
+        ("rare",      1),
+        ("epic",      6),
+        ("legendary", 12),
+    ],
+)
+def test_compose_card_frames_count_per_rarity(sample_card, rarity, expected_frames):
+    """The rarity ladder pins frame counts: 1/1/1/6/12.
+
+    Static tiers always emit 1 frame; animated tiers emit their default
+    loop length. This guards against accidental frame-count regressions
+    that would balloon APNG file sizes or kill the loop smoothness.
+    """
+    from daimon.render import compose_card_frames
+    info = CardRenderInfo(name=f"Test {rarity}", rarity=rarity)
+    frames = compose_card_frames(sample_card, info)
+    assert len(frames) == expected_frames
+
+
+def test_compose_card_frames_explicit_n_overrides_default(sample_card):
+    """Callers can pass an explicit ``n_frames`` to override the rarity
+    default — useful for tests + perf-critical TUIs that want fewer frames."""
+    from daimon.render import compose_card_frames
+    info = CardRenderInfo(name="Override", rarity="legendary")
+    frames = compose_card_frames(sample_card, info, n_frames=4)
+    assert len(frames) == 4
+
+
+def test_compose_card_frames_animated_tier_frames_differ(sample_card):
+    """Animated tiers must produce visibly different frames; otherwise the
+    APNG would just look static. Compares frame 0 vs frame N/2 byte-by-byte."""
+    from daimon.render import compose_card_frames
+    info = CardRenderInfo(name="Anim", rarity="legendary")
+    frames = compose_card_frames(sample_card, info)
+    assert len(frames) == 12
+    # frame 0 and frame 6 are at opposite phase; bytes MUST differ
+    assert frames[0].tobytes() != frames[6].tobytes()
+
+
+def test_compose_card_frames_static_tier_all_frames_identical(sample_card):
+    """Static tiers asked for >1 frame must produce identical bytes —
+    no animation hooks fire. Otherwise we'd waste APNG file size."""
+    from daimon.render import compose_card_frames
+    info = CardRenderInfo(name="Static", rarity="common")
+    frames = compose_card_frames(sample_card, info, n_frames=4)
+    assert len(frames) == 4
+    for f in frames[1:]:
+        assert f.tobytes() == frames[0].tobytes()
+
+
+def test_compose_card_writes_apng_for_legendary(sample_card, tmp_path):
+    """Legendary cards must produce a real APNG (multi-frame PNG) on disk.
+
+    APNG is detected by the presence of the ``acTL`` chunk (animation
+    control). Image viewers without APNG support fall through to frame 0,
+    so the ``.png`` extension stays correct.
+    """
+    info = CardRenderInfo(name="Legendary Test", rarity="legendary")
+    out = tmp_path / "leg.png"
+    compose_card(sample_card, info, out)
+    data = out.read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    assert b"acTL" in data, "legendary output missing acTL chunk (not an APNG)"
+
+
+def test_compose_card_writes_apng_for_epic(sample_card, tmp_path):
+    info = CardRenderInfo(name="Epic Test", rarity="epic")
+    out = tmp_path / "epic.png"
+    compose_card(sample_card, info, out)
+    data = out.read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    assert b"acTL" in data
+
+
+def test_compose_card_writes_static_png_for_rare(sample_card, tmp_path):
+    """Static tiers must NOT emit acTL chunks — keeps the file small and
+    avoids confusing viewers that try to play 1-frame animations."""
+    info = CardRenderInfo(name="Rare Test", rarity="rare")
+    out = tmp_path / "rare.png"
+    compose_card(sample_card, info, out)
+    data = out.read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    assert b"acTL" not in data
+
+
+def test_compose_card_apng_round_trips_through_pillow(sample_card, tmp_path):
+    """Pillow can re-open the legendary APNG and walk all frames."""
+    from PIL import Image
+    info = CardRenderInfo(name="RoundTrip", rarity="legendary")
+    out = tmp_path / "rt.png"
+    compose_card(sample_card, info, out)
+    img = Image.open(out)
+    n = getattr(img, "n_frames", 1)
+    assert n == 12, f"expected 12 frames, got {n}"
+    # Loop should be 0 (forever)
+    assert img.info.get("loop", 0) == 0
+
+
+def test_compose_card_all_tiers_produce_distinct_frame0(sample_card, tmp_path):
+    """Frame 0 of each tier must differ from every other tier — proves the
+    visual ladder is actually distinct, not just per-tier code paths that
+    happen to render the same pixels."""
+    from daimon.render import compose_card_frames
+    seen: dict[str, bytes] = {}
+    for rarity in ["common", "uncommon", "rare", "epic", "legendary"]:
+        info = CardRenderInfo(name=f"Tier {rarity}", rarity=rarity)
+        frames = compose_card_frames(sample_card, info)
+        seen[rarity] = frames[0].tobytes()
+    rarities = list(seen.keys())
+    for i, r1 in enumerate(rarities):
+        for r2 in rarities[i + 1:]:
+            assert seen[r1] != seen[r2], (
+                f"{r1} and {r2} render identical bytes — visual ladder regressed"
+            )
+
+
+# ---------------------------------------------------------------------------
 # Engine isolation regression test
 # ---------------------------------------------------------------------------
 
