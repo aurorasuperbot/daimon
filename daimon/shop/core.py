@@ -181,6 +181,14 @@ def _resolve_slot(slots: List[RotationSlot],
       - SlotNotInRotationError: index out of range, no slot matches the
         composite key, or the bare slug matches more than one slot.
     """
+    def _check_unsold(s: RotationSlot) -> RotationSlot:
+        if s.sold:
+            raise SlotNotInRotationError(
+                f"slot {s.index} ({s.listing.card_id}/{s.listing.skin_slug}) "
+                f"already purchased today; rotates at next 00:00 UTC"
+            )
+        return s
+
     # int / digit-string → slot index
     if isinstance(selector, int) or (isinstance(selector, str) and selector.isdigit()):
         idx = int(selector)
@@ -188,7 +196,7 @@ def _resolve_slot(slots: List[RotationSlot],
             raise SlotNotInRotationError(
                 f"slot {idx} out of range (0..{max(0, len(slots) - 1)})"
             )
-        return slots[idx]
+        return _check_unsold(slots[idx])
 
     if not isinstance(selector, str):
         raise SlotNotInRotationError(
@@ -205,7 +213,7 @@ def _resolve_slot(slots: List[RotationSlot],
             )
         for s in slots:
             if s.listing.card_id == card_id and s.listing.skin_slug == slug:
-                return s
+                return _check_unsold(s)
         raise SlotNotInRotationError(
             f"{card_id}{sep}{slug} not in today's rotation"
         )
@@ -222,7 +230,7 @@ def _resolve_slot(slots: List[RotationSlot],
             f"({len(matches)} slots match — disambiguate with "
             f"'card_id/{selector}' or use the slot index)"
         )
-    return matches[0]
+    return _check_unsold(matches[0])
 
 
 def purchase_slot(

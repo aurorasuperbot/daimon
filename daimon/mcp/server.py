@@ -1611,6 +1611,11 @@ def dm_shop(slot: Optional[int] = None) -> Dict[str, Any]:
     agents see different shops on the same day, the same agent sees a
     fresh shop every UTC midnight.
 
+    Slots are STABLE intra-day: when you buy a slot, the listing stays at
+    the same index marked ``sold=true`` so other slots don't shift. At
+    00:00 UTC tomorrow today's purchases drop out and a fresh rotation
+    fills their indices.
+
     Args:
       slot: Optional 0-based slot index. When given, return only that slot.
             Otherwise return all slots + the wallet/cap/refresh-clock summary.
@@ -1621,7 +1626,7 @@ def dm_shop(slot: Optional[int] = None) -> Dict[str, Any]:
        "slot_count": int, "slots": [{"index": int, "card_id": "...",
        "skin_slug": "...", "skin_name": "...", "skin_axis": "cultural"|"anatomical",
        "rarity": "rare"|"super_rare", "cost": int, "variant_id": "...",
-       "art_path": "..."}]}
+       "art_path": "...", "sold": bool, "purchased_at": "iso-ts"|absent}]}
 
     Returns on success (slot given):
       {"status": "ok", **slot_payload}

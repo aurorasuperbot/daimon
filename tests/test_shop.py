@@ -426,7 +426,10 @@ def test_purchase_atomic_ledger_and_owned(shop_env):
     assert owned[0].ledger_entry_hash == receipt.ledger_entry_hash
 
 
-def test_purchase_filters_owned_from_next_rotation(shop_env):
+def test_purchase_keeps_slot_in_place_marked_sold(shop_env):
+    """Intra-day purchase MUST NOT shift slot indices — the bought slot
+    stays at the same index marked ``sold=True``. (This is the slot
+    stability guarantee that broke in the playtest.)"""
     from daimon.identity import generate_identity
     from daimon.shop import get_shop_state, purchase_slot
 
@@ -434,11 +437,162 @@ def test_purchase_filters_owned_from_next_rotation(shop_env):
     _seed_balance(2000)
 
     before = get_shop_state()
-    bought = before.slots[0].listing.skin_slug
+    bought_slug = before.slots[0].listing.skin_slug
+    bought_card = before.slots[0].listing.card_id
     purchase_slot(0)
+
     after = get_shop_state()
-    # The bought skin must be filtered out.
-    assert bought not in [s.listing.skin_slug for s in after.slots]
+    # Same number of slots, same listings at every index.
+    assert len(after.slots) == len(before.slots)
+    for i, (a, b) in enumerate(zip(after.slots, before.slots)):
+        assert a.listing.card_id == b.listing.card_id, f"slot {i} card shifted"
+        assert a.listing.skin_slug == b.listing.skin_slug, f"slot {i} slug shifted"
+    # Slot 0 is now sold; others remain available.
+    assert after.slots[0].sold is True
+    assert after.slots[0].listing.skin_slug == bought_slug
+    assert after.slots[0].listing.card_id == bought_card
+    assert after.slots[0].purchased_at is not None
+    assert all(not s.sold for s in after.slots[1:])
+
+
+def test_next_day_rotation_excludes_today_purchase(shop_env):
+    """At 00:00 UTC tomorrow, today's purchase becomes 'yesterday' and is
+    properly filtered out of the new rotation."""
+    import datetime as dt
+
+    from daimon.identity import generate_identity, load_identity
+    from daimon.shop import current_rotation, purchase_slot
+    from daimon.shop.owned import OwnedSkin, append_owned
+
+    generate_identity(force=True)
+    _seed_balance(2000)
+    pk = load_identity().pubkey_hex
+
+    # Buy slot 0 "now" (real wall clock, since OwnedSkin.purchased_at
+    # uses now_iso() at append time and we can't mock that easily here).
+    bought = purchase_slot(0)
+
+    # Tomorrow at noon UTC, with the purchase still in the owned cache:
+    tomorrow = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
+    slots = current_rotation(pk, now=tomorrow)
+    bought_key = (bought.card_id, bought.skin_slug)
+    assert all(
+        (s.listing.card_id, s.listing.skin_slug) != bought_key for s in slots
+    ), "yesterday's purchase should be filtered out of today's rotation"
+
+
+def test_purchase_sold_slot_rejected(shop_env):
+    """Trying to buy a slot you already bought today raises
+    SlotNotInRotationError — the slot is in the rotation but marked sold."""
+    from daimon.identity import generate_identity
+    from daimon.shop import (
+        SlotNotInRotationError,
+        get_shop_state,
+        purchase_slot,
+    )
+
+    generate_identity(force=True)
+    _seed_balance(2000)
+
+    purchase_slot(0)
+    state = get_shop_state()
+    assert state.slots[0].sold is True
+    with pytest.raises(SlotNotInRotationError, match="already purchased today"):
+        purchase_slot(0)
+
+
+def test_rotation_marks_today_purchases_sold(shop_env):
+    """Direct rotation call: an OwnedSkin with a today-timestamp shows up
+    as a sold slot at the same index it would have been before purchase."""
+    import datetime as dt
+
+    from daimon.shop import current_rotation
+    from daimon.shop.owned import OwnedSkin
+
+    NOW = dt.datetime(2026, 4, 25, 12, 0, 0, tzinfo=dt.timezone.utc)
+    base = current_rotation(PK_A, owned=[], now=NOW)
+    target = base[0].listing
+    purchased_at = "2026-04-25T08:30:00Z"  # same UTC day as NOW
+    owned = [OwnedSkin(
+        card_id=target.card_id, skin_slug=target.skin_slug,
+        skin_name=target.skin_name, skin_axis=target.skin_axis,
+        rarity=target.rarity, purchased_at=purchased_at,
+        cost=300, ledger_entry_hash="h",
+    )]
+    after = current_rotation(PK_A, owned=owned, now=NOW)
+    # Indices and listings must be identical to the empty-owned snapshot.
+    assert [s.listing.skin_slug for s in after] == [s.listing.skin_slug for s in base]
+    # Slot 0 is sold; rest are not.
+    assert after[0].sold is True
+    assert after[0].purchased_at == purchased_at
+    assert all(not s.sold for s in after[1:])
+
+
+def test_rotation_yesterday_purchase_filtered_not_marked_sold(shop_env):
+    """An OwnedSkin purchased BEFORE the current UTC day is removed from
+    the rotation entirely — it does NOT show as a sold slot."""
+    import datetime as dt
+
+    from daimon.shop import current_rotation
+    from daimon.shop.owned import OwnedSkin
+
+    NOW = dt.datetime(2026, 4, 25, 12, 0, 0, tzinfo=dt.timezone.utc)
+    base = current_rotation(PK_A, owned=[], now=NOW)
+    target = base[0].listing
+    purchased_at = "2026-04-24T15:00:00Z"  # yesterday UTC
+    owned = [OwnedSkin(
+        card_id=target.card_id, skin_slug=target.skin_slug,
+        skin_name=target.skin_name, skin_axis=target.skin_axis,
+        rarity=target.rarity, purchased_at=purchased_at,
+        cost=300, ledger_entry_hash="h",
+    )]
+    after = current_rotation(PK_A, owned=owned, now=NOW)
+    bought_key = (target.card_id, target.skin_slug)
+    assert all(
+        (s.listing.card_id, s.listing.skin_slug) != bought_key for s in after
+    )
+    assert all(not s.sold for s in after)
+
+
+def test_rotation_tuple_owned_treated_as_yesterday(shop_env):
+    """Tuple-form (card_id, skin_slug) entries have no timestamp — they
+    must be filtered like 'yesterday' (preserves legacy caller behavior)."""
+    import datetime as dt
+
+    from daimon.shop import current_rotation
+
+    NOW = dt.datetime(2026, 4, 25, 12, 0, 0, tzinfo=dt.timezone.utc)
+    base = current_rotation(PK_A, owned=[], now=NOW)
+    target = (base[0].listing.card_id, base[0].listing.skin_slug)
+    after = current_rotation(PK_A, owned=[target], now=NOW)
+    assert all(
+        (s.listing.card_id, s.listing.skin_slug) != target for s in after
+    )
+    assert all(not s.sold for s in after)
+
+
+def test_rotation_unparseable_purchase_ts_filtered(shop_env):
+    """Owned entries with garbage timestamps are filtered (yesterday) —
+    we'd rather drop the slot than show a phantom sold marker."""
+    import datetime as dt
+
+    from daimon.shop import current_rotation
+    from daimon.shop.owned import OwnedSkin
+
+    NOW = dt.datetime(2026, 4, 25, 12, 0, 0, tzinfo=dt.timezone.utc)
+    base = current_rotation(PK_A, owned=[], now=NOW)
+    target = base[0].listing
+    owned = [OwnedSkin(
+        card_id=target.card_id, skin_slug=target.skin_slug,
+        skin_name=target.skin_name, skin_axis=target.skin_axis,
+        rarity=target.rarity, purchased_at="not-a-timestamp",
+        cost=300, ledger_entry_hash="h",
+    )]
+    after = current_rotation(PK_A, owned=owned, now=NOW)
+    bought_key = (target.card_id, target.skin_slug)
+    assert all(
+        (s.listing.card_id, s.listing.skin_slug) != bought_key for s in after
+    )
 
 
 def test_purchase_weekly_cap_blocks_sixth(shop_env):
@@ -453,20 +607,30 @@ def test_purchase_weekly_cap_blocks_sixth(shop_env):
     _seed_balance(10_000)
 
     # Burn the cap. Synthetic pack has 6 cultural rare + 4 super_rare = 10
-    # skins, so we can definitely purchase 5 within the same week.
+    # skins, so we can definitely purchase 5 within the same week. Slots are
+    # stable intra-day now (sold slots stay in place), so we have to walk to
+    # the first unsold slot each iteration instead of always hammering slot 0.
     for _ in range(5):
         state = get_shop_state()
-        assert state.slots, "ran out of slots before cap"
-        purchase_slot(0)
+        unsold = [s for s in state.slots if not s.sold]
+        assert unsold, "ran out of unsold slots before cap"
+        purchase_slot(unsold[0].index)
 
+    state = get_shop_state()
+    unsold = [s for s in state.slots if not s.sold]
+    assert unsold, "no unsold slot to attempt the 6th purchase against"
     with pytest.raises(WeeklyCapExceededError):
-        purchase_slot(0)
+        purchase_slot(unsold[0].index)
 
 
 def test_purchase_already_owned_is_blocked(shop_env):
-    """The composite key path explicitly raises AlreadyOwnedError when the
-    skin is in the owned cache. (Rotation also filters, but composite-key
-    addressing intentionally falls through to the AlreadyOwned guard.)"""
+    """Composite-key re-purchase of an intra-day buy is rejected.
+
+    Under the snapshot-stable rotation, the bought slot stays in the
+    rotation marked ``sold=True`` until 00:00 UTC tomorrow — so the
+    composite-key lookup *finds* the slot but ``_resolve_slot``'s
+    sold-check raises ``SlotNotInRotationError("already purchased today")``.
+    """
     from daimon.identity import generate_identity
     from daimon.shop import (
         SlotNotInRotationError,
@@ -481,10 +645,7 @@ def test_purchase_already_owned_is_blocked(shop_env):
     s0 = state.slots[0]
     sel = f"{s0.listing.card_id}/{s0.listing.skin_slug}"
     purchase_slot(sel)
-    # Re-buying via composite — slot is filtered out of next rotation,
-    # so the precise error is SlotNotInRotation (the composite key isn't
-    # in today's slots anymore). Either way, it's a guard hit.
-    with pytest.raises(SlotNotInRotationError):
+    with pytest.raises(SlotNotInRotationError, match="already purchased today"):
         purchase_slot(sel)
 
 

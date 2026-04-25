@@ -753,6 +753,8 @@ def shop(ctx: click.Context, as_json: bool, slot_idx: int | None) -> None:
         click.echo(f"  axis:      {s.listing.skin_axis}")
         click.echo(f"  rarity:    {s.listing.rarity}")
         click.echo(f"  cost:      {s.cost} ¤")
+        if s.sold:
+            click.echo(f"  status:    [OWNED] (purchased {s.purchased_at})")
         click.echo(f"  art:       {s.listing.art_path}")
         return
 
@@ -769,14 +771,18 @@ def shop(ctx: click.Context, as_json: bool, slot_idx: int | None) -> None:
                    "the art-pack has no skin variants installed yet.)")
         return
     for s in state.slots:
+        # Slots stay in place all day; sold ones show [OWNED] in the cost
+        # column instead of the ¤ price so the layout doesn't shift.
+        cost_col = "[OWNED]" if s.sold else f"{s.cost:>4} ¤"
         click.echo(
             f"  [{s.index}] {s.listing.card_id:24s}  "
             f"{s.listing.skin_name:28s}  "
-            f"{s.listing.rarity:11s}  {s.cost:>4} ¤"
+            f"{s.listing.rarity:11s}  {cost_col:>7}"
         )
     click.echo()
     click.echo("buy with:  daimon shop buy <slot>     (e.g. daimon shop buy 0)")
     click.echo("        or daimon shop buy <card>/<slug>")
+    click.echo("note:      sold slots stay in place until the next 00:00 UTC rotation.")
 
 
 @shop.command("buy")
