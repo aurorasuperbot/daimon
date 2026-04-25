@@ -49,7 +49,8 @@ from typing import Any, Callable, Dict, List, Optional, TextIO, Tuple
 
 from daimon.engine.loadout import MAX_SAME_SPECIES, validate_loadout
 from daimon.engine.types import TEAM_SIZE
-from daimon.play.art_render import RenderMode
+from daimon.play.art_render import RenderMode, paint_overlays_as_kgp
+from daimon.render.wezterm_bundle import terminal_supports_kgp
 from daimon.play.hud.keyboard import Key, keyboard_reader_or_dummy
 from daimon.play.screenshot import ImageOverlay
 from daimon.play.tile import (
@@ -787,17 +788,24 @@ class LoadoutEditorRunner:
             return False
 
     def _render(self, *, force: bool = False) -> None:
-        screen, _ = render_frame(self.view, mode=RenderMode.HALFBLOCK,
-                                 color=self.color, width=self.width)
+        # KGP path (in our bundled WezTerm): emit blank art regions in the
+        # text frame, then KGP-paint each ImageOverlay's bitmap on top.
+        # Falls back to half-block when running in a non-KGP terminal.
+        use_kgp = terminal_supports_kgp() and self._is_tty()
+        mode = RenderMode.OVERLAY_ONLY if use_kgp else RenderMode.HALFBLOCK
+        screen, overlays = render_frame(self.view, mode=mode,
+                                        color=self.color, width=self.width)
         sig = (self.view.pane, self.view.catalog_cursor,
                self.view.loadout_cursor,
                tuple((s.entry.card_id if s.entry else None) for s in self.view.slots),
-               self.view.dirty, self.view.flash)
+               self.view.dirty, self.view.flash,
+               use_kgp)
         if not force and sig == self._last_signature:
             return
+        kgp_paint = paint_overlays_as_kgp(overlays) if use_kgp else ""
         self._last_signature = sig
         if self._is_tty():
-            self.sink.write(HOME + screen + "\n")
+            self.sink.write(HOME + screen + kgp_paint + "\n")
         else:
             self.sink.write(screen + "\n")
         try:

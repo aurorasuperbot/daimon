@@ -256,6 +256,28 @@ def launch(command: List[str], *,
 INSIDE_TERMINAL_ENV = "DAIMON_INSIDE_TERMINAL"
 
 
+def terminal_supports_kgp() -> bool:
+    """Best-effort detector — are we running inside a KGP-capable terminal?
+
+    The reliable signal is ``DAIMON_INSIDE_TERMINAL=1`` — set by
+    :func:`relaunch_in_bundled_terminal` when we re-exec into our own
+    WezTerm. That guarantees KGP works because we control the binary.
+
+    Falls back to ``TERM_PROGRAM == 'WezTerm'`` so users who launch
+    ``daimon shop --in-place`` from an existing WezTerm session still
+    get pixel-perfect art (rather than degrading to half-block).
+
+    Returns False everywhere else, so the half-block fallback wins when
+    we're unsure — better to render something less crisp than to drown
+    a non-KGP terminal in unrenderable APC escapes.
+    """
+    if os.environ.get(INSIDE_TERMINAL_ENV) == "1":
+        return True
+    if os.environ.get("TERM_PROGRAM") == "WezTerm":
+        return True
+    return False
+
+
 def should_relaunch_in_bundled_terminal(*,
                                         require_tty: bool = True
                                         ) -> tuple[bool, Optional[str]]:

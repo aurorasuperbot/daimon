@@ -236,3 +236,69 @@ def render_card_art(card_id: str, cells_w: int, cells_h: int, *,
         image_path=img,
         mode=effective_mode,
     )
+
+
+# ---------------------------------------------------------------------------
+# KGP overlay painter — converts ImageOverlay records into Kitty Graphics
+# Protocol escapes for in-terminal pixel-perfect rendering.
+#
+# This is the second-pass complement to ``RenderMode.OVERLAY_ONLY``: the
+# tile composer leaves blank cells where the art goes, this paints real
+# bitmaps into those cells via KGP. Only works in terminals that implement
+# KGP (our bundled WezTerm — see daimon/render/wezterm_bundle.py).
+#
+# The flow:
+#   1. TUI calls render_frame(..., mode=RenderMode.OVERLAY_ONLY) → frame_str + overlays
+#   2. TUI prints frame_str (blanks where art goes)
+#   3. TUI prints paint_overlays_as_kgp(overlays) — terminal renders bitmaps
+#
+# Stable image IDs per card (via image_path) let the terminal cache uploads
+# across re-renders so cursor moves/selection changes don't re-transmit
+# the same bitmap.
+# ---------------------------------------------------------------------------
+
+
+def paint_overlays_as_kgp(overlays, *, clear_first: bool = False) -> str:
+    """Convert :class:`ImageOverlay` records into a string of KGP escapes.
+
+    Each overlay is rendered with cursor positioned at its absolute
+    (row+1, col+1) — the +1 is for CSI's 1-based addressing. Image IDs
+    are stable per ``image_path`` so re-painting the same overlay is a
+    no-op transmission (terminal recognises the cached bitmap).
+
+    Wraps the whole batch in save/restore-cursor so the visible cursor
+    doesn't drift after the paint pass — important when the TUI has
+    additional text to write afterwards (status bar, flash messages).
+
+    When ``clear_first`` is True, prepends a clear-all-images escape —
+    useful for full-screen redraws when the layout changed and stale
+    bitmaps from the prior frame might still be on-screen.
+
+    Returns an empty string when ``overlays`` is empty (no escapes
+    flushed at all, including the save/restore wrapper).
+    """
+    overlays = [o for o in overlays if getattr(o, "image_path", None) is not None]
+    if not overlays:
+        return ""
+
+    from daimon.render import kgp
+
+    parts: list[str] = []
+    if clear_first:
+        parts.append(kgp.encode_clear_all())
+    parts.append(kgp.save_cursor())
+    for ov in overlays:
+        # image_path → stable ID via kgp.image_id_for; encoded inside
+        # render_card_art so each call is self-contained (cursor pos +
+        # transmit + display).
+        parts.append(kgp.render_card_art(
+            image_path=ov.image_path,
+            card_id=str(ov.image_path),
+            skin_slug=None,
+            cells_w=ov.cols,
+            cells_h=ov.rows,
+            cursor_row=ov.row + 1,    # CSI is 1-based
+            cursor_col=ov.col + 1,
+        ))
+    parts.append(kgp.restore_cursor())
+    return "".join(parts)
