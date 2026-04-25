@@ -5,14 +5,20 @@ and ``loadout_editor`` for design feedback / docs / chat previews.
 
 Pipeline:
   1. Caller hands us a frame string (the same string the runner would write
-     to the terminal — full ANSI escapes intact).
+     to the terminal — full ANSI escapes intact) PLUS an optional list of
+     :class:`ImageOverlay` records describing where to paste real bitmaps.
   2. We parse a minimal subset of CSI SGR escapes (BOLD, DIM, INVERSE, the
      8 standard colors + 8 bright + 8 background colors) into per-char
      attributes.
   3. PIL paints each cell on a dark background with a monospace font.
+  4. After the glyph pass, image overlays are pasted on top — the cells
+     under each overlay should have been emitted as blank/space by the
+     caller (use ``art_render.render_overlay_blank`` for that).
 
-The result is a faithful screenshot of what the user sees in their terminal,
-not a re-rendering — colors, bolding, and dimming all carry over.
+The result is a faithful screenshot of what the user sees in their terminal
+PLUS pixel-perfect card art at the tile positions — the live half-block
+rendering would compress to ~2-px-per-cell-row, which is acceptable in a
+real terminal but reads as muddy in a still PNG.
 
 Why not record a real terminal? `vhs`/`asciinema` chains require a live
 TTY and timing rules that aren't worth the dependency for static design
@@ -26,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 # ---------------------------------------------------------------------------
 # Color palette — terminal-native dark theme. Tuned to match a typical
@@ -180,6 +186,37 @@ def _load_font(paths: List[str], size: int) -> ImageFont.FreeTypeFont:
 
 
 # ---------------------------------------------------------------------------
+# Image overlays — paste real card art on top of the cell-grid render
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ImageOverlay:
+    """One bitmap to paste over the rendered frame.
+
+    Coordinates are in *cells* (rows + columns), not pixels — the renderer
+    multiplies by the measured cell size. The caller is expected to have
+    already emitted blank cells underneath; we don't erase what's there.
+
+    ``border_color`` (if set) draws a 1-px frame around the pasted image
+    in the given RGB tuple — useful for "this tile is selected" highlights.
+    ``glow`` (if > 0) blooms the border outward by ``glow`` extra pixels
+    (selected-tile emphasis).
+    """
+
+    row: int                                # top-left cell row (0-indexed)
+    col: int                                # top-left cell col (0-indexed)
+    rows: int                               # cell height of the overlay
+    cols: int                               # cell width of the overlay
+    image_path: Path
+    border_color: Optional[Tuple[int, int, int]] = None
+    border_width: int = 1
+    glow: int = 0
+    # Optional caption painted in the bottom strip (e.g. card_id).
+    caption: Optional[str] = None
+    caption_color: Tuple[int, int, int] = (220, 220, 220)
+
+
+# ---------------------------------------------------------------------------
 # Render
 # ---------------------------------------------------------------------------
 
@@ -194,11 +231,13 @@ class RenderOpts:
 
 
 def render_to_png(frame: str, out_path: Path, *,
-                  opts: Optional[RenderOpts] = None) -> Path:
+                  opts: Optional[RenderOpts] = None,
+                  overlays: Optional[List[ImageOverlay]] = None) -> Path:
     """Render an ANSI-colored frame to a PNG file. Returns the path written.
 
     Output is sized exactly to fit the grid + padding so screenshots stay
-    proportional regardless of frame width.
+    proportional regardless of frame width. ``overlays`` (if given) paste
+    real bitmap art over the cell grid after the glyph pass.
     """
     opts = opts or RenderOpts()
     grid = parse_frame(frame.rstrip("\n"))
@@ -250,6 +289,67 @@ def render_to_png(frame: str, out_path: Path, *,
                 f = font_bold if cell.bold else font
                 # Tiny baseline tweak so glyphs sit centred in the cell.
                 draw.text((x, y + 1), cell.char, font=f, fill=cell.fg)
+
+    # ----- Image overlays — pasted last so they sit on top of the glyphs -----
+    if overlays:
+        small_font = _load_font(_FONT_CANDIDATES, max(10, opts.font_size - 4))
+        for ov in overlays:
+            x = opts.pad + ov.col * cell_w
+            y = y0 + ov.row * cell_h
+            w = ov.cols * cell_w
+            h = ov.rows * cell_h
+            try:
+                src = Image.open(ov.image_path).convert("RGB")
+            except (OSError, FileNotFoundError):
+                continue
+            # Reserve a thin caption strip if needed.
+            cap_strip = 0
+            if ov.caption:
+                cap_strip = max(14, opts.font_size + 2)
+            art_h = max(1, h - cap_strip)
+            # Preserve aspect ratio: letter-box rather than stretching.
+            scale = min(w / src.width, art_h / src.height)
+            new_w = max(1, int(src.width * scale))
+            new_h = max(1, int(src.height * scale))
+            scaled = src.resize((new_w, new_h), Image.LANCZOS)
+            offset_x = x + (w - new_w) // 2
+            offset_y = y + (art_h - new_h) // 2
+            img.paste(scaled, (offset_x, offset_y))
+            # Optional outward glow for selected tiles.
+            if ov.glow > 0 and ov.border_color is not None:
+                glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+                glow_draw = ImageDraw.Draw(glow_layer)
+                br, bg_, bb = ov.border_color
+                for k in range(ov.glow, 0, -1):
+                    alpha = int(120 * (1 - k / (ov.glow + 1)))
+                    glow_draw.rectangle(
+                        [(x - k, y - k), (x + w + k, y + art_h + k)],
+                        outline=(br, bg_, bb, alpha),
+                        width=1,
+                    )
+                glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=ov.glow / 2))
+                img = Image.alpha_composite(img.convert("RGBA"), glow_layer).convert("RGB")
+                draw = ImageDraw.Draw(img)
+            # Hard border on top of art.
+            if ov.border_color is not None:
+                for k in range(ov.border_width):
+                    draw.rectangle(
+                        [(x - k, y - k), (x + w + k, y + art_h + k)],
+                        outline=ov.border_color,
+                    )
+            # Caption strip — drawn under the art.
+            if ov.caption:
+                cap_y = y + art_h
+                draw.rectangle(
+                    [(x, cap_y), (x + w, y + h)],
+                    fill=(28, 30, 38),
+                )
+                # Centred caption.
+                tb = small_font.getbbox(ov.caption)
+                tw = tb[2] - tb[0]
+                tx = x + (w - tw) // 2
+                draw.text((tx, cap_y + 1), ov.caption,
+                          font=small_font, fill=ov.caption_color)
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)

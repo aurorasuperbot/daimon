@@ -1,49 +1,41 @@
-"""Interactive loadout editor — `daimon loadout edit <name>`.
+"""Interactive loadout editor — `daimon loadout edit <name>`, V2 image grid.
 
-Split-pane deck builder: catalog/collection on the left, your 6-card loadout
-on the right. Live validation against engine.Loadout rules (TEAM_SIZE=6,
-no duplicate card_id, ≤2 same-species). Save with `s`, quit with `q`.
+Split-pane deck builder: card-art TILE catalog on the left, the player's 6
+loadout slots as image tiles on the right. Live validation against
+engine.Loadout rules (TEAM_SIZE=6, no duplicate card_id, ≤2 same-species).
+Save with `s`, quit with `q`.
 
 Surface contract (mirrors shop_ui / collection_ui):
 
-  * ``render_frame(view) -> str``       — pure renderer (agent-friendly)
-  * ``LoadoutEditorRunner.run()``       — interactive event loop (humans)
-  * Saved file is a showcase-format JSON: ``{"name", "cards"}``, the same
-    shape `daimon loadout save` writes — so the file is fungible across
-    the CLI surface.
+  * ``render_frame(view, mode=...) -> (frame_str, overlays)`` — pure renderer
+  * ``LoadoutEditorRunner.run()`` — interactive event loop
+  * Saved file is ``{"name", "cards"}`` JSON, fungible across the CLI surface
 
-Layout (80 col × ~24 row):
+Layout (130 col × ~30 row):
 
-    ╔══════════════════════════════════════════════════════════════════════════════╗
-    ║  DAIMON · loadout edit  my_team               santiago · 8a3c…1c2d  · DIRTY  ║
-    ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  CATALOG (focus →)                  ║  LOADOUT  (4/6)                        ║
-    ║  ▶ aegis_lion       rare   NORMAL   ║  [0] aegis_lion       rare    NORMAL   ║
-    ║    blazewolf        rare   FIRE     ║  [1] blazewolf        rare    FIRE     ║
-    ║    voltcat_apex     rare   VOLT     ║  [2] voltcat_apex     rare    VOLT     ║
-    ║    bulwarthog       rare   NATURE   ║  [3] bulwarthog       rare    NATURE   ║
-    ║    tidewyrm         rare   WATER    ║  [4] (empty)                           ║
-    ║    glimmerowl       uncm   VOLT     ║  [5] (empty)                           ║
-    ║    iron_boar        comm   NORMAL   ║                                        ║
-    ║    dashmouse        comm   NORMAL   ║                                        ║
-    ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  validation: NEED 2 MORE CARDS                                               ║
-    ║  cursor:    aegis_lion · rare · NORMAL · atk 6 def 8 hp 30                   ║
-    ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  4/6 cards     [↑↓]select  [⏎/+]add  [TAB]focus  [-]drop  [s]save  [q]quit   ║
-    ╚══════════════════════════════════════════════════════════════════════════════╝
+    ╔═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+    ║  DAIMON · loadout edit  my_team                                                              santiago · 8a3c…1c2d  · DIRTY  ║
+    ╠═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+    ║   CATALOG ◀ FOCUS                                                          │  LOADOUT  (4/6)                                ║
+    ║   [TILE]  [TILE]  [TILE]  [TILE]  [TILE]  [TILE]                           │  [SLOT 0] [SLOT 1] [SLOT 2]                    ║
+    ║   [TILE]  [TILE]  [TILE]  [TILE]  [TILE]  [TILE]                           │  [SLOT 3] [SLOT 4] [SLOT 5]                    ║
+    ╠═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+    ║  validation: NEED 2 MORE CARDS                                                                                              ║
+    ║  cursor:    aegis_lion · rare · NORMAL · atk 6 def 8 hp 30                                                                  ║
+    ╠═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+    ║  4/6 cards    [↑↓←→]select [⏎/+]add [TAB]focus [-]drop [s]save [q]quit                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 
 Keys:
 
-  ↑/↓             move cursor (in focused pane)
-  TAB / →         shift focus from CATALOG to LOADOUT (to remove cards)
-  TAB / ←         shift focus from LOADOUT to CATALOG (to add cards)
-  ENTER / +       add cursor's catalog card to first empty loadout slot
-                  (or replace cursor's loadout slot if loadout pane focused)
-  -               remove cursor's loadout card (loadout pane only)
-  s               save and exit (only succeeds if validation == OK)
-  Q / ESC         quit without saving (prompts if dirty? — V1: no prompt,
-                  refuse-on-q-when-dirty-and-save-pending is left for v1.1)
+  ↑/↓/←/→         move cursor in focused pane's grid
+  TAB             swap focus between CATALOG and LOADOUT
+  ENTER / +       add catalog card to first empty slot (or replace cursor's
+                  loadout slot if loadout is focused)
+  -               clear cursor's loadout slot (loadout pane only)
+  PgUp/PgDn       page through the catalog
+  s               save and exit (validation must be OK)
+  Q / ESC         quit (no save-prompt yet — V1.1 work)
 """
 
 from __future__ import annotations
@@ -57,10 +49,18 @@ from typing import Any, Callable, Dict, List, Optional, TextIO, Tuple
 
 from daimon.engine.loadout import MAX_SAME_SPECIES, validate_loadout
 from daimon.engine.types import TEAM_SIZE
+from daimon.play.art_render import RenderMode
 from daimon.play.hud.keyboard import Key, keyboard_reader_or_dummy
+from daimon.play.screenshot import ImageOverlay
+from daimon.play.tile import (
+    Tile,
+    compose_row,
+    overlays_for_row,
+    render_tile,
+)
 from daimon.play.tui_style import (
-    BG_GRAY,
     BOLD,
+    BRIGHT_CYAN,
     BRIGHT_GREEN,
     BRIGHT_RED,
     BRIGHT_YELLOW,
@@ -69,29 +69,50 @@ from daimon.play.tui_style import (
     CURSOR_SHOW,
     DIM,
     GRAY,
-    GREEN,
     HOME,
-    RED,
     RESET,
-    WIDTH,
-    YELLOW,
-    blank,
-    box_bottom,
-    box_top,
     centered,
     colorize,
-    cursor_prefix,
     divider,
     element_color,
     frame_line,
     header,
     pad_visible,
     rarity_color,
-    section_title,
-    split_row,
     status_bar,
     visible_len,
 )
+
+
+# ---------------------------------------------------------------------------
+# Layout
+# ---------------------------------------------------------------------------
+
+WIDTH = 145
+CAT_GRID_COLS = 6
+CAT_GRID_ROWS = 2
+LO_GRID_COLS = 3
+LO_GRID_ROWS = 2
+TILE_W = 14
+TILE_ART_H = 7
+TILE_GAP = 1
+ROW_GAP = 1
+LEFT_PAD = 2
+SEP_W = 3
+
+# Catalog pane width (left)
+CAT_W = LEFT_PAD + CAT_GRID_COLS * TILE_W + (CAT_GRID_COLS - 1) * TILE_GAP
+# Loadout pane width (right)
+LO_W = LEFT_PAD + LO_GRID_COLS * TILE_W + (LO_GRID_COLS - 1) * TILE_GAP
+# Spare cells in the body interior (after CAT + sep + LO)
+INTERIOR = WIDTH - 2
+# Validate at import — don't ship a misaligned frame.
+assert CAT_W + SEP_W + LO_W <= INTERIOR, (
+    f"loadout editor frame oversized: {CAT_W} + {SEP_W} + {LO_W} > {INTERIOR}"
+)
+
+
+CATALOG_PAGE = CAT_GRID_COLS * CAT_GRID_ROWS    # 12 cards per page
 
 
 # ---------------------------------------------------------------------------
@@ -109,11 +130,7 @@ class Pane(str, Enum):
 
 @dataclass
 class CatalogEntry:
-    """One pickable card in the left pane.
-
-    ``payload`` is the catalog dict (what we save into the loadout file when
-    the user adds it to their team).
-    """
+    """One pickable card in the left pane."""
     card_id: str
     rarity: str
     element: str
@@ -143,16 +160,15 @@ class CatalogEntry:
 
 @dataclass
 class LoadoutSlot:
-    """One position in the 6-slot team. Empty if entry is None."""
+    """One of the 6 team slots."""
     entry: Optional[CatalogEntry] = None
 
 
 @dataclass
 class EditorView:
-    """All TUI state at one render tick."""
-    name: str                          # the loadout file name being edited
+    name: str
     catalog: List[CatalogEntry]
-    slots: List[LoadoutSlot]           # always TEAM_SIZE long
+    slots: List[LoadoutSlot]
     pubkey_hex: str = ""
     identity_name: Optional[str] = None
     pane: Pane = Pane.CATALOG
@@ -161,7 +177,7 @@ class EditorView:
     dirty: bool = False
     flash: Optional[str] = None
     flash_color: Optional[str] = None
-    save_path: Optional[Path] = None   # set when the editor is wired to disk
+    save_path: Optional[Path] = None
 
     def __post_init__(self) -> None:
         if len(self.slots) != TEAM_SIZE:
@@ -185,6 +201,17 @@ class EditorView:
         i = max(0, min(self.loadout_cursor, len(self.slots) - 1))
         return self.slots[i]
 
+    @property
+    def catalog_page(self) -> int:
+        return self.catalog_cursor // CATALOG_PAGE
+
+    @property
+    def catalog_page_count(self) -> int:
+        n = len(self.catalog)
+        if n == 0:
+            return 1
+        return (n + CATALOG_PAGE - 1) // CATALOG_PAGE
+
 
 # ---------------------------------------------------------------------------
 # Validation
@@ -204,7 +231,6 @@ def validate_view(view: EditorView) -> ValidationResult:
             ok=False,
             message=f"NEED {TEAM_SIZE - n} MORE CARDS",
         )
-    # Build the engine.Loadout — that's the canonical check.
     from daimon.cards import load_card_dict
     try:
         cards = tuple(load_card_dict(dict(s.entry.payload))
@@ -219,17 +245,12 @@ def validate_view(view: EditorView) -> ValidationResult:
 # Render — pure
 # ---------------------------------------------------------------------------
 
-LIST_ROWS = 9            # rows reserved per pane
-# Layout math: " " + LEFT_W + PANE_SEP(3) + RIGHT_W must fit in WIDTH-2 (78).
-# 1 + 37 + 3 + 37 = 78 — fits exactly, no truncation.
-LEFT_W = 37              # left pane visible width (inside the inner ║ wall)
-RIGHT_W = 37             # right pane visible width
-PANE_SEP = " ║ "         # vertical separator between panes (3 chars)
-
-
-def render_frame(view: EditorView, *, color: bool = True,
-                 width: int = WIDTH) -> str:
-    """Build the editor frame as one string."""
+def render_frame(view: EditorView, *,
+                 mode: RenderMode = RenderMode.HALFBLOCK,
+                 color: bool = True,
+                 width: int = WIDTH
+                 ) -> Tuple[str, List[ImageOverlay]]:
+    """Build the editor frame. Returns ``(frame_string, overlays)``."""
     val = validate_view(view)
 
     # ----- HEADER -----
@@ -238,25 +259,35 @@ def render_frame(view: EditorView, *, color: bool = True,
         dirty_field = colorize("· DIRTY", BRIGHT_YELLOW, bold=True) if color else (
             "· DIRTY")
     title = f"loadout edit  {view.name}  {dirty_field}".rstrip()
-    h = header(title, identity=_ident(view.pubkey_hex, view.identity_name),
-               width=width)
+    header_lines = header(title,
+                          identity=_ident(view.pubkey_hex, view.identity_name),
+                          width=width)
 
-    # ----- COLUMN HEADERS + LIST ROWS -----
-    cat_header = "CATALOG" + (
-        colorize("  ◀ FOCUS", BRIGHT_YELLOW, bold=True) if (color and view.pane == Pane.CATALOG)
-        else "         "
+    # Pane-headers row (above the tile grids)
+    cat_focused = (view.pane == Pane.CATALOG)
+    lo_focused = (view.pane == Pane.LOADOUT)
+    cat_label = "CATALOG" + (
+        colorize("  ◀ FOCUS", BRIGHT_YELLOW, bold=True) if (color and cat_focused)
+        else "          "
     )
-    lo_header = (f"LOADOUT  ({view.filled_count}/{TEAM_SIZE})"
-                 + (colorize("  ◀ FOCUS", BRIGHT_YELLOW, bold=True)
-                    if (color and view.pane == Pane.LOADOUT) else "         "))
+    lo_label = (f"LOADOUT  ({view.filled_count}/{TEAM_SIZE})"
+                + (colorize("  ◀ FOCUS", BRIGHT_YELLOW, bold=True)
+                   if (color and lo_focused) else "          "))
+    pane_header_left = pad_visible("  " + cat_label, CAT_W)
+    pane_header_right = pad_visible("  " + lo_label, LO_W)
 
-    rows: list[str] = [_split_line(cat_header, lo_header, width)]
-    for i in range(LIST_ROWS):
-        left = _render_catalog_row(view, i, color=color)
-        right = _render_loadout_row(view, i, color=color)
-        rows.append(_split_line(left, right, width))
+    sep_color = colorize("│", DIM) if color else "│"
+    sep = " " + sep_color + " "
+    pane_header_body = pane_header_left + sep + pane_header_right
+    pane_header_line = frame_line(pane_header_body, width)
 
-    # ----- VALIDATION BAND -----
+    # ----- TILE GRIDS -----
+    grid_lines, overlays = _render_grids(
+        view, mode=mode, color=color, width=width,
+        body_top_row=len(header_lines) + 1,    # +1 for the pane-header row
+    )
+
+    # ----- VALIDATION + CURSOR LINE -----
     val_color = BRIGHT_GREEN if val.ok else BRIGHT_RED
     if not val.ok and val.message.startswith("NEED"):
         val_color = BRIGHT_YELLOW
@@ -280,134 +311,227 @@ def render_frame(view: EditorView, *, color: bool = True,
                         f" · {colorize(ce.element, element_color(ce.element), bold=True) if color else ce.element}"
                         f" · atk {ce.atk} def {ce.def_} hp {ce.hp} spd {ce.spd}")
         elif slot is not None:
-            cur_text = (
-                f"slot {view.loadout_cursor}: "
-                + (colorize("(empty — press ←/TAB then ENTER to fill)", DIM, bold=False)
-                   if color else "(empty — press ←/TAB then ENTER to fill)")
-            )
-
+            cur_text = (f"slot {view.loadout_cursor}: "
+                        + (colorize("(empty — TAB to CATALOG, ENTER to fill)", DIM)
+                           if color else "(empty — TAB to CATALOG, ENTER to fill)"))
     cur_line = frame_line(f"  cursor:     {cur_text}", width)
 
-    flash_lines: list[str] = []
+    flash_lines: List[str] = []
     if view.flash:
         fc = view.flash_color or BRIGHT_GREEN
         flash_lines.append(frame_line(
             "  " + (colorize(view.flash, fc, bold=True) if color else view.flash),
             width))
 
-    # ----- BODY ASSEMBLY -----
-    body: list[str] = []
-    body.extend(rows)
+    # ----- STATUS BAR -----
+    page_part = (f"  ·  catalog page {view.catalog_page + 1}/{view.catalog_page_count}"
+                 if view.pane == Pane.CATALOG else "")
+    status_left = (f"{view.filled_count}/{TEAM_SIZE} cards"
+                   + ("  ·  unsaved" if view.dirty else "")
+                   + page_part)
+    status_keys = "[↑↓←→]select [⏎/+]add [TAB]focus [-]drop [PgUp/Dn]page [s]save [q]quit"
+    sb = status_bar(status_left, status_keys, width=width)
+
+    # ----- ASSEMBLE -----
+    body: List[str] = [pane_header_line]
+    body.extend(grid_lines)
     body.append(divider(width))
     body.append(val_line)
     body.append(cur_line)
     body.extend(flash_lines)
-
-    # ----- STATUS BAR -----
-    status_left = (f"{view.filled_count}/{TEAM_SIZE} cards"
-                   + ("  ·  unsaved" if view.dirty else ""))
-    status_keys = "[↑↓]select [⏎/+]add [TAB]focus [-]drop [s]save [q]quit"
-    sb = status_bar(status_left, status_keys, width=width)
-
-    return "\n".join(h + body + sb)
+    return "\n".join(header_lines + body + sb), overlays
 
 
-def _render_catalog_row(view: EditorView, row: int, *, color: bool) -> str:
-    """One row inside the left pane (CATALOG)."""
-    if not view.catalog:
-        if row == 0:
-            return colorize("  (no catalog)", DIM, bold=False) if color else "  (no catalog)"
-        return ""
-    # Pagination so the catalog cursor stays visible.
-    n = len(view.catalog)
-    start = max(0, min(n - LIST_ROWS, view.catalog_cursor - LIST_ROWS // 2))
-    idx = start + row
-    if idx >= n:
-        return ""
-    ce = view.catalog[idx]
-    selected = (idx == view.catalog_cursor and view.pane == Pane.CATALOG)
+def _render_grids(view: EditorView, *,
+                  mode: RenderMode, color: bool, width: int,
+                  body_top_row: int
+                  ) -> Tuple[List[str], List[ImageOverlay]]:
+    """Render the catalog tile grid (left) and loadout tile grid (right)."""
+    overlays: List[ImageOverlay] = []
 
+    # ----- CATALOG GRID -----
+    page = view.catalog_page
+    start = page * CATALOG_PAGE
+    page_entries = view.catalog[start:start + CATALOG_PAGE]
+    # Build per-slot in-loadout marker lookup.
+    in_loadout_ids = {s.entry.card_id for s in view.slots if s.entry is not None}
+
+    cat_rows: List[List[Tile]] = []
+    for ri in range(CAT_GRID_ROWS):
+        row_tiles: List[Tile] = []
+        for ci in range(CAT_GRID_COLS):
+            local_idx = ri * CAT_GRID_COLS + ci
+            global_idx = start + local_idx
+            if local_idx < len(page_entries):
+                entry = page_entries[local_idx]
+                in_loadout = entry.card_id in in_loadout_ids
+                tile = _catalog_tile(entry, global_idx, view, in_loadout,
+                                     mode=mode, color=color)
+            else:
+                tile = render_tile(card_id="", width=TILE_W, art_h=TILE_ART_H,
+                                   caption_lines=("", ""), ghost=True,
+                                   mode=mode, color=color)
+            row_tiles.append(tile)
+        cat_rows.append(row_tiles)
+
+    # ----- LOADOUT GRID -----
+    lo_rows: List[List[Tile]] = []
+    for ri in range(LO_GRID_ROWS):
+        row_tiles: List[Tile] = []
+        for ci in range(LO_GRID_COLS):
+            slot_idx = ri * LO_GRID_COLS + ci
+            slot = view.slots[slot_idx]
+            tile = _loadout_tile(slot, slot_idx, view,
+                                 mode=mode, color=color)
+            row_tiles.append(tile)
+        lo_rows.append(row_tiles)
+
+    # ----- COMPOSE -----
+    cat_lines: List[str] = []
+    for ri, row_tiles in enumerate(cat_rows):
+        composed = compose_row(row_tiles, gap=TILE_GAP, left_pad=LEFT_PAD)
+        abs_row_top = body_top_row + len(cat_lines)
+        overlays.extend(overlays_for_row(composed, base_row=abs_row_top, base_col=1))
+        cat_lines.extend(composed.lines)
+        if ri < CAT_GRID_ROWS - 1:
+            cat_lines.append(" " * composed.width)
+
+    lo_lines: List[str] = []
+    lo_col_offset = 1 + CAT_W + SEP_W
+    for ri, row_tiles in enumerate(lo_rows):
+        composed = compose_row(row_tiles, gap=TILE_GAP, left_pad=LEFT_PAD)
+        abs_row_top = body_top_row + len(lo_lines)
+        overlays.extend(overlays_for_row(composed, base_row=abs_row_top,
+                                         base_col=lo_col_offset))
+        lo_lines.extend(composed.lines)
+        if ri < LO_GRID_ROWS - 1:
+            lo_lines.append(" " * composed.width)
+
+    # ----- STITCH -----
+    total_h = max(len(cat_lines), len(lo_lines))
+    while len(cat_lines) < total_h:
+        cat_lines.append(" " * CAT_W)
+    while len(lo_lines) < total_h:
+        lo_lines.append(" " * LO_W)
+
+    sep_color = colorize("│", DIM) if color else "│"
+    sep = " " + sep_color + " "
+
+    out_lines: List[str] = []
+    for li in range(total_h):
+        cat_line = cat_lines[li]
+        lo_line = lo_lines[li]
+        cpad = CAT_W - visible_len(cat_line)
+        if cpad > 0:
+            cat_line = cat_line + " " * cpad
+        lpad = LO_W - visible_len(lo_line)
+        if lpad > 0:
+            lo_line = lo_line + " " * lpad
+        body_line = cat_line + sep + lo_line
+        out_lines.append(frame_line(body_line, width))
+    return out_lines, overlays
+
+
+def _catalog_tile(entry: CatalogEntry, global_idx: int, view: EditorView,
+                  in_loadout: bool, *,
+                  mode: RenderMode, color: bool) -> Tile:
+    """Render one catalog card tile."""
+    selected = (view.pane == Pane.CATALOG
+                and global_idx == view.catalog_cursor)
+
+    rar_col = rarity_color(entry.rarity) if color else None
+    elem_col = element_color(entry.element) if color else None
+
+    name_text = entry.card_id
+    marker = "✓" if in_loadout else " "
+    if color:
+        name_text = colorize(name_text, rar_col, bold=selected)
+        if in_loadout:
+            marker = colorize("✓", BRIGHT_GREEN, bold=True)
+    cap1 = pad_visible(marker + " " + name_text, TILE_W - 2)
+
+    rar_text = _rarity_short(entry.rarity)
+    elem_text = entry.element[:5]
+    if color:
+        rar_text = colorize(rar_text, rar_col)
+        elem_text = colorize(elem_text, elem_col, bold=True)
+    cap2 = pad_visible(rar_text, 5) + pad_visible(elem_text, TILE_W - 2 - 5, align="right")
+
+    border = None
+    if mode == RenderMode.OVERLAY_ONLY:
+        if selected:
+            border = (130, 220, 240)
+        elif in_loadout:
+            border = (90, 200, 110)
+        else:
+            border = (80, 80, 100)
+
+    return render_tile(
+        card_id=entry.card_id,
+        width=TILE_W,
+        art_h=TILE_ART_H,
+        caption_lines=(cap1, cap2),
+        selected=selected,
+        mode=mode,
+        border_color_rgb=border,
+        color=color,
+    )
+
+
+def _loadout_tile(slot: LoadoutSlot, slot_idx: int, view: EditorView, *,
+                  mode: RenderMode, color: bool) -> Tile:
+    """Render one loadout slot — empty (ghost) or filled (image tile)."""
+    selected = (view.pane == Pane.LOADOUT and slot_idx == view.loadout_cursor)
+    if slot.entry is None:
+        cap1 = pad_visible(f"[{slot_idx}]", TILE_W - 2)
+        cap2 = pad_visible(
+            colorize("(empty)", DIM) if color else "(empty)",
+            TILE_W - 2)
+        return render_tile(
+            card_id="",
+            width=TILE_W,
+            art_h=TILE_ART_H,
+            caption_lines=(cap1, cap2),
+            ghost=True,
+            selected=selected,
+            mode=mode,
+            color=color,
+        )
+    ce = slot.entry
     rar_col = rarity_color(ce.rarity) if color else None
     elem_col = element_color(ce.element) if color else None
-
     name_text = ce.card_id
-    rar_text = _rarity_short(ce.rarity)
-    elem_text = ce.element
     if color:
-        name_text = colorize(name_text, rar_col)
-        rar_text = colorize(rar_text, rar_col, bold=True)
+        name_text = colorize(name_text, rar_col, bold=selected)
+    cap1 = pad_visible(f"[{slot_idx}] " + name_text, TILE_W - 2)
+
+    rar_text = _rarity_short(ce.rarity)
+    elem_text = ce.element[:5]
+    if color:
+        rar_text = colorize(rar_text, rar_col)
         elem_text = colorize(elem_text, elem_col, bold=True)
+    cap2 = pad_visible(rar_text, 5) + pad_visible(elem_text, TILE_W - 2 - 5, align="right")
 
-    in_loadout = any(s.entry is not None and s.entry.card_id == ce.card_id
-                     for s in view.slots)
-    marker = "✓" if in_loadout else " "
-    if color and in_loadout:
-        marker = colorize("✓", BRIGHT_GREEN, bold=True)
+    border = None
+    if mode == RenderMode.OVERLAY_ONLY:
+        if selected:
+            border = (130, 220, 240)
+        else:
+            border = (110, 200, 130)
 
-    cur = cursor_prefix(selected, color=color)
-    # Row: cur(2) + marker(1) + space(1) + name(18) + 2 + rar(4) + 2 + elem(7) = 37.
-    body = (cur + marker + " "
-            + pad_visible(name_text, 18) + "  "
-            + pad_visible(rar_text, 4) + "  "
-            + pad_visible(elem_text, 7))
-    if selected and color:
-        body = (BG_GRAY + body.replace(RESET, RESET + BG_GRAY) + RESET)
-    return body
-
-
-def _render_loadout_row(view: EditorView, row: int, *, color: bool) -> str:
-    """One row inside the right pane (LOADOUT)."""
-    if row >= TEAM_SIZE:
-        return ""
-    slot = view.slots[row]
-    selected = (row == view.loadout_cursor and view.pane == Pane.LOADOUT)
-    cur = cursor_prefix(selected, color=color)
-    idx_field = f"[{row}]"
-    if slot.entry is None:
-        body = (cur
-                + pad_visible(idx_field, 4) + " "
-                + (colorize("(empty)", DIM, bold=False) if color else "(empty)"))
-    else:
-        ce = slot.entry
-        rar_col = rarity_color(ce.rarity) if color else None
-        elem_col = element_color(ce.element) if color else None
-        name_text = ce.card_id
-        rar_text = _rarity_short(ce.rarity)
-        elem_text = ce.element
-        if color:
-            name_text = colorize(name_text, rar_col)
-            rar_text = colorize(rar_text, rar_col, bold=True)
-            elem_text = colorize(elem_text, elem_col, bold=True)
-        # Row: cur(2) + idx(4) + space(1) + name(15) + 2 + rar(4) + 2 + elem(7) = 37.
-        body = (cur
-                + pad_visible(idx_field, 4) + " "
-                + pad_visible(name_text, 15) + "  "
-                + pad_visible(rar_text, 4) + "  "
-                + pad_visible(elem_text, 7))
-    if selected and color:
-        body = (BG_GRAY + body.replace(RESET, RESET + BG_GRAY) + RESET)
-    return body
-
-
-def _split_line(left: str, right: str, width: int) -> str:
-    """Render ║ left ║ right ║ row, padding each pane to its column width.
-
-    Each pane gets ``LEFT_W`` / ``RIGHT_W`` visible cells; PANE_SEP sits
-    between them with a center wall char so the split is unmistakeable.
-    """
-    interior = width - 2  # excluding outer ║ walls
-    # Compose: " " + left(LEFT_W) + " ║ " + right(RIGHT_W) + " "
-    left_field = pad_visible(left, LEFT_W)
-    right_field = pad_visible(right, RIGHT_W)
-    body = " " + left_field + PANE_SEP + right_field
-    # Pad to fill remainder if needed (e.g. width > computed sum).
-    if visible_len(body) < interior:
-        body += " " * (interior - visible_len(body))
-    return frame_line(body, width)
+    return render_tile(
+        card_id=ce.card_id,
+        width=TILE_W,
+        art_h=TILE_ART_H,
+        caption_lines=(cap1, cap2),
+        selected=selected,
+        mode=mode,
+        border_color_rgb=border,
+        color=color,
+    )
 
 
 def _rarity_short(r: str) -> str:
-    """Short rarity tag for tight panes."""
     return {"common": "comm", "uncommon": "uncm", "rare": "rare",
             "epic": "epic", "legendary": "lgnd"}.get(r, r[:4])
 
@@ -418,18 +542,14 @@ def _ident(pubkey_hex: str, name: Optional[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Persistence — load + save
+# Persistence
 # ---------------------------------------------------------------------------
 
 def load_editor_view(name: str, *,
                      catalog_id: str = "v1_alpha",
                      identity_name: Optional[str] = None,
                      loadouts_dir: Optional[Path] = None) -> EditorView:
-    """Build an EditorView for ``name``, creating an empty file if missing.
-
-    Reads the catalog into ``CatalogEntry``s and pre-populates slots from
-    the existing loadout file (showcase or full-card-dict format).
-    """
+    """Build an EditorView for ``name``, creating an empty file if missing."""
     from daimon.catalog import DEFAULT_CATALOG_ID, load_catalog
     from daimon.identity.keys import CONFIG_DIR
     from daimon.identity import load_identity
@@ -488,10 +608,6 @@ def load_editor_view(name: str, *,
 
 
 def save_editor_view(view: EditorView) -> Tuple[bool, str]:
-    """Persist the loadout to disk in the canonical ``{name, cards}`` shape.
-
-    Returns ``(ok, message)``. Refuses to save if validation fails.
-    """
     val = validate_view(view)
     if not val.ok:
         return False, f"can't save: {val.message}"
@@ -540,14 +656,16 @@ class LoadoutEditorRunner:
             self._exit_screen()
         return 0
 
-    def render_once(self) -> str:
-        return render_frame(self.view, color=self.color, width=self.width)
+    def render_once(self, *, mode: RenderMode = RenderMode.HALFBLOCK
+                    ) -> Tuple[str, List[ImageOverlay]]:
+        return render_frame(self.view, mode=mode,
+                            color=self.color, width=self.width)
 
     # ----- key handling -----
 
     def _handle_key(self, key) -> None:
         v = self.view
-        v.flash = None    # clear stale message on any key
+        v.flash = None
         if key in (Key.Q, Key.ESC):
             self._stop = True
             return
@@ -558,22 +676,26 @@ class LoadoutEditorRunner:
             if ok:
                 self._stop = True
             return
-        if key == "\t" or key == "tab":
+        if key in ("\t", "tab"):
             v.pane = Pane.LOADOUT if v.pane == Pane.CATALOG else Pane.CATALOG
             return
-        if key == Key.LEFT:
-            if v.pane == Pane.LOADOUT:
-                v.pane = Pane.CATALOG
-                return
-        if key == Key.RIGHT:
-            if v.pane == Pane.CATALOG:
-                v.pane = Pane.LOADOUT
-                return
         if key == Key.UP:
-            self._move(-1)
+            self._move_grid(0, -1)
             return
         if key == Key.DOWN:
-            self._move(+1)
+            self._move_grid(0, +1)
+            return
+        if key == Key.LEFT:
+            self._move_grid(-1, 0)
+            return
+        if key == Key.RIGHT:
+            self._move_grid(+1, 0)
+            return
+        if key in ("p", Key.P):
+            self._move_page(-1)
+            return
+        if key in ("n", Key.N):
+            self._move_page(+1)
             return
         if key in (Key.ENTER, "+"):
             self._add()
@@ -582,16 +704,33 @@ class LoadoutEditorRunner:
             self._drop()
             return
 
-    def _move(self, delta: int) -> None:
+    def _move_grid(self, dc: int, dr: int) -> None:
         v = self.view
         if v.pane == Pane.CATALOG:
+            cols = CAT_GRID_COLS
             n = len(v.catalog)
-            if n:
-                v.catalog_cursor = (v.catalog_cursor + delta) % n
+            if n == 0:
+                return
+            cur = v.catalog_cursor
+            cur += dc + dr * cols
+            cur %= n
+            v.catalog_cursor = cur
         else:
-            n = len(v.slots)
-            if n:
-                v.loadout_cursor = (v.loadout_cursor + delta) % n
+            cols = LO_GRID_COLS
+            cur = v.loadout_cursor
+            cur += dc + dr * cols
+            cur %= TEAM_SIZE
+            v.loadout_cursor = cur
+
+    def _move_page(self, delta: int) -> None:
+        v = self.view
+        if v.pane != Pane.CATALOG:
+            return
+        n = len(v.catalog)
+        if n == 0:
+            return
+        new_page = (v.catalog_page + delta) % v.catalog_page_count
+        v.catalog_cursor = min(new_page * CATALOG_PAGE, n - 1)
 
     def _add(self) -> None:
         v = self.view
@@ -600,19 +739,16 @@ class LoadoutEditorRunner:
             v.flash = "catalog empty"
             v.flash_color = BRIGHT_RED
             return
-        # If the loadout pane is focused, replace the cursor's slot.
         if v.pane == Pane.LOADOUT:
             v.slots[v.loadout_cursor] = LoadoutSlot(entry=ce)
             v.dirty = True
             return
-        # Otherwise add into the first empty slot (or replace cursor if all full).
         for i, s in enumerate(v.slots):
             if s.entry is None:
                 v.slots[i] = LoadoutSlot(entry=ce)
                 v.loadout_cursor = i
                 v.dirty = True
                 return
-        # All filled — bump cursor's loadout-side slot for replacement.
         v.slots[v.loadout_cursor] = LoadoutSlot(entry=ce)
         v.dirty = True
 
@@ -651,7 +787,8 @@ class LoadoutEditorRunner:
             return False
 
     def _render(self, *, force: bool = False) -> None:
-        screen = render_frame(self.view, color=self.color, width=self.width)
+        screen, _ = render_frame(self.view, mode=RenderMode.HALFBLOCK,
+                                 color=self.color, width=self.width)
         sig = (self.view.pane, self.view.catalog_cursor,
                self.view.loadout_cursor,
                tuple((s.entry.card_id if s.entry else None) for s in self.view.slots),

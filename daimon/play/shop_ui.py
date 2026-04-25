@@ -1,46 +1,44 @@
-"""Interactive shop TUI — `daimon shop` (default mode).
+"""Interactive shop TUI — `daimon shop` (default mode), V2 tile-grid layout.
 
-Browse today's 6-slot rotation, see balance / weekly cap / refresh clock at
-a glance, drill into a slot for full skin metadata, buy with one keystroke.
+Browse today's 6-slot rotation as a 3×2 grid of card-art TILES with a side
+detail panel showing the focused card. Same agentic-first contract:
 
-Surface contract — agentic-first then human:
+  * ``render_frame(view, mode=...) -> (frame_str, overlays)`` — pure, no I/O.
+    HALFBLOCK mode rasterises the art into the frame string itself (live
+    terminals); OVERLAY_ONLY emits blank cells and a list of
+    :class:`ImageOverlay` records the screenshot pipeline pastes on top.
+  * ``run_shop_tui()`` — human event loop. Default mode HALFBLOCK.
+  * ``--no-tui`` / ``--json`` on the CLI keep the scripted paths working.
 
-  * The same module exposes ``render_frame(state) -> str`` (pure, no I/O)
-    so agents can capture the rendered terminal state for log/preview.
-  * ``run(state_loader, purchaser)`` is the human-facing event loop.
-  * Both ``--no-tui`` (text dump) and ``--json`` (raw payload) remain on
-    the CLI as the agent-friendly opt-outs — see ``daimon shop --help``.
+Layout (110 col × ~28 row frame):
 
-Layout (80 col × ~22 row frame):
-
-    ╔══════════════════════════════════════════════════════════════════════════════╗
-    ║  DAIMON · shop                                       santiago · 8a3c…f1e0   ║
-    ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  balance  1 700 ¤   ·   weekly  2 / 5   ·   refresh in  14h 23m 11s          ║
-    ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  TODAY'S 6 SLOTS                                                             ║
-    ║                                                                              ║
-    ║  ▶ [0] aegis_lion         Heretic Manuscript  cultural   rare        300 ¤  ║
-    ║    [1] blazewolf          Ukiyoe Scroll       cultural   rare        300 ¤  ║
-    ║    [2] frost_fang         [OWNED 14:02 UTC]   cultural   rare              · ║
-    ║    [3] stormhawk          Volcanic Plate      anatomical super_rare  800 ¤  ║
-    ║    [4] mire_drake         Lacquer Mask        cultural   rare        300 ¤  ║
-    ║    [5] verdant_horn       Iron Ribcage        anatomical super_rare  800 ¤  ║
-    ║                                                                              ║
-    ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  DETAIL — slot 0                                                             ║
-    ║    card:    aegis_lion (Nemean Wanderer · NORMAL · rare)                     ║
-    ║    skin:    Heretic Manuscript (heretic_manuscript)                          ║
-    ║    axis:    cultural · price 300 ¤                                           ║
-    ║    art:     ~/.daimon/art/v1_alpha/aegis_lion/variants/heretic_v1.png        ║
-    ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  slot 0/5 · weekly 2/5     [←→]select [⏎]buy [r]refresh [q]quit              ║
-    ╚══════════════════════════════════════════════════════════════════════════════╝
+    ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+    ║  DAIMON · shop                                                                  santiago · 8a3c…f1e0         ║
+    ╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+    ║  balance  1,700 ¤   ·   weekly  2 / 5   ·   refresh in  14h 23m 11s                                          ║
+    ╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+    ║                                                                                  │  DETAIL — slot 0           ║
+    ║   ╔══════════════════════╗  ┌──────────────────────┐  ┌──────────────────────┐    │  aegis_lion · NORMAL · 6/8/30
+    ║   ║ ░░░░░ART░░░░░░░░░░░░ ║  │   art (selected hi)  │  │      art             │    │  ╔══════════════════════╗
+    ║   ║                      ║  │                      │  │                      │    │  ║                      ║
+    ║   ║                      ║  │                      │  │                      │    │  ║                      ║
+    ║   ║                      ║  │                      │  │                      │    │  ║   HERO  ART          ║
+    ║   ╚══════════════════════╝  └──────────────────────┘  └──────────────────────┘    │  ║                      ║
+    ║   aegis_lion        300¤    blazewolf       300¤      frost_fang   [OWNED]       │  ╚══════════════════════╝
+    ║   rare              cultur  rare            cultur    rare         (sold 14:02)  │  Heretic Manuscript
+    ║   ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐    │  cultural · rare · 300 ¤
+    ║   │      art             │  │      art             │  │      art             │    │  art:  …/aegis/heretic.png
+    ║   ╚══════════════════════╝  ╚══════════════════════╝  ╚══════════════════════╝    │
+    ║   stormhawk         800¤    mire_drake     300¤      verdant_horn   800¤        │
+    ║   super_rare        anatom  rare           cultur    super_rare    anatom        │
+    ╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+    ║  slot 0/5 · weekly 2/5            [←→↑↓]select [⏎]buy [r]refresh [q]quit                                     ║
+    ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 
 Keys:
 
-  ←/→           move cursor between slots
-  ↑/↓           same as ←/→ (ergonomic alias)
+  ←/→           move cursor horizontally between columns
+  ↑/↓           move cursor vertically between rows
   ENTER         buy the selected slot (if unsold + balance OK + cap not hit)
   R             reload state from disk (catches background mining mints)
   Q / ESC       quit
@@ -50,12 +48,20 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, TextIO
+from typing import Callable, List, Optional, TextIO, Tuple
 
+from daimon.play.art_render import RenderMode
 from daimon.play.hud.keyboard import Key, keyboard_reader_or_dummy
+from daimon.play.screenshot import ImageOverlay
+from daimon.play.tile import (
+    Tile,
+    compose_row,
+    overlays_for_row,
+    render_tile,
+)
 from daimon.play.tui_style import (
-    BG_GRAY,
     BOLD,
+    BRIGHT_CYAN,
     BRIGHT_GREEN,
     BRIGHT_RED,
     BRIGHT_YELLOW,
@@ -63,32 +69,39 @@ from daimon.play.tui_style import (
     CURSOR_HIDE,
     CURSOR_SHOW,
     DIM,
-    GLYPH_CURSOR,
     GRAY,
     GREEN,
     HOME,
     RESET,
-    WIDTH,
-    blank,
-    box_bottom,
-    box_top,
     centered,
     colorize,
-    compose_frame,
-    cursor_prefix,
     divider,
     frame_line,
     header,
-    left,
     pad_visible,
     rarity_color,
-    row,
-    section_title,
-    split_row,
     status_bar,
+    visible_len,
 )
 from daimon.shop import ShopState
 from daimon.shop.rotation import RotationSlot
+
+# ---------------------------------------------------------------------------
+# Layout constants — V2 frame
+# ---------------------------------------------------------------------------
+
+WIDTH = 110            # outer frame width (incl ║ walls)
+GRID_COLS = 3
+GRID_ROWS = 2
+TILE_W = 24            # one card tile (incl single-rule borders)
+TILE_ART_H = 12        # rows of art inside the tile
+TILE_GAP = 2           # blank cells between tiles in a row
+ROW_GAP = 1            # blank rows between tile-grid rows
+LEFT_PAD = 3           # cells of left padding before the first tile
+SEP_W = 3              # " │ " between tile grid and detail panel
+DETAIL_W = WIDTH - 2 - LEFT_PAD - (GRID_COLS * TILE_W + (GRID_COLS - 1) * TILE_GAP) - SEP_W
+# DETAIL_W computed: 110-2 - 3 - (3*24 + 2*2) - 3 = 108 - 3 - 76 - 3 = 26
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -109,12 +122,10 @@ def _format_secs_short(secs: int) -> str:
 
 
 def _format_balance(n: int) -> str:
-    """Group thousands: 1700 → '1,700'."""
     return f"{n:,}"
 
 
 def _ident_short(pubkey_hex: str, *, name: Optional[str] = None) -> str:
-    """e.g. 'santiago · 8a3c…f1e0' or '8a3c…f1e0' if no nick."""
     short = f"{pubkey_hex[:4]}…{pubkey_hex[-4:]}" if pubkey_hex else "anon"
     if name:
         return f"{name} · {short}"
@@ -122,19 +133,19 @@ def _ident_short(pubkey_hex: str, *, name: Optional[str] = None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# View state — what render_frame consumes
+# View model
 # ---------------------------------------------------------------------------
 
 @dataclass
 class ShopView:
     """Snapshot of shop UI state at one render tick.
 
-    Pure data — no callbacks, no I/O. The interactive runner mutates this
-    in place; the renderer consumes a copy.
+    The 6 slots are laid out left-to-right, top-to-bottom into a
+    GRID_COLS × GRID_ROWS grid; ``cursor`` is the linear slot index.
     """
     state: ShopState
-    cursor: int = 0                  # selected slot index
-    flash: Optional[str] = None      # transient banner (e.g. 'BOUGHT', 'OOPS')
+    cursor: int = 0
+    flash: Optional[str] = None
     flash_color: Optional[str] = None
     identity_name: Optional[str] = None
 
@@ -148,62 +159,68 @@ class ShopView:
             return None
         return self.state.slots[self.cursor]
 
+    def move(self, dr: int, dc: int) -> None:
+        """Move the cursor in the GRID_COLS × GRID_ROWS grid."""
+        if not self.state.slots:
+            return
+        n = self.slot_count
+        r, c = divmod(self.cursor, GRID_COLS)
+        r = (r + dr) % GRID_ROWS
+        c = (c + dc) % GRID_COLS
+        idx = r * GRID_COLS + c
+        if idx < n:
+            self.cursor = idx
+
 
 # ---------------------------------------------------------------------------
-# Render — pure (no I/O, no curses)
+# Render — pure
 # ---------------------------------------------------------------------------
 
-def render_frame(view: ShopView, *, color: bool = True,
-                 width: int = WIDTH) -> str:
-    """Return the full shop frame as one '\\n'-joined string.
+def render_frame(view: ShopView, *,
+                 mode: RenderMode = RenderMode.HALFBLOCK,
+                 color: bool = True,
+                 width: int = WIDTH
+                 ) -> Tuple[str, List[ImageOverlay]]:
+    """Return (frame_string, overlays).
 
-    ANSI escapes are emitted only when ``color=True``. Frame is exactly
-    21 lines tall regardless of slot count (sub-6 slots are padded with
-    blanks so the bottom panes don't dance around).
+    HALFBLOCK rasterises card art into the frame text itself (live
+    terminals); OVERLAY_ONLY emits blank cells under each tile's art region
+    and returns absolute-coord overlays so :mod:`screenshot` can paste real
+    PIL bitmaps over them. Live runners ignore the overlays list.
     """
     s = view.state
 
-    # ----- HEADER ROW: balance / weekly / refresh ---------------------
-    bal_color = BRIGHT_GREEN if (color and s.balance >= 800) else (
-        BRIGHT_YELLOW if color and s.balance >= 300 else GRAY)
+    # ----- HEADER ------------------------------------------------------
+    header_lines = header(
+        "shop",
+        identity=_ident_short(s.pubkey_hex, name=view.identity_name),
+        width=width,
+    )
+
+    # ----- SUMMARY (balance / weekly / refresh) ------------------------
+    bal_color = (BRIGHT_GREEN if (color and s.balance >= 800)
+                 else BRIGHT_YELLOW if (color and s.balance >= 300)
+                 else GRAY)
     weekly_color = (BRIGHT_RED if color and s.weekly_count >= s.weekly_cap
                     else GRAY)
-    bal_field = colorize(f"{_format_balance(s.balance)} ¤",
-                         bal_color, bold=True) if color else f"{s.balance} ¤"
-    weekly_field = colorize(f"{s.weekly_count}/{s.weekly_cap}",
-                            weekly_color, bold=True) if color else (
-        f"{s.weekly_count}/{s.weekly_cap}")
-    refresh_field = colorize(_format_secs_short(s.seconds_until_rotation),
-                             DIM, bold=False) if color else (
-        _format_secs_short(s.seconds_until_rotation))
+    bal_field = (colorize(f"{_format_balance(s.balance)} ¤", bal_color, bold=True)
+                 if color else f"{s.balance} ¤")
+    weekly_field = (colorize(f"{s.weekly_count}/{s.weekly_cap}", weekly_color, bold=True)
+                    if color else f"{s.weekly_count}/{s.weekly_cap}")
+    refresh_field = (colorize(_format_secs_short(s.seconds_until_rotation), DIM)
+                     if color else _format_secs_short(s.seconds_until_rotation))
     summary = (f"  balance  {bal_field}   ·   "
                f"weekly  {weekly_field}   ·   "
                f"refresh in  {refresh_field}")
     summary_line = frame_line(summary, width)
 
-    # ----- SLOT GRID --------------------------------------------------
-    slot_lines: list[str] = [section_title("TODAY'S 6 SLOTS", width),
-                             blank(width)]
-    if not s.slots:
-        slot_lines.append(centered(
-            "(no rotation — pool exhausted or art-pack empty)",
-            width, dim=True, color=DIM if color else None))
-        # Pad to 6-row equivalent so the frame stays the right height.
-        while len(slot_lines) < 8:
-            slot_lines.append(blank(width))
-    else:
-        for s_idx, slot in enumerate(s.slots):
-            slot_lines.append(_render_slot_row(slot, selected=(s_idx == view.cursor),
-                                                color=color, width=width))
-        # Pad up to 6 rows so layout stays stable on partial pools.
-        while len(slot_lines) < 8:
-            slot_lines.append(blank(width))
-    slot_lines.append(blank(width))
+    # ----- TILE GRID + DETAIL PANEL ------------------------------------
+    body_lines, body_overlays = _render_grid_and_detail(
+        view, mode=mode, color=color, width=width,
+        body_top_row=len(header_lines) + 2,   # header(3) + summary(1) + divider(1)
+    )
 
-    # ----- DETAIL PANEL ------------------------------------------------
-    detail_lines = _render_detail_panel(view, color=color, width=width)
-
-    # ----- FLASH (optional) -------------------------------------------
+    # ----- FLASH (optional) --------------------------------------------
     flash_lines: list[str] = []
     if view.flash:
         flash_color = view.flash_color or BRIGHT_YELLOW
@@ -212,118 +229,274 @@ def render_frame(view: ShopView, *, color: bool = True,
             view.flash, width,
             color=flash_color if color else None, bold=True))
 
-    # ----- BODY ASSEMBLY -----------------------------------------------
-    body: list[str] = []
-    body.append(summary_line)
-    body.append(divider(width))
-    body.extend(slot_lines)
-    body.append(divider(width))
-    body.extend(detail_lines)
-    body.extend(flash_lines)
-
     # ----- STATUS BAR --------------------------------------------------
     status_left = (f"slot {view.cursor + 1}/{max(1, view.slot_count)}  ·  "
                    f"weekly {s.weekly_count}/{s.weekly_cap}")
-    status_keys = "[←→]select  [⏎]buy  [r]refresh  [q]quit"
-
-    # Compose: header (3 lines) + body + status_bar (3 lines).
-    h = header("shop",
-               identity=_ident_short(s.pubkey_hex, name=view.identity_name),
-               width=width)
+    status_keys = "[←→↑↓]select  [⏎]buy  [r]refresh  [q]quit"
     sb = status_bar(status_left, status_keys, width=width)
-    return "\n".join(h + body + sb)
+
+    # ----- ASSEMBLE ----------------------------------------------------
+    body: list[str] = []
+    body.append(summary_line)
+    body.append(divider(width))
+    body.extend(body_lines)
+    body.extend(flash_lines)
+    return "\n".join(header_lines + body + sb), body_overlays
 
 
-def _render_slot_row(slot: RotationSlot, *, selected: bool,
-                     color: bool, width: int) -> str:
-    """One ║   ▶ [N] card_id  skin_name  axis  rarity  cost ║ row.
+def _render_grid_and_detail(view: ShopView, *,
+                            mode: RenderMode,
+                            color: bool,
+                            width: int,
+                            body_top_row: int
+                            ) -> Tuple[List[str], List[ImageOverlay]]:
+    """Render the 3×2 tile grid + side detail panel as one stack of lines.
 
-    Column widths are visible-width — ANSI escapes don't count toward
-    padding, so the rows stay aligned regardless of how many color codes
-    are inlined.
+    Returns ``(lines, overlays)`` — overlays are in *absolute* coords ready
+    for the screenshot pipeline (already translated by ``body_top_row``).
     """
+    slots = view.state.slots
+    overlays: List[ImageOverlay] = []
+    lines: List[str] = []
+
+    # Build the tile-grid rows.
+    grid_rows: List[List[Tile]] = []
+    for ri in range(GRID_ROWS):
+        row_tiles: List[Tile] = []
+        for ci in range(GRID_COLS):
+            idx = ri * GRID_COLS + ci
+            slot = slots[idx] if idx < len(slots) else None
+            row_tiles.append(_slot_to_tile(slot, idx, view.cursor,
+                                           mode=mode, color=color))
+        grid_rows.append(row_tiles)
+
+    # Compose each row, splice the detail panel on the right.
+    detail_lines, detail_overlay_specs = _render_detail_panel(
+        view, mode=mode, color=color, width=DETAIL_W,
+        # Hero tile sits inside the panel — it knows its own art_h.
+    )
+
+    # The detail panel spans the full body height; tile-grid spans rows1+row2.
+    # We need both columns to share height; pad whichever is shorter.
+    composed_grid_lines: List[str] = []
+    cur_body_row = 0   # row offset (within the body) where this composed row starts
+    for ri, row_tiles in enumerate(grid_rows):
+        composed = compose_row(row_tiles, gap=TILE_GAP, left_pad=LEFT_PAD)
+        # absolute top row of THIS composed_row in the full frame
+        abs_row_top = body_top_row + cur_body_row
+        overlays.extend(overlays_for_row(composed, base_row=abs_row_top, base_col=1))
+        composed_grid_lines.extend(composed.lines)
+        # blank gap row (only between rows)
+        if ri < GRID_ROWS - 1:
+            composed_grid_lines.append(" " * composed.width)
+            cur_body_row = len(composed_grid_lines)
+        else:
+            cur_body_row = len(composed_grid_lines)
+
+    # Now stitch grid + " │ " + detail.
+    grid_w = LEFT_PAD + GRID_COLS * TILE_W + (GRID_COLS - 1) * TILE_GAP
+    grid_h = len(composed_grid_lines)
+    detail_h = len(detail_lines)
+    total_h = max(grid_h, detail_h)
+    while len(composed_grid_lines) < total_h:
+        composed_grid_lines.append(" " * grid_w)
+    while len(detail_lines) < total_h:
+        detail_lines.append(" " * DETAIL_W)
+
+    sep_color = colorize("│", DIM) if color else "│"
+    sep = " " + sep_color + " "
+
+    # Translate detail overlays from local-to-detail coords into absolute frame coords.
+    detail_col_offset = 1 + grid_w + SEP_W   # +1 for the outer ║ wall
+    for spec in detail_overlay_specs:
+        abs_row = body_top_row + spec.row
+        abs_col = detail_col_offset + spec.col
+        overlays.append(ImageOverlay(
+            row=abs_row,
+            col=abs_col,
+            rows=spec.rows,
+            cols=spec.cols,
+            image_path=spec.image_path,
+            border_color=spec.border_color,
+            border_width=spec.border_width,
+            glow=spec.glow,
+            caption=spec.caption,
+            caption_color=spec.caption_color,
+        ))
+
+    for li in range(total_h):
+        gline = composed_grid_lines[li]
+        dline = detail_lines[li]
+        # Pad grid line to grid_w in case any row came in short (shouldn't, but
+        # defensive — visible_len matters because tiles emit ANSI).
+        gpad = grid_w - visible_len(gline)
+        if gpad > 0:
+            gline = gline + " " * gpad
+        body_line = gline + sep + pad_visible(dline, DETAIL_W)
+        lines.append(frame_line(body_line, width))
+
+    return lines, overlays
+
+
+def _slot_to_tile(slot: Optional[RotationSlot], idx: int, cursor: int, *,
+                  mode: RenderMode, color: bool) -> Tile:
+    """Render one shop slot as a Tile.
+
+    Empty slot (out-of-bounds): ghost tile.
+    Sold slot: dim greyscale chrome + [OWNED hh:mm] caption.
+    Unsold: rarity-coloured cost + skin name caption.
+    """
+    selected = (idx == cursor)
+
+    if slot is None:
+        return render_tile(
+            card_id="",
+            width=TILE_W,
+            art_h=TILE_ART_H,
+            caption_lines=("(no slot)", ""),
+            ghost=True,
+            mode=mode,
+            color=color,
+        )
+
     listing = slot.listing
     rar_col = rarity_color(listing.rarity) if color else None
 
-    cur = cursor_prefix(selected, color=color)
-    idx_field = f"[{slot.index}]"
+    # Caption row 1 — card id (with selected/sold colour)
+    name_text = listing.card_id
+    if color:
+        name_text = colorize(name_text, rar_col, bold=selected)
+    name_line = pad_visible(f"[{slot.index}] " + name_text, TILE_W - 2)
+
+    # Caption row 2 — price + state
     if slot.sold:
         ts = (slot.purchased_at or "")[11:16]
-        card_text = listing.card_id
-        skin_text = f"[OWNED {ts} UTC]" if ts else "[OWNED]"
-        axis_text = listing.skin_axis
-        rar_text = listing.rarity
-        cost_text = "—"
+        right = f"[OWNED {ts}]" if ts else "[OWNED]"
         if color:
-            idx_field = colorize(idx_field, GRAY, bold=False)
-            card_text = colorize(card_text, GRAY, bold=False)
-            skin_text = colorize(skin_text, GRAY, bold=True)
-            axis_text = colorize(axis_text, GRAY, bold=False)
-            rar_text = colorize(rar_text, GRAY, bold=False)
-            cost_text = colorize(cost_text, GRAY, bold=False)
+            right = colorize(right, GRAY, bold=False)
+        cap2 = pad_visible(listing.rarity[:6], 7) + "  " + pad_visible(right, TILE_W - 2 - 9, align="right")
     else:
-        card_text = listing.card_id
-        skin_text = listing.skin_name
-        axis_text = listing.skin_axis
         rar_text = listing.rarity
         cost_text = f"{slot.cost} ¤"
         if color:
-            card_text = colorize(card_text, rar_col, bold=False)
-            rar_text = colorize(rar_text, rar_col, bold=True)
+            rar_text = colorize(rar_text, rar_col, bold=False)
             cost_text = colorize(cost_text, BRIGHT_YELLOW, bold=True)
+        cap2 = (pad_visible(rar_text, 11)
+                + pad_visible(cost_text, TILE_W - 2 - 11, align="right"))
 
-    # Build with visible-width-aware padding (so ANSI escapes don't bleed
-    # the layout). Total interior is WIDTH-2 = 78 cols; we leave a 2-col
-    # right gutter so frame_line's pad doesn't make the row look cramped.
-    # Layout: 2sp + cur(2) + idx(4) + 1 + card(14) + 2 + skin(20) + 2 +
-    #         axis(10) + 2 + rar(10) + 2 + cost(5) = 76 (+2 gutter = 78)
-    body = ("  " + cur
-            + pad_visible(idx_field, 4) + " "
-            + pad_visible(card_text, 14) + "  "
-            + pad_visible(skin_text, 20) + "  "
-            + pad_visible(axis_text, 10) + "  "
-            + pad_visible(rar_text, 10) + "  "
-            + pad_visible(cost_text, 5, align="right"))
+    # Border colour for screenshot overlay border
+    border = None
+    if mode == RenderMode.OVERLAY_ONLY:
+        if selected:
+            border = (130, 220, 240)        # bright cyan
+        elif slot.sold:
+            border = (90, 90, 90)
+        else:
+            border = (110, 110, 130)
 
-    if selected and color:
-        # Replace stand-alone RESETs inside the row with RESET+BG to keep the
-        # selection bar continuous, then arm the background once and reset at end.
-        body = (BG_GRAY + body.replace(RESET, RESET + BG_GRAY) + RESET)
-    return frame_line(body, width)
+    return render_tile(
+        card_id=listing.card_id,
+        skin_slug=listing.skin_slug,
+        width=TILE_W,
+        art_h=TILE_ART_H,
+        caption_lines=(name_line, cap2),
+        selected=selected,
+        dim=slot.sold,
+        mode=mode,
+        border_color_rgb=border,
+        color=color,
+    )
 
 
-def _render_detail_panel(view: ShopView, *, color: bool, width: int
-                         ) -> list[str]:
-    """4-line detail block describing the cursor's slot."""
+def _render_detail_panel(view: ShopView, *,
+                         mode: RenderMode,
+                         color: bool,
+                         width: int
+                         ) -> Tuple[List[str], List[ImageOverlay]]:
+    """Right-side detail panel: hero tile + skin metadata.
+
+    Returns ``(lines, overlay_specs)`` — overlay coords are LOCAL to the
+    panel (row=0,col=0 = top-left); the caller translates them to absolute
+    frame coords.
+    """
     sl = view.selected
     if sl is None:
-        return [
-            section_title("DETAIL", width),
-            frame_line("    (no slots in rotation)", width),
-            blank(width),
-            blank(width),
-        ]
+        return ([
+            "DETAIL",
+            "(no slots in rotation)",
+        ], [])
+
     listing = sl.listing
-    rar = colorize(listing.rarity,
-                   rarity_color(listing.rarity) if color else None, bold=color)
-    sold_marker = ""
+    title = "DETAIL — slot " + str(sl.index)
+    if color:
+        title = BOLD + title + RESET
+
+    # Hero tile — wider art, no caption (we put caption rows below the tile).
+    HERO_ART_H = 14
+    hero = render_tile(
+        card_id=listing.card_id,
+        skin_slug=listing.skin_slug,
+        width=width,
+        art_h=HERO_ART_H,
+        caption_lines=(),
+        selected=True,
+        mode=mode,
+        border_color_rgb=(130, 220, 240) if mode == RenderMode.OVERLAY_ONLY else None,
+        color=color,
+    )
+
+    rar_text = colorize(listing.rarity,
+                        rarity_color(listing.rarity) if color else None,
+                        bold=color)
+    cost_text = (colorize(f"{sl.cost} ¤", BRIGHT_YELLOW, bold=True)
+                 if color and not sl.sold else (f"{sl.cost} ¤" if not sl.sold else "—"))
+
+    skin_line = listing.skin_name
+    if color:
+        skin_line = colorize(skin_line, BRIGHT_CYAN, bold=True)
+
+    axis_line = f"{listing.skin_axis} · {rar_text} · {cost_text}"
+
+    art_path = _short_path(listing.art_path, max_len=width - 6)
+    if color:
+        art_path = colorize(art_path, GRAY)
+
+    sold_line = ""
     if sl.sold:
         ts = sl.purchased_at or ""
-        sold_marker = colorize(f"  [OWNED {ts}]", GRAY, bold=False) if color else (
-            f"  [OWNED {ts}]")
-    return [
-        section_title(f"DETAIL — slot {sl.index}", width),
-        frame_line(f"    card:    {listing.card_id}", width),
-        frame_line(f"    skin:    {listing.skin_name}  ({listing.skin_slug})"
-                   + sold_marker, width),
-        frame_line(f"    axis:    {listing.skin_axis}  ·  "
-                   f"rarity {rar}  ·  price {sl.cost} ¤", width),
-        frame_line(f"    art:     {_short_path(listing.art_path)}", width),
-    ]
+        sold_line = colorize(f"[OWNED {ts}]", GRAY) if color else f"[OWNED {ts}]"
+
+    rows: List[str] = []
+    rows.append(pad_visible(title, width))
+    rows.extend(hero.lines)
+    rows.append(pad_visible(skin_line, width))
+    rows.append(pad_visible(axis_line, width))
+    rows.append(pad_visible(f"slug: {listing.skin_slug}", width))
+    rows.append(pad_visible("art: " + art_path, width))
+    if sold_line:
+        rows.append(pad_visible(sold_line, width))
+
+    overlays: List[ImageOverlay] = []
+    if hero.local_overlay is not None:
+        # local row inside the panel = title(1) + hero overlay's own row offset
+        ov = hero.local_overlay
+        overlays.append(ImageOverlay(
+            row=1 + ov.row,
+            col=ov.col,
+            rows=ov.rows,
+            cols=ov.cols,
+            image_path=ov.image_path,
+            border_color=ov.border_color,
+            border_width=ov.border_width,
+            glow=ov.glow,
+            caption=ov.caption,
+            caption_color=ov.caption_color,
+        ))
+
+    return rows, overlays
 
 
 def _short_path(p: str, max_len: int = 60) -> str:
-    """Trim long art paths from the head with an ellipsis."""
     if len(p) <= max_len:
         return p
     return "…" + p[-(max_len - 1):]
@@ -335,20 +508,7 @@ def _short_path(p: str, max_len: int = 60) -> str:
 
 @dataclass
 class ShopRunner:
-    """Event-loop driver for the shop TUI.
-
-    Args:
-      state_loader:  callable returning a fresh ShopState. Called on init,
-                     after every purchase, and on R-key refresh.
-      purchaser:     callable(slot_index) → ``(ok, message)`` tuple. The
-                     runner does NOT import shop.purchase_slot directly so
-                     the same loop is testable in isolation.
-      sink:          stdout (default) or a StringIO for tests/screenshots.
-      color:         False to strip ANSI (tests / pipes).
-      keyboard:      False to disable keyboard input (tests / one-shot
-                     screenshots).
-      identity_name: optional friendly name for the header overlay.
-    """
+    """Event-loop driver for the shop TUI (live-terminal, HALFBLOCK mode)."""
     state_loader: Callable[[], ShopState]
     purchaser: Callable[[int], "tuple[bool, str]"]
     sink: TextIO = field(default_factory=lambda: sys.stdout)
@@ -365,17 +525,13 @@ class ShopRunner:
         self._view = ShopView(state=self.state_loader(),
                               identity_name=self.identity_name)
 
-    # ----- public API -----
-
     def run(self) -> int:
-        """Block until the user quits. Returns 0 on clean exit."""
         try:
             self._enter_screen()
             with keyboard_reader_or_dummy(self.keyboard) as kb:
                 self._render(force=True)
                 while not self._stop:
                     if kb is None:
-                        # No keyboard — render once and exit (script use).
                         break
                     key = kb.poll(timeout_ms=100)
                     if key is None:
@@ -386,9 +542,10 @@ class ShopRunner:
             self._exit_screen()
         return 0
 
-    def render_once(self) -> str:
-        """Return the current frame as a string (no I/O). For screenshots."""
-        return render_frame(self._view, color=self.color, width=self.width)
+    def render_once(self, *, mode: RenderMode = RenderMode.HALFBLOCK
+                    ) -> Tuple[str, List[ImageOverlay]]:
+        return render_frame(self._view, mode=mode,
+                            color=self.color, width=self.width)
 
     # ----- key handling -----
 
@@ -398,11 +555,17 @@ class ShopRunner:
             return
         if not self._view.state.slots:
             return
-        if key in (Key.LEFT, Key.UP):
-            self._view.cursor = (self._view.cursor - 1) % self._view.slot_count
+        if key == Key.LEFT:
+            self._view.move(0, -1)
             self._view.flash = None
-        elif key in (Key.RIGHT, Key.DOWN):
-            self._view.cursor = (self._view.cursor + 1) % self._view.slot_count
+        elif key == Key.RIGHT:
+            self._view.move(0, +1)
+            self._view.flash = None
+        elif key == Key.UP:
+            self._view.move(-1, 0)
+            self._view.flash = None
+        elif key == Key.DOWN:
+            self._view.move(+1, 0)
             self._view.flash = None
         elif key == Key.ENTER:
             self._buy()
@@ -420,7 +583,6 @@ class ShopRunner:
             self._view.flash_color = BRIGHT_RED
             return
         ok, message = self.purchaser(sl.index)
-        # Reload either way; the message tells the story.
         self._reload(message=None)
         self._view.flash = message
         self._view.flash_color = BRIGHT_GREEN if ok else BRIGHT_RED
@@ -457,7 +619,8 @@ class ShopRunner:
             return False
 
     def _render(self, *, force: bool = False) -> None:
-        screen = render_frame(self._view, color=self.color, width=self.width)
+        screen, _ = render_frame(self._view, mode=RenderMode.HALFBLOCK,
+                                 color=self.color, width=self.width)
         sig = (self._view.cursor, self._view.state.balance,
                tuple((sl.sold, sl.purchased_at) for sl in self._view.state.slots),
                self._view.flash, self._view.state.weekly_count,
@@ -483,11 +646,7 @@ def run_shop_tui(*, identity_name: Optional[str] = None,
                  sink: Optional[TextIO] = None,
                  color: bool = True,
                  keyboard: bool = True) -> int:
-    """Build a runner against the real shop subsystem and start the loop.
-
-    Imports happen here (lazy) so the module doesn't touch the ledger /
-    identity layers at import time — keeps unit tests fast.
-    """
+    """Build a runner against the real shop subsystem and start the loop."""
     from daimon.mining.ledger import InsufficientBalanceError
     from daimon.shop import (
         AlreadyOwnedError,
