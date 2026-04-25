@@ -326,6 +326,59 @@ def append_pull_entry(
     return entry
 
 
+def append_purchase_entry(
+    *,
+    cost: int,
+    card_id: str,
+    skin_slug: str,
+    skin_axis: str,
+    rarity: str,
+    identity: Optional[Identity] = None,
+    path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Append a shop-purchase event (negative amount). Mirrors `append_pull_entry`.
+
+    Used by the skin shop. Distinct ``kind="purchase"`` so balance / stats
+    can break out gacha pulls vs cosmetic spend if we want that telemetry
+    later. Same balance-then-write contract as pulls — refuses to spend a
+    bankrupt identity.
+
+    Raises InsufficientBalanceError if balance < cost.
+    """
+    if cost <= 0:
+        raise ValueError("purchase cost must be positive")
+    if path is None:
+        path = LEDGER_PATH
+    identity = identity or load_identity()
+    initialize_ledger(identity, path)
+
+    entries = _read_entries(path)
+    bal = sum(int(e.get("amount", 0)) for e in entries)
+    if bal < cost:
+        raise InsufficientBalanceError(
+            f"need {cost}, have {bal}"
+        )
+
+    last = entries[-1]
+    prev_hash = entry_hash(last)
+
+    extras = {
+        "card_id": card_id,
+        "skin_slug": skin_slug,
+        "skin_axis": skin_axis,
+        "rarity": rarity,
+    }
+    entry = _build_entry(
+        identity=identity,
+        kind="purchase",
+        amount=-int(cost),
+        prev_hash=prev_hash,
+        extras=extras,
+    )
+    _append_line(entry, path)
+    return entry
+
+
 def get_balance(path: Optional[Path] = None) -> int:
     if path is None:
         path = LEDGER_PATH
@@ -353,6 +406,8 @@ class LedgerStats:
     total_pulled: int
     pull_count: int
     mine_count: int
+    total_purchased: int = 0   # ¤ spent on shop skins (positive value)
+    purchase_count: int = 0    # number of skin purchases
 
 
 def get_stats(path: Optional[Path] = None) -> LedgerStats:
@@ -363,6 +418,8 @@ def get_stats(path: Optional[Path] = None) -> LedgerStats:
                       if e.get("kind") == "mine")
     pull_amounts = [int(e.get("amount", 0)) for e in entries
                     if e.get("kind") == "pull"]
+    purchase_amounts = [int(e.get("amount", 0)) for e in entries
+                        if e.get("kind") == "purchase"]
     return LedgerStats(
         entry_count=len(entries),
         balance=sum(int(e.get("amount", 0)) for e in entries),
@@ -370,6 +427,8 @@ def get_stats(path: Optional[Path] = None) -> LedgerStats:
         total_pulled=-sum(pull_amounts),
         pull_count=len(pull_amounts),
         mine_count=sum(1 for e in entries if e.get("kind") == "mine"),
+        total_purchased=-sum(purchase_amounts),
+        purchase_count=len(purchase_amounts),
     )
 
 

@@ -17,6 +17,7 @@ The legacy proof scripts that locked the design language are preserved at
 scripts/render_legacy/ for reference.
 """
 
+from daimon.render.art import art_path_for
 from daimon.render.cascade import Tier, detect_tier
 from daimon.render.compose import (
     CardRenderInfo,
@@ -32,6 +33,7 @@ __all__ = [
     "CardRenderInfo",
     "Palette",
     "Tier",
+    "art_path_for",
     "compose_card",
     "compose_card_from_pack_dict",
     "detect_tier",

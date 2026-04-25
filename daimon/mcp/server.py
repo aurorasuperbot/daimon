@@ -5,10 +5,11 @@ play autonomously. The server is **read-only with respect to the engine** —
 all engine entry points are pure functions, the server just adapts arguments
 and serializes results.
 
-V1 scope (this file) — 27 tools total (21 locked 2026-04-21 + dm_init
+V1 scope (this file) — 32 tools total (21 locked 2026-04-21 + dm_init
 follow-up shipped same day + 3 NPC roster tools shipped 2026-04-22 +
 dm_mine_status deprecated alias + dm_pvp_reveal added 2026-04-24 when
-arena wiring landed):
+arena wiring landed + 5 shop tools shipped 2026-04-24 alongside the
+400-PNG skin pack):
 
 Identity + currency:
   dm_init              → bootstrap identity + BIP39 mnemonic (one-time)
@@ -50,6 +51,13 @@ Arena state:
 Disputes + contributions:
   dm_dispute_open      → appeal a resolved match (costs 50 currency)
   dm_card_propose      → propose a new card definition
+
+Skin shop (cosmetic-only):
+  dm_shop              → list today's 6 slots (rotates daily 00:00 UTC)
+  dm_shop_buy          → purchase a slot (atomic at the ledger boundary)
+  dm_skins_owned       → list owned skins + per-card equipped status
+  dm_skin_equip        → mount an owned skin on a card
+  dm_skin_unequip      → revert a card to its canonical art
 
 Design rules:
   - Tools are NAMED `dm_*` so card text containing tool calls can't masquerade
@@ -125,32 +133,46 @@ _LOADOUT_NAME_ALLOWED = set(
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _resolve_loadout_payload(
+    payload: Any, side_label: str
+) -> tuple[Loadout, list[Any]]:
+    """Normalize an inline loadout payload → (engine.Loadout, raw_payloads).
+
+    Accepts any of three shapes (auto-detected):
+
+      * Bare list: ``[{cardobj}, ...]`` (legacy)
+      * Cards dict: ``{"cards": [{cardobj}, ...]}``
+      * Showcase dict: ``{"loadout_id":..., "loadout":["card_id", ...]}``
+        (resolved against the default catalog, ``v1_alpha``)
+
+    The returned raw list still carries render-only fields (name, rarity,
+    art) so display extraction works downstream — ``load_card_dict``
+    drops those but leaves the originals untouched.
+
+    Delegates to ``daimon.loadouts.loadout_from_data`` so the MCP and CLI
+    surfaces accept identical inputs.
+    """
+    from daimon.loadouts import loadout_from_data
+
+    return loadout_from_data(payload, source=side_label)
+
+
 def _raw_cards_from_payload(payload: Any, side_label: str) -> list[Any]:
     """Pull the raw card-dict list out of a loadout payload.
 
-    Accepts either `{"cards": [...]}` or a bare list. The raw dicts still
-    contain render-only fields (name, rarity, art) — those get stripped by
-    `load_card_dict` but need to survive long enough for display extraction.
+    Back-compat wrapper around ``_resolve_loadout_payload`` — call sites
+    that need both the engine.Loadout and the raw list should call the
+    new helper directly to avoid double-resolution (especially expensive
+    for showcase payloads which hit the catalog cache).
     """
-    if isinstance(payload, dict) and "cards" in payload:
-        cards_raw = payload["cards"]
-    elif isinstance(payload, list):
-        cards_raw = payload
-    else:
-        raise ValueError(
-            f"{side_label}: expected object with 'cards' key or array of card "
-            f"objects, got {type(payload).__name__}"
-        )
-    if not isinstance(cards_raw, list):
-        raise ValueError(f"{side_label}.cards must be a list")
-    return cards_raw
+    _lo, raw = _resolve_loadout_payload(payload, side_label)
+    return raw
 
 
 def _loadout_from_payload(payload: Any, side_label: str) -> Loadout:
-    """Accept either a dict {'cards': [...]} or a bare list of card dicts."""
-    cards_raw = _raw_cards_from_payload(payload, side_label)
-    cards = tuple(load_card_dict(c) for c in cards_raw)
-    return Loadout(cards=cards)
+    """Accept any supported loadout shape and return engine.Loadout."""
+    lo, _raw = _resolve_loadout_payload(payload, side_label)
+    return lo
 
 
 def _display_override_from_fields(df: CardDisplayFields) -> Optional[CardDisplay]:
@@ -445,10 +467,8 @@ def dm_match(
        "rounds": [...]?}
     """
     try:
-        a_raw = _raw_cards_from_payload(loadout_a, "loadout_a")
-        b_raw = _raw_cards_from_payload(loadout_b, "loadout_b")
-        a = Loadout(cards=tuple(load_card_dict(c) for c in a_raw))
-        b = Loadout(cards=tuple(load_card_dict(c) for c in b_raw))
+        a, a_raw = _resolve_loadout_payload(loadout_a, "loadout_a")
+        b, b_raw = _resolve_loadout_payload(loadout_b, "loadout_b")
         seed_bytes = _seed_from_arg(seed)
     except (ValueError, TypeError) as e:
         return {"error": "invalid_input", "message": str(e)}
@@ -693,8 +713,7 @@ def dm_match_npc(
 
     # Validate player loadout + seed.
     try:
-        a_raw = _raw_cards_from_payload(loadout, "loadout")
-        a_lo = Loadout(cards=tuple(load_card_dict(c) for c in a_raw))
+        a_lo, a_raw = _resolve_loadout_payload(loadout, "loadout")
         seed_bytes = _seed_from_arg(seed)
     except (ValueError, TypeError) as e:
         return {"error": "invalid_input", "message": str(e)}
@@ -1577,6 +1596,238 @@ def dm_card_propose(card_def: Dict[str, Any],
         return {"error": "invalid_input",
                 "message": "card_def must be a JSON object"}
     return arena_ops.card_propose(card_def=card_def, rationale=rationale)
+
+
+# ---------------------------------------------------------------------------
+# Shop tools — V1 cosmetic skin marketplace (5 tools)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def dm_shop(slot: Optional[int] = None) -> Dict[str, Any]:
+    """List today's 6-slot skin shop (or detail one slot).
+
+    The shop refreshes every 00:00 UTC. Slot composition is 4 rare + 2
+    super_rare, deterministically shuffled per (pubkey, date) — different
+    agents see different shops on the same day, the same agent sees a
+    fresh shop every UTC midnight.
+
+    Args:
+      slot: Optional 0-based slot index. When given, return only that slot.
+            Otherwise return all slots + the wallet/cap/refresh-clock summary.
+
+    Returns on success (no slot):
+      {"status": "ok", "balance": int, "weekly_count": int, "weekly_cap": int,
+       "weekly_remaining": int, "seconds_until_rotation": int,
+       "slot_count": int, "slots": [{"index": int, "card_id": "...",
+       "skin_slug": "...", "skin_name": "...", "skin_axis": "cultural"|"anatomical",
+       "rarity": "rare"|"super_rare", "cost": int, "variant_id": "...",
+       "art_path": "..."}]}
+
+    Returns on success (slot given):
+      {"status": "ok", **slot_payload}
+
+    Returns on failure:
+      {"error": "no_identity", "hint": "..."}
+      {"error": "slot_out_of_range", "message": "..."}
+      {"error": "internal_error", "message": "..."}
+    """
+    try:
+        from daimon.shop import get_shop_state
+        state = get_shop_state()
+    except FileNotFoundError:
+        return {"error": "no_identity",
+                "hint": "Run `dm_init` (MCP) or `daimon init` (CLI) first."}
+    except Exception as e:  # noqa: BLE001
+        return {"error": "internal_error",
+                "message": f"{type(e).__name__}: {e}"}
+
+    if slot is None:
+        return {"status": "ok", **state.to_dict()}
+
+    if not isinstance(slot, int):
+        return {"error": "invalid_input",
+                "message": f"slot must be int, got {type(slot).__name__}"}
+    if slot < 0 or slot >= len(state.slots):
+        return {"error": "slot_out_of_range",
+                "message": f"slot {slot} out of range (0..{len(state.slots) - 1})",
+                "slot_count": len(state.slots)}
+
+    return {"status": "ok", **state.slots[slot].to_dict()}
+
+
+@mcp.tool()
+def dm_shop_buy(slot: Optional[int] = None,
+                selector: Optional[str] = None) -> Dict[str, Any]:
+    """Purchase one skin from today's rotation.
+
+    Atomic at the ledger boundary — the `kind="purchase"` ledger entry is
+    the authoritative spend. owned_skins.json is a convenience cache.
+
+    Args:
+      slot: 0-based slot index from `dm_shop`. Most ergonomic for agents.
+      selector: Either an int slot index OR an unambiguous string —
+                "card_id/skin_slug" (composite, exact) or a bare slug
+                (rejected if more than one slot in today's rotation has it).
+                Use this when programmatic addressing by slug is needed.
+
+    Exactly ONE of `slot` / `selector` should be provided. If both are
+    given, `slot` wins.
+
+    Returns on success:
+      {"status": "ok", "card_id": "...", "skin_slug": "...",
+       "skin_name": "...", "skin_axis": "...", "rarity": "...",
+       "cost": int, "balance_after": int, "purchased_at": "iso-ts",
+       "ledger_entry_hash": "..."}
+
+    Returns on failure:
+      {"error": "no_identity", "hint": "..."}
+      {"error": "invalid_input", "message": "..."}
+      {"error": "slot_not_in_rotation", "message": "..."}
+      {"error": "already_owned", "message": "..."}
+      {"error": "weekly_cap_exceeded", "message": "...", "weekly_cap": int}
+      {"error": "insufficient_balance", "balance": int, "needed": int, "cost": int}
+      {"error": "internal_error", "message": "..."}
+    """
+    from daimon.mining.ledger import InsufficientBalanceError
+    from daimon.shop import (
+        AlreadyOwnedError,
+        SlotNotInRotationError,
+        WEEKLY_CAP,
+        WeeklyCapExceededError,
+        purchase_slot,
+    )
+
+    if slot is None and selector is None:
+        return {"error": "invalid_input",
+                "message": "must provide either `slot` (int) or `selector` (str)"}
+
+    sel: Any
+    if slot is not None:
+        if not isinstance(slot, int):
+            return {"error": "invalid_input",
+                    "message": f"slot must be int, got {type(slot).__name__}"}
+        sel = slot
+    else:
+        if not isinstance(selector, str) or not selector:
+            return {"error": "invalid_input",
+                    "message": "selector must be a non-empty string"}
+        # Allow callers to pass bare digit strings as the selector too.
+        sel = int(selector) if selector.isdigit() else selector
+
+    try:
+        receipt = purchase_slot(sel)
+    except FileNotFoundError:
+        return {"error": "no_identity",
+                "hint": "Run `dm_init` (MCP) or `daimon init` (CLI) first."}
+    except SlotNotInRotationError as e:
+        return {"error": "slot_not_in_rotation", "message": str(e)}
+    except AlreadyOwnedError as e:
+        return {"error": "already_owned", "message": str(e)}
+    except WeeklyCapExceededError as e:
+        return {"error": "weekly_cap_exceeded",
+                "message": str(e), "weekly_cap": WEEKLY_CAP}
+    except InsufficientBalanceError as e:
+        from daimon.mining.ledger import get_balance
+        bal = get_balance()
+        msg = str(e)
+        # Parse "need N, have M" — fall back to the raw message if parse fails.
+        cost = needed = 0
+        try:
+            parts = msg.replace(",", "").split()
+            cost = int(parts[1])
+            needed = max(0, cost - bal)
+        except (IndexError, ValueError):
+            pass
+        return {"error": "insufficient_balance", "message": msg,
+                "balance": bal, "needed": needed, "cost": cost}
+    except Exception as e:  # noqa: BLE001
+        return {"error": "internal_error",
+                "message": f"{type(e).__name__}: {e}"}
+
+    return {"status": "ok", **receipt.to_dict()}
+
+
+@mcp.tool()
+def dm_skins_owned() -> Dict[str, Any]:
+    """List skins this identity owns. Includes equipped status per entry.
+
+    Returns:
+      {"status": "ok", "count": int, "owned": [
+         {"card_id": "...", "skin_slug": "...", "skin_name": "...",
+          "skin_axis": "...", "rarity": "...", "purchased_at": "iso-ts",
+          "cost": int, "ledger_entry_hash": "...", "equipped": bool}
+      ]}
+
+    `equipped: true` means this exact skin is currently mounted on its card
+    (and thus shows up in battle / replay renders).
+    """
+    from dataclasses import asdict
+
+    try:
+        from daimon.shop import get_equipped, list_owned
+        owned = list_owned()
+    except Exception as e:  # noqa: BLE001
+        return {"error": "internal_error",
+                "message": f"{type(e).__name__}: {e}"}
+
+    rows: List[Dict[str, Any]] = []
+    for s in owned:
+        d = asdict(s)
+        d["equipped"] = get_equipped(s.card_id) == s.skin_slug
+        rows.append(d)
+
+    return {"status": "ok", "count": len(rows), "owned": rows}
+
+
+@mcp.tool()
+def dm_skin_equip(card_id: str, skin_slug: str) -> Dict[str, Any]:
+    """Equip a skin you own onto a card. The render layer picks this up
+    immediately — every subsequent battle / replay shows the skin.
+
+    Args:
+      card_id:  card identifier (must own a skin for it).
+      skin_slug: which owned skin to mount.
+
+    Returns on success:
+      {"status": "ok", "card_id": "...", "skin_slug": "...",
+       "equipped": {card_id: skin_slug, ...}}  # full equipped map
+
+    Returns on failure:
+      {"error": "skin_not_found", "message": "..."}      # bad inputs
+      {"error": "not_owned", "message": "..."}            # don't own this skin
+      {"error": "internal_error", "message": "..."}
+    """
+    from daimon.shop import NotOwnedError, SkinNotFoundError, equip_skin
+
+    try:
+        eq = equip_skin(card_id, skin_slug)
+    except SkinNotFoundError as e:
+        return {"error": "skin_not_found", "message": str(e)}
+    except NotOwnedError as e:
+        return {"error": "not_owned", "message": str(e)}
+    except Exception as e:  # noqa: BLE001
+        return {"error": "internal_error",
+                "message": f"{type(e).__name__}: {e}"}
+
+    return {"status": "ok", "card_id": card_id, "skin_slug": skin_slug,
+            "equipped": eq}
+
+
+@mcp.tool()
+def dm_skin_unequip(card_id: str) -> Dict[str, Any]:
+    """Revert a card to its canonical base art. No-op if no skin equipped.
+
+    Returns:
+      {"status": "ok", "card_id": "...", "equipped": {...}}  # full map after
+    """
+    try:
+        from daimon.shop import unequip_skin
+        eq = unequip_skin(card_id)
+    except Exception as e:  # noqa: BLE001
+        return {"error": "internal_error",
+                "message": f"{type(e).__name__}: {e}"}
+
+    return {"status": "ok", "card_id": card_id, "equipped": eq}
 
 
 # ---------------------------------------------------------------------------

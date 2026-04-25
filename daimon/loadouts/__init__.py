@@ -21,6 +21,8 @@ from daimon.loadouts.loader import (
     ShowcaseLoadout,
     get_showcase_loadout,
     list_showcase_loadouts,
+    load_loadout_file,
+    loadout_from_data,
     resolve_showcase_loadout,
 )
 
@@ -30,4 +32,6 @@ __all__ = [
     "list_showcase_loadouts",
     "get_showcase_loadout",
     "resolve_showcase_loadout",
+    "loadout_from_data",
+    "load_loadout_file",
 ]

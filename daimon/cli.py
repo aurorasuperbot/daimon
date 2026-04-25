@@ -100,22 +100,24 @@ def whoami() -> None:
 @click.argument("loadout_b")
 @click.option("--seed", default=None, help="Hex-encoded 32-byte seed (default: random).")
 def match(loadout_a: str, loadout_b: str, seed: str | None) -> None:
-    """Resolve a match between two loadout JSON files. (V1 alpha — basic output.)"""
-    import json
+    """Resolve a match between two loadout JSON files. (V1 alpha — basic output.)
+
+    Both files may be in any supported shape: bare list, ``{"cards":[...]}``,
+    or showcase format (``{"loadout_id":..., "loadout":["card_id",...]}``).
+    See ``daimon.loadouts.load_loadout_file`` for the format matrix.
+    """
     import os
 
-    from daimon.cards import load_card_dict
-    from daimon.engine import Loadout, resolve_match
+    from daimon.engine import resolve_match
+    from daimon.loadouts import load_loadout_file
     from daimon.play.publish import publish_match_state
 
-    def load_lo(path: str) -> tuple[Loadout, list]:
-        data = json.loads(open(path).read())
-        raw = data["cards"] if isinstance(data, dict) and "cards" in data else data
-        cards = tuple(load_card_dict(d) for d in raw)
-        return Loadout(cards=cards), list(raw)
-
-    a, a_raw = load_lo(loadout_a)
-    b, b_raw = load_lo(loadout_b)
+    try:
+        a, a_raw = load_loadout_file(loadout_a)
+        b, b_raw = load_loadout_file(loadout_b)
+    except (FileNotFoundError, ValueError) as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(1)
     seed_bytes = bytes.fromhex(seed) if seed else os.urandom(32)
     result = resolve_match(a, b, seed_bytes)
 
@@ -260,14 +262,19 @@ def match_npc(loadout_path: str, npc_id: str, seed: str | None,
               show_rounds: bool) -> None:
     """Play your loadout JSON file against a named NPC opponent.
 
+    The loadout file may be in any supported shape: bare list,
+    ``{"cards":[...]}``, or showcase format
+    (``{"loadout_id":..., "loadout":["card_id",...]}``). See
+    ``daimon.loadouts.load_loadout_file`` for the format matrix.
+
     Example:
         daimon match-npc my_team.json sparring_sam --seed 0...
+        daimon match-npc daimon/loadouts/showcase/showcase_l1_inferno_burnstack.json sparring_sam
     """
-    import json
     import os
 
-    from daimon.cards import load_card_dict
-    from daimon.engine import Loadout, resolve_match
+    from daimon.engine import resolve_match
+    from daimon.loadouts import load_loadout_file
     from daimon.npcs import get_npc, npc_loadout
     from daimon.npcs.loader import npc_card_dicts
     from daimon.play.publish import publish_match_state
@@ -280,11 +287,9 @@ def match_npc(loadout_path: str, npc_id: str, seed: str | None,
         sys.exit(1)
 
     try:
-        data = json.loads(open(loadout_path).read())
-        cards_raw = data["cards"] if isinstance(data, dict) and "cards" in data else data
-        a = Loadout(cards=tuple(load_card_dict(d) for d in cards_raw))
-    except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError) as e:
-        click.echo(f"error: failed to load loadout {loadout_path}: {e}", err=True)
+        a, a_raw = load_loadout_file(loadout_path)
+    except (FileNotFoundError, ValueError) as e:
+        click.echo(f"error: {e}", err=True)
         sys.exit(1)
 
     try:
@@ -301,7 +306,7 @@ def match_npc(loadout_path: str, npc_id: str, seed: str | None,
     # side-effect, so a `daimon play` HUD watching state.json picks it up.
     state_id = publish_match_state(
         result=result, loadout_a=a, loadout_b=b,
-        a_raw=list(cards_raw), b_raw=list(b_raw),
+        a_raw=a_raw, b_raw=list(b_raw),
         opponent_name=npc.name, opponent_rank=npc.tier,
     )
 
@@ -685,6 +690,229 @@ def update(check: bool, force: bool, version_tag: str | None) -> None:
     else:
         click.echo(f"installed {rel.tag} (was: {before or 'none'})")
         click.echo(f"  pack dir: {art_pack_dir()}")
+
+
+# ---------------------------------------------------------------------------
+# Shop subcommand tree — `daimon shop ...` + `daimon skins` + `daimon skin ...`
+# ---------------------------------------------------------------------------
+
+def _format_secs(secs: int) -> str:
+    """Format a positive seconds int as Hh Mm Ss."""
+    h, rem = divmod(max(0, int(secs)), 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h}h {m:02d}m {s:02d}s"
+    if m:
+        return f"{m}m {s:02d}s"
+    return f"{s}s"
+
+
+@main.group(invoke_without_command=True)
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+@click.option("--slot", "slot_idx", default=None, type=int,
+              help="Show details for one slot only.")
+@click.pass_context
+def shop(ctx: click.Context, as_json: bool, slot_idx: int | None) -> None:
+    """Browse today's 6-slot skin shop. Refreshes daily at 00:00 UTC.
+
+    \b
+    Subcommands:
+      daimon shop                  list today's slots
+      daimon shop --slot N         detail one slot
+      daimon shop buy <slot|key>   purchase by index or 'card_id/skin_slug'
+      daimon shop refresh-status   seconds until next rotation
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+    import json as _json
+
+    from daimon.shop import get_shop_state
+
+    try:
+        state = get_shop_state()
+    except FileNotFoundError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(1)
+
+    if slot_idx is not None:
+        if slot_idx < 0 or slot_idx >= len(state.slots):
+            click.echo(
+                f"error: slot {slot_idx} out of range (0..{len(state.slots) - 1})",
+                err=True,
+            )
+            sys.exit(1)
+        s = state.slots[slot_idx]
+        if as_json:
+            click.echo(_json.dumps(s.to_dict(), indent=2))
+            return
+        click.echo(f"slot {s.index}:")
+        click.echo(f"  card:      {s.listing.card_id}")
+        click.echo(f"  skin:      {s.listing.skin_name}  ({s.listing.skin_slug})")
+        click.echo(f"  axis:      {s.listing.skin_axis}")
+        click.echo(f"  rarity:    {s.listing.rarity}")
+        click.echo(f"  cost:      {s.cost} ¤")
+        click.echo(f"  art:       {s.listing.art_path}")
+        return
+
+    if as_json:
+        click.echo(_json.dumps(state.to_dict(), indent=2))
+        return
+
+    click.echo(f"balance:    {state.balance} ¤")
+    click.echo(f"this week:  {state.weekly_count}/{state.weekly_cap} purchases")
+    click.echo(f"refresh in: {_format_secs(state.seconds_until_rotation)}")
+    click.echo()
+    if not state.slots:
+        click.echo("(no slots — you've already bought everything in your pool, or "
+                   "the art-pack has no skin variants installed yet.)")
+        return
+    for s in state.slots:
+        click.echo(
+            f"  [{s.index}] {s.listing.card_id:24s}  "
+            f"{s.listing.skin_name:28s}  "
+            f"{s.listing.rarity:11s}  {s.cost:>4} ¤"
+        )
+    click.echo()
+    click.echo("buy with:  daimon shop buy <slot>     (e.g. daimon shop buy 0)")
+    click.echo("        or daimon shop buy <card>/<slug>")
+
+
+@shop.command("buy")
+@click.argument("selector")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def shop_buy(selector: str, as_json: bool) -> None:
+    """Purchase a slot. Selector is either a 0-based slot index or
+    'card_id/skin_slug' for unambiguous addressing."""
+    import json as _json
+
+    from daimon.mining.ledger import InsufficientBalanceError
+    from daimon.shop import (
+        AlreadyOwnedError,
+        SlotNotInRotationError,
+        WeeklyCapExceededError,
+        purchase_slot,
+    )
+
+    # Normalize: bare digit → int; otherwise pass the string through.
+    sel: str | int = int(selector) if selector.isdigit() else selector
+
+    try:
+        receipt = purchase_slot(sel)
+    except FileNotFoundError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(1)
+    except SlotNotInRotationError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(2)
+    except AlreadyOwnedError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(2)
+    except WeeklyCapExceededError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(3)
+    except InsufficientBalanceError as e:
+        click.echo(f"error: {e}", err=True)
+        click.echo("hint: run `daimon mine status` to see your balance.", err=True)
+        sys.exit(4)
+
+    if as_json:
+        click.echo(_json.dumps(receipt.to_dict(), indent=2))
+        return
+
+    click.echo(f"BOUGHT  {receipt.skin_name}  ({receipt.skin_slug})")
+    click.echo(f"  card:          {receipt.card_id}")
+    click.echo(f"  axis / rarity: {receipt.skin_axis} / {receipt.rarity}")
+    click.echo(f"  cost:          {receipt.cost} ¤")
+    click.echo(f"  balance now:   {receipt.balance_after} ¤")
+    click.echo(f"  ledger hash:   {receipt.ledger_entry_hash[:16]}…")
+    click.echo()
+    click.echo(
+        f"equip with:  daimon skin equip {receipt.card_id} {receipt.skin_slug}"
+    )
+
+
+@shop.command("refresh-status")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def shop_refresh_status(as_json: bool) -> None:
+    """Seconds until the next 00:00 UTC rotation."""
+    import json as _json
+
+    from daimon.shop import seconds_until_next_rotation
+
+    secs = seconds_until_next_rotation()
+    if as_json:
+        click.echo(_json.dumps(
+            {"seconds_until_rotation": secs, "human": _format_secs(secs)}
+        ))
+        return
+    click.echo(f"next rotation in: {_format_secs(secs)}  ({secs}s)")
+
+
+@main.command("skins")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def skins(as_json: bool) -> None:
+    """List the skins this identity owns."""
+    import json as _json
+    from dataclasses import asdict
+
+    from daimon.shop import get_equipped, list_owned
+
+    owned = list_owned()
+    if as_json:
+        rows = []
+        for s in owned:
+            d = asdict(s)
+            d["equipped"] = get_equipped(s.card_id) == s.skin_slug
+            rows.append(d)
+        click.echo(_json.dumps({"owned": rows, "count": len(rows)}, indent=2))
+        return
+
+    if not owned:
+        click.echo("(you don't own any skins yet — run `daimon shop`)")
+        return
+    click.echo(f"{len(owned)} skin(s) owned:\n")
+    for s in owned:
+        eq_marker = "  *" if get_equipped(s.card_id) == s.skin_slug else "   "
+        click.echo(
+            f" {eq_marker}  {s.card_id:24s}  {s.skin_name:28s}  "
+            f"{s.rarity:11s}  bought {s.purchased_at[:10]}"
+        )
+    click.echo("\n(* = currently equipped)")
+
+
+@main.group()
+def skin() -> None:
+    """Equip / unequip skins on your cards."""
+
+
+@skin.command("equip")
+@click.argument("card_id")
+@click.argument("skin_slug")
+def skin_equip_cmd(card_id: str, skin_slug: str) -> None:
+    """Equip a skin you own onto a card.
+
+    \b
+    Example:
+      daimon skin equip aegis_lion heretic_manuscript
+    """
+    from daimon.shop import NotOwnedError, SkinNotFoundError, equip_skin
+
+    try:
+        equip_skin(card_id, skin_slug)
+    except (NotOwnedError, SkinNotFoundError) as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(2)
+    click.echo(f"equipped: {card_id} ← {skin_slug}")
+
+
+@skin.command("unequip")
+@click.argument("card_id")
+def skin_unequip_cmd(card_id: str) -> None:
+    """Revert a card to its canonical base art."""
+    from daimon.shop import unequip_skin
+
+    unequip_skin(card_id)
+    click.echo(f"unequipped: {card_id} → canonical base art")
 
 
 if __name__ == "__main__":
