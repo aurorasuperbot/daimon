@@ -63,8 +63,11 @@ ZERO_SEED = b"\x00" * 32
 CONTROL_OPPONENT_NPC = "sparring_sam"
 
 
-# Expected legendary card_id and rule_change per showcase loadout_id.
+# Expected legendary card_id and rule_change per L1-L6 mutation showcase loadout_id.
 # Locked here so a renamed showcase or swapped legendary fails loudly.
+# L7-L10 archetype showcases (rainbow / death-rattle / killchain / regen) are
+# additional non-mutation loadouts and intentionally NOT in this dict — the
+# legendary-binding tests below are scoped to mutation showcases only.
 EXPECTED_BY_ID = {
     "showcase_l1_inferno_burnstack":   ("magma_tyrant",       "L1", "INFERNO"),
     "showcase_l2_bulwark_thorns":      ("worldroot_sentinel", "L2", "BULWARK"),
@@ -72,6 +75,16 @@ EXPECTED_BY_ID = {
     "showcase_l4_stormchain_tempo":    ("tempest_apex",       "L4", "STORMCHAIN"),
     "showcase_l5_revenant_cascade":    ("voidking_morr",      "L5", "REVENANT"),
     "showcase_l6_syncretic_mono_void":      ("world_eater",        "L6", "SYNCRETIC"),
+}
+
+# Non-mutation archetype showcases shipped after the L1-L6 set. These don't
+# bind to a rule_change and don't carry a legendary at slot 0 — they exist to
+# prove the engine's combinatorial depth without requiring legendary pulls.
+EXPECTED_ARCHETYPE_IDS = {
+    "showcase_l7_prism_pantheon":      "ARCHETYPE_SYNCRETIC_RAINBOW",
+    "showcase_l8_funeral_pyre":        "ARCHETYPE_DEATH_RATTLE",
+    "showcase_l9_apex_predator":       "ARCHETYPE_LIFESTEAL_KILLCHAIN",
+    "showcase_l10_worldroot_garden":   "ARCHETYPE_NATURE_REGEN",
 }
 
 
@@ -82,21 +95,32 @@ EXPECTED_BY_ID = {
 class TestManifest:
     """Manifest-side invariants: 6 loadouts, distinct demonstrates, clean load."""
 
-    def test_six_loadouts_present(self):
+    def test_full_loadout_count(self):
+        """Manifest carries 6 mutation showcases (L1-L6) + 4 archetype
+        showcases (L7-L10) = 10 total."""
         sls = list_showcase_loadouts()
-        assert len(sls) == 6, f"expected 6 showcase loadouts, got {len(sls)}"
+        expected_total = len(EXPECTED_BY_ID) + len(EXPECTED_ARCHETYPE_IDS)
+        assert len(sls) == expected_total, (
+            f"expected {expected_total} showcase loadouts, got {len(sls)}"
+        )
 
     def test_one_per_rule_change(self):
-        """Manifest covers L1..L6 exactly once each."""
+        """Manifest covers L1..L6 mutations exactly once each, alongside the
+        L7-L10 archetype demonstrations."""
         sls = list_showcase_loadouts()
-        seen = sorted(sl.demonstrates for sl in sls)
-        assert seen == ["L1", "L2", "L3", "L4", "L5", "L6"], seen
+        seen = {sl.demonstrates for sl in sls}
+        expected = (
+            {expected[1] for expected in EXPECTED_BY_ID.values()}  # L1..L6
+            | set(EXPECTED_ARCHETYPE_IDS.values())                 # ARCHETYPE_*
+        )
+        assert seen == expected, seen
 
     def test_loadout_ids_unique_and_match_expected(self):
         sls = list_showcase_loadouts()
         actual = {sl.loadout_id for sl in sls}
-        assert actual == set(EXPECTED_BY_ID), (
-            f"showcase ids drifted: expected {set(EXPECTED_BY_ID)}, got {actual}"
+        expected = set(EXPECTED_BY_ID) | set(EXPECTED_ARCHETYPE_IDS)
+        assert actual == expected, (
+            f"showcase ids drifted: expected {expected}, got {actual}"
         )
 
     def test_each_loadout_has_six_card_ids(self):
@@ -252,7 +276,10 @@ class TestEndToEnd:
     only that the engine produces a determined MatchResult with a winner
     or a draw and at least one round of combat."""
 
-    @pytest.mark.parametrize("loadout_id", list(EXPECTED_BY_ID))
+    @pytest.mark.parametrize(
+        "loadout_id",
+        list(EXPECTED_BY_ID) + list(EXPECTED_ARCHETYPE_IDS),
+    )
     def test_match_resolves_cleanly(self, loadout_id):
         sl = get_showcase_loadout(loadout_id)
         showcase = resolve_showcase_loadout(sl)

@@ -1,6 +1,6 @@
 {
   "version": "v1_alpha",
-  "description": "Showcase loadouts for V1 legendary mutations L1-L6. One loadout per rule-changer, each authored to exercise its mutation in a real 6-card team drawn from the v1_alpha catalog. Used as documentation, regression evidence, and (eventually) as 'try this' starter teams for new players.",
+  "description": "Showcase loadouts for V1. Slots L1-L6 are one-per-legendary-mutation (rule-changer demonstrations); slots L7-L10 are non-mutation archetype showcases (rainbow, death-rattle cascade, killchain/lifesteal, mono-NATURE regen) that prove the engine's combinatorial depth without requiring legendary pulls. Each loadout is a real 6-card team drawn from the v1_alpha catalog. Used as documentation, regression evidence, and 'try this' starter teams for new players.",
   "loadouts": [
     {
       "loadout_id": "showcase_l1_inferno_burnstack",
@@ -31,6 +31,26 @@
       "loadout_id": "showcase_l6_syncretic_mono_void",
       "demonstrates": "L6",
       "name": "L6 — World Eater Mono-Void"
+    },
+    {
+      "loadout_id": "showcase_l7_prism_pantheon",
+      "demonstrates": "ARCHETYPE_SYNCRETIC_RAINBOW",
+      "name": "L7 — Prism Pantheon Rainbow"
+    },
+    {
+      "loadout_id": "showcase_l8_funeral_pyre",
+      "demonstrates": "ARCHETYPE_DEATH_RATTLE",
+      "name": "L8 — Funeral Pyre Cascade"
+    },
+    {
+      "loadout_id": "showcase_l9_apex_predator",
+      "demonstrates": "ARCHETYPE_LIFESTEAL_KILLCHAIN",
+      "name": "L9 — Apex Predator Lifesteal"
+    },
+    {
+      "loadout_id": "showcase_l10_worldroot_garden",
+      "demonstrates": "ARCHETYPE_NATURE_REGEN",
+      "name": "L10 — Worldroot Garden Regen"
     }
   ]
 }

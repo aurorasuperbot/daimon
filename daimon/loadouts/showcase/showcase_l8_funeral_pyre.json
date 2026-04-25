@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l8_funeral_pyre",
+  "name": "L8 \u2014 Funeral Pyre Cascade",
+  "demonstrates": "ARCHETYPE_DEATH_RATTLE",
+  "flavor": "Bury the first one. The next one charges. The third one heals. The pyre warms whoever stays.",
+  "description": "ON_DEATH / ON_ALLY_DEATH cascade built WITHOUT the REVENANT archetype \u2014 the showcase axis is that death payoffs aren't only voidking_morr's domain. Every fall on this team triggers a real swing: ashen_phoenix (rare FIRE) and worldroot_colossus (rare NATURE) and solar_phoenix (epic FIRE) all HEAL ALL on death; pyrotyrant (rare FIRE) detonates an 8-damage AOE on death; concord_phoenix (epic NORMAL) and storm_celestial (rare VOLT) both BUFF_ATK ALL on every ally death (re-firing per fallen ally). Opening tempo is real too \u2014 ashen_phoenix BUFF_ATK ALL + concord_phoenix HEAL ALL on battle start, plus solar_phoenix's ON_OPENING AOE \u2014 so the team isn't just waiting to die. The intended dynamic: opponent kills the first phoenix, the team-wide heal closes the gap and the team-wide ATK pump opens the kill window for the survivors. Without the L5 mutation, ON_ALLY_DEATH triggers only fire ONCE per death (no doubling) \u2014 this is pure non-mutation cascade design.",
+  "loadout": [
+    "ashen_phoenix",
+    "pyrotyrant",
+    "worldroot_colossus",
+    "solar_phoenix",
+    "concord_phoenix",
+    "storm_celestial"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l9_apex_predator",
+  "name": "L9 \u2014 Apex Predator Lifesteal",
+  "demonstrates": "ARCHETYPE_LIFESTEAL_KILLCHAIN",
+  "flavor": "First blood feeds the team. Second blood feeds the team faster. By the third the math has stopped working for them.",
+  "description": "ON_KILL / LIFESTEAL momentum shell, mixing STORMCHAIN, INFERNO, and TIDAL pieces around arc_predator (epic STORMCHAIN). The showcase axis: a kill on this team isn't just a kill, it pays out four ways at once. arc_predator's ON_KILL BUFF_SPD pumps its own action economy; abyssbreaker's ON_KILL HEAL ALL refunds team HP; magma_warden's ON_KILL random-enemy DAMAGE seeds the next kill; embershrew's ON_KILL BUFF_ATK SELF compounds personal threat. Meanwhile sea_warden and brineprince are ON_ATTACK LIFESTEAL anchors \u2014 they convert every swing into HP, so the team never falls behind on the trade math. Where the L4 STORMCHAIN tempo showcase wins by spawning extra ACTIONS, this team wins by ensuring every action that lands a kill becomes a tactical tipping point. Mixed-element (FIRE/VOLT/WATER, 3 distinct) so it doesn't unlock SYNCRETIC gates \u2014 the payoff is purely the killchain cascade.",
+  "loadout": [
+    "arc_predator",
+    "abyssbreaker",
+    "magma_warden",
+    "embershrew",
+    "sea_warden",
+    "brineprince"
+  ]
+}

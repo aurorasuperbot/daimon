@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l10_worldroot_garden",
+  "name": "L10 \u2014 Worldroot Garden Regen",
+  "demonstrates": "ARCHETYPE_NATURE_REGEN",
+  "flavor": "Hit them. They grew it back. Hit them again. They grew the bark thicker.",
+  "description": "Mono-NATURE regen / fortification engine built WITHOUT the L2 worldroot_sentinel mutation. The showcase axis: the L2 thorns shell makes ATTACKERS pay for landing hits; this loadout makes ATTACKERS pay by erasing the damage they DID land. worldroot_colossus (rare NATURE anchor) provides ON_BATTLE_START BUFF_DEF ALL + ON_ROUND_START HEAL ALL + ON_DEATH HEAL ALL \u2014 a heal floor every round. moss_titan (rare NATURE) opens with a self-shield and stacks BUFF_DEF every time it's hit. forest_keeper (uncommon BULWARK) tops itself off ON_TURN_END every round. mossbear (uncommon BULWARK) and sproutkin (common BULWARK) both react to incoming damage \u2014 mossbear with ADD_SHIELD, sproutkin with HEAL \u2014 turning the opponent's offense into defensive economy for our team. bramblegoat (uncommon NATURE) lays a +2 BUFF_DEF ALL on battle start to stack with worldroot_colossus's. No legendaries, no epics, no mutation gates \u2014 a pure budget heal-tank that any new player can field with starter-tier pulls.",
+  "loadout": [
+    "worldroot_colossus",
+    "moss_titan",
+    "forest_keeper",
+    "mossbear",
+    "sproutkin",
+    "bramblegoat"
+  ]
+}

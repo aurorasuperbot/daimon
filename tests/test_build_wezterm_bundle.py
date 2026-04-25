@@ -39,8 +39,12 @@ bb = _load_module()
 
 
 def test_upstream_asset_linux_x86_64():
+    # Upstream uses lowercase 'wezterm' + period separator for the Ubuntu
+    # tarball (NOT the 'WezTerm-...-Ubuntu22.04.tar.xz' shape that .deb /
+    # AppImage / Windows / macOS use). Burned in wezterm-bundle-v1.0
+    # 2026-04-25 — the matrix run failed HTTP 404 on the wrong name.
     a = bb._upstream_asset("linux", "x86_64", "20240203-110809-5046fc22")
-    assert a == "WezTerm-20240203-110809-5046fc22-Ubuntu22.04.tar.xz"
+    assert a == "wezterm-20240203-110809-5046fc22.Ubuntu22.04.tar.xz"
 
 
 def test_upstream_asset_linux_aarch64_unsupported():

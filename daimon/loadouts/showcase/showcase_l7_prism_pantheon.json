@@ -1,0 +1,15 @@
+{
+  "loadout_id": "showcase_l7_prism_pantheon",
+  "name": "L7 \u2014 Prism Pantheon Rainbow",
+  "demonstrates": "ARCHETYPE_SYNCRETIC_RAINBOW",
+  "flavor": "Five elements walk into the ring. The conditional gates roll open like temple doors.",
+  "description": "True 5-element SYNCRETIC rainbow built around prism_chimera (epic NATURE) and rainbow_drake (epic FIRE). Where the L6 syncretic showcase exploits world_eater's mutation to FAKE 3 distinct elements on a mono team, this loadout brings real diversity (FIRE / NATURE / VOID / VOLT / WATER \u2014 5 distinct) so every SYNCRETIC trigger's `team.distinct_elements >= 2` and `>= 3` gate fires natively, no legendary required. prism_chimera's ON_BATTLE_START BUFF_ATK ALL and ON_ATTACK AOE both unlock; rainbow_drake's ON_BATTLE_START HEAL ALL and ON_KILL ADD_SHIELD ALL both unlock; the 4 supporting SYNCRETIC commons/uncommons (prism_strider VOLT speed, mistchimera_adept WATER heal, shade_prismatic VOID DEBUFF_ATK, spectral_charge VOLT BUFF_ATK) all stack their conditional payoffs. The showcase axis: rainbow access without the legendary tax \u2014 pay for diversity in deckbuilding instead of paying the legendary cost in pulls.",
+  "loadout": [
+    "prism_chimera",
+    "rainbow_drake",
+    "shade_prismatic",
+    "spectral_charge",
+    "mistchimera_adept",
+    "prism_strider"
+  ]
+}
