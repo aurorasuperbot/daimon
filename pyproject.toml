@@ -61,6 +61,7 @@ daimon = [
     "catalog/*/*.json",
     "npcs/manifest.json",
     "npcs/*/*.json",
+    "render/wezterm.lua",        # locked WezTerm config (see daimon.render.wezterm_bundle)
 ]
 
 [tool.pytest.ini_options]

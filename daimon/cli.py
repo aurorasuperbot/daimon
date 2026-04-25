@@ -22,6 +22,7 @@ The explicit ``daimon update`` command re-uses the same engine (with
 
 from __future__ import annotations
 
+import os
 import sys
 
 import click
@@ -36,6 +37,8 @@ ART_PURE_COMMANDS = frozenset({
     "init", "whoami", "update", "mine", "npcs",
     # Pure-local browsers — never touch art binaries:
     "collection", "catalog", "loadout",
+    # Bundle bootstrap — needs network but not the art pack itself:
+    "install", "doctor",
 })
 
 
@@ -83,6 +86,143 @@ def init(force: bool) -> None:
         click.echo("  " + "  ".join(f"{i+j+1:>2}. {w:<10}" for j, w in enumerate(chunk)))
     click.echo()
     click.echo("If you lose this and your identity.key, your collection is unrecoverable.")
+
+
+@main.command()
+@click.option("--version", "version", default=None,
+              help="Pin to a specific bundle release tag (e.g. wezterm-bundle-v1.0). "
+                   "Defaults to latest. Honors $DAIMON_PIN_BUNDLE.")
+@click.option("--force", is_flag=True,
+              help="Re-download and re-install even if marker matches.")
+@click.option("--no-smoke-test", is_flag=True,
+              help="Skip the post-install `wezterm --version` check (CI only).")
+def install(version: str | None, force: bool, no_smoke_test: bool) -> None:
+    """Bootstrap the DAIMON game terminal (one-time setup after `pip install`).
+
+    Downloads the matching WezTerm bundle for this OS+architecture from the
+    aurorasuperbot/daimon-engine GitHub Releases, verifies sha256, extracts
+    to ``~/.daimon/bin/``, and writes the locked render config to
+    ``~/.daimon/etc/wezterm.lua``.
+
+    DAIMON ships its own terminal so card art renders pixel-perfect at known
+    DPI / cell size / colour space. This is non-optional — the card-art
+    pipeline (Kitty Graphics Protocol) requires WezTerm.
+
+    Idempotent: re-running with the same release tag is a no-op (skips the
+    download). Pass ``--force`` to re-fetch.
+    """
+    from daimon.install import BundleInstallError, install_bundle
+
+    try:
+        report = install_bundle(
+            version=version,
+            force=force,
+            verify_smoke_test=not no_smoke_test,
+        )
+    except BundleInstallError as e:
+        click.echo(f"error: {e}", err=True)
+        sys.exit(2)
+
+    if report.skipped_download:
+        click.echo(f"daimon: bundle {report.tag} already installed "
+                   f"(re-run with --force to re-fetch).")
+    else:
+        click.echo(f"daimon: installed {report.tag} → {report.bin_dir}")
+        click.echo(f"        sha256: {report.sha256}")
+    click.echo(f"        config: {report.config_path}")
+    if report.smoke_test:
+        click.echo(f"        wezterm: {report.smoke_test}")
+
+
+@main.command()
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def doctor(as_json: bool) -> None:
+    """Diagnostic check — bundle install state, paths, versions, env vars.
+
+    Reports:
+      * Whether the WezTerm bundle is installed and what version.
+      * Whether the locked Lua config is on disk.
+      * Whether the art pack is on disk and what version.
+      * Whether identity has been generated.
+      * Resolved paths (so users can see where ``--rm -rf`` would go).
+    """
+    import json as _json
+
+    from daimon.identity.keys import CONFIG_DIR, PRIVATE_KEY_PATH
+    from daimon.render.wezterm_bundle import status_summary
+    from daimon.update.paths import (
+        ART_PACK_NAME,
+        art_pack_dir,
+        art_root,
+        current_version,
+    )
+
+    bundle = status_summary()
+    art = {
+        "art_root": str(art_root()),
+        "art_pack_dir": str(art_pack_dir()),
+        "art_pack_name": ART_PACK_NAME,
+        "installed_version": current_version(),
+    }
+    identity_present = PRIVATE_KEY_PATH.is_file()
+    identity = {
+        "config_dir": str(CONFIG_DIR),
+        "key_path": str(PRIVATE_KEY_PATH),
+        "key_present": identity_present,
+    }
+    env = {
+        k: os.environ.get(k)
+        for k in (
+            "DAIMON_HOME",
+            "DAIMON_ART_DIR",
+            "DAIMON_ART_REPO",
+            "DAIMON_BUNDLE_REPO",
+            "DAIMON_PIN_ART",
+            "DAIMON_PIN_BUNDLE",
+            "DAIMON_NO_AUTO_UPDATE",
+            "GITHUB_TOKEN",
+            "XDG_DATA_HOME",
+            "XDG_CONFIG_HOME",
+        )
+        if os.environ.get(k) is not None
+    }
+    # Mask the token if present.
+    if "GITHUB_TOKEN" in env:
+        tok = env["GITHUB_TOKEN"] or ""
+        env["GITHUB_TOKEN"] = (tok[:4] + "…" + tok[-4:]) if len(tok) > 8 else "set"
+
+    if as_json:
+        click.echo(_json.dumps({
+            "bundle": bundle,
+            "art": art,
+            "identity": identity,
+            "env": env,
+        }, indent=2))
+        return
+
+    click.echo("== DAIMON doctor ==\n")
+    click.echo("[bundle]")
+    click.echo(f"  installed:  {'yes' if bundle['is_installed'] else 'no'}")
+    click.echo(f"  version:    {bundle['installed_version'] or '(none)'}")
+    click.echo(f"  bin:        {bundle['wezterm_bin']}")
+    click.echo(f"  config:     {bundle['wezterm_config']}"
+               f"  {'(present)' if bundle['config_present'] else '(MISSING)'}")
+    click.echo()
+    click.echo("[art pack]")
+    click.echo(f"  installed:  {art['installed_version'] or '(none)'}")
+    click.echo(f"  pack dir:   {art['art_pack_dir']}")
+    click.echo()
+    click.echo("[identity]")
+    click.echo(f"  generated:  {'yes' if identity_present else 'no'}")
+    click.echo(f"  key:        {identity['key_path']}")
+    if env:
+        click.echo()
+        click.echo("[env]")
+        for k, v in sorted(env.items()):
+            click.echo(f"  {k}={v}")
+    if not bundle["is_installed"]:
+        click.echo()
+        click.echo("hint: run `daimon install` to bootstrap the game terminal.")
 
 
 @main.command()
