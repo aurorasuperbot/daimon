@@ -55,6 +55,7 @@ from typing import Callable, List, Optional, TextIO, Tuple
 
 from daimon.play.art_render import RenderMode, paint_overlays_as_kgp
 from daimon.render.wezterm_bundle import terminal_supports_kgp
+from daimon.play.card_tile import CardTileInfo, tile_info_from_catalog_payload
 from daimon.play.hud.keyboard import Key, keyboard_reader_or_dummy
 from daimon.play.screenshot import ImageOverlay
 from daimon.play.tile import (
@@ -148,6 +149,70 @@ def _ident_short(pubkey_hex: str, *, name: Optional[str] = None) -> str:
     if name:
         return f"{name} · {short}"
     return short
+
+
+# ---------------------------------------------------------------------------
+# Catalog payload lookup — Phase F needs full card stats (rarity, element,
+# atk/def/spd, flavor) to feed the composited-tile renderer. The shop state
+# only carries SkinListings — the card's catalog metadata lives in
+# daimon.catalog. Cache the lookup so we don't reparse the catalog on every
+# render frame.
+# ---------------------------------------------------------------------------
+
+_CATALOG_BY_ID_CACHE: Optional[dict] = None
+
+
+def _catalog_payload_for(card_id: str) -> Optional[dict]:
+    """Return the catalog JSON payload for ``card_id``, or None if unknown.
+
+    Loads the default catalog (v1_alpha) on first call; subsequent calls
+    are O(1) dict lookups. None on miss (caller falls back to a minimal
+    CardTileInfo built from the listing alone).
+    """
+    global _CATALOG_BY_ID_CACHE
+    if _CATALOG_BY_ID_CACHE is None:
+        from daimon.catalog import load_catalog
+        try:
+            cat = load_catalog()
+            _CATALOG_BY_ID_CACHE = {c.card_id: c.payload for c in cat.cards}
+        except (FileNotFoundError, OSError, ValueError):
+            _CATALOG_BY_ID_CACHE = {}
+    return _CATALOG_BY_ID_CACHE.get(card_id)
+
+
+def _tile_info_for_listing(listing, *, position: int = 0) -> CardTileInfo:
+    """Build a CardTileInfo for a shop SkinListing.
+
+    Prefers the catalog payload (full stats + flavor) and overrides the
+    art path with the listing's variant-specific art. When the catalog
+    lookup misses, falls back to a minimal CardTileInfo built from the
+    listing alone — keeps the UI rendering rather than crashing.
+    """
+    from pathlib import Path as _Path
+    art_path = _Path(listing.art_path) if listing.art_path else None
+    if art_path is not None and not art_path.exists():
+        art_path = None
+
+    payload = _catalog_payload_for(listing.card_id)
+    if payload is not None:
+        return tile_info_from_catalog_payload(
+            payload, position=position, art_path=art_path,
+        )
+
+    # Fallback: nothing in catalog — render with stub stats so the tile
+    # still composes (player can still SEE the missing card; the underlying
+    # bug surfaces in --json output, not visually).
+    return CardTileInfo(
+        name=listing.skin_name or listing.card_id,
+        short_name=(listing.skin_name or listing.card_id)[:7],
+        rarity="common",
+        position=position,
+        species=listing.card_id,
+        element=None,
+        flavor="(catalog miss)",
+        hp=1, hp_max=1, atk=0, defense=0, spd=0,
+        art_path=art_path,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -366,6 +431,12 @@ def _slot_to_tile(slot: Optional[RotationSlot], idx: int, cursor: int, *,
     Empty slot (out-of-bounds): ghost tile.
     Sold slot: dim greyscale chrome + [OWNED hh:mm] caption.
     Unsold: rarity-coloured cost + skin name caption.
+
+    Phase F: the art region is now the FULL composited card tile (gold
+    rarity border, name, element chip, stats strip, flavor text — all baked
+    in by daimon.play.card_tile). Captions slim down to TUI-only state:
+    slot index + price OR slot index + [OWNED] timestamp. Card name /
+    rarity / element are visible inside the composited tile itself.
     """
     selected = (idx == cursor)
 
@@ -381,29 +452,26 @@ def _slot_to_tile(slot: Optional[RotationSlot], idx: int, cursor: int, *,
         )
 
     listing = slot.listing
-    rar_col = rarity_color(listing.rarity) if color else None
 
-    # Caption row 1 — card id (with selected/sold colour)
-    name_text = listing.card_id
+    # Caption row 1 — slot index handle (the only TUI-only addressing).
+    idx_text = f"[{slot.index}]"
     if color:
-        name_text = colorize(name_text, rar_col, bold=selected)
-    name_line = pad_visible(f"[{slot.index}] " + name_text, TILE_W - 2)
+        idx_text = colorize(idx_text, BRIGHT_CYAN if selected else GRAY,
+                             bold=selected)
+    name_line = pad_visible(idx_text, TILE_W - 2)
 
-    # Caption row 2 — price + state
+    # Caption row 2 — price OR [OWNED hh:mm]
     if slot.sold:
         ts = (slot.purchased_at or "")[11:16]
         right = f"[OWNED {ts}]" if ts else "[OWNED]"
         if color:
             right = colorize(right, GRAY, bold=False)
-        cap2 = pad_visible(listing.rarity[:6], 7) + "  " + pad_visible(right, TILE_W - 2 - 9, align="right")
+        cap2 = pad_visible(right, TILE_W - 2)
     else:
-        rar_text = listing.rarity
         cost_text = f"{slot.cost} ¤"
         if color:
-            rar_text = colorize(rar_text, rar_col, bold=False)
             cost_text = colorize(cost_text, BRIGHT_YELLOW, bold=True)
-        cap2 = (pad_visible(rar_text, 11)
-                + pad_visible(cost_text, TILE_W - 2 - 11, align="right"))
+        cap2 = pad_visible(cost_text, TILE_W - 2, align="right")
 
     # Border colour for screenshot overlay border
     border = None
@@ -414,6 +482,8 @@ def _slot_to_tile(slot: Optional[RotationSlot], idx: int, cursor: int, *,
             border = (90, 90, 90)
         else:
             border = (110, 110, 130)
+
+    info = _tile_info_for_listing(listing, position=slot.index)
 
     return render_tile(
         card_id=listing.card_id,
@@ -426,6 +496,7 @@ def _slot_to_tile(slot: Optional[RotationSlot], idx: int, cursor: int, *,
         mode=mode,
         border_color_rgb=border,
         color=color,
+        composited_info=info,
     )
 
 
@@ -453,7 +524,10 @@ def _render_detail_panel(view: ShopView, *,
         title = BOLD + title + RESET
 
     # Hero tile — wider art, no caption (we put caption rows below the tile).
+    # Phase F: feeds composited_info so the hero tile shows full chrome
+    # (name, stats, flavor) baked into the bitmap, matching the grid tiles.
     HERO_ART_H = 14
+    hero_info = _tile_info_for_listing(listing, position=sl.index)
     hero = render_tile(
         card_id=listing.card_id,
         skin_slug=listing.skin_slug,
@@ -464,6 +538,7 @@ def _render_detail_panel(view: ShopView, *,
         mode=mode,
         border_color_rgb=(130, 220, 240) if mode == RenderMode.OVERLAY_ONLY else None,
         color=color,
+        composited_info=hero_info,
     )
 
     rar_text = colorize(listing.rarity,

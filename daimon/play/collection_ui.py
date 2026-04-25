@@ -43,6 +43,7 @@ from typing import Any, Callable, Dict, List, Optional, TextIO, Tuple
 
 from daimon.play.art_render import RenderMode, paint_overlays_as_kgp
 from daimon.render.wezterm_bundle import terminal_supports_kgp
+from daimon.play.card_tile import CardTileInfo, tile_info_from_catalog_payload
 from daimon.play.hud.keyboard import Key, keyboard_reader_or_dummy
 from daimon.play.screenshot import ImageOverlay
 from daimon.play.tile import (
@@ -182,6 +183,28 @@ class OwnedCard:
     def rule_change(self) -> Optional[str]:
         rc = (self.payload or {}).get("rule_change")
         return rc if rc else None
+
+    def to_tile_info(self, *, position: int = 0) -> CardTileInfo:
+        """Build a CardTileInfo for the composited-tile overlay path (Phase F).
+
+        Falls back to a minimal stub when the payload is missing — the
+        renderer still gets *something* rather than crashing on a stale
+        catalog reference.
+        """
+        if self.payload:
+            return tile_info_from_catalog_payload(
+                self.payload, position=position,
+            )
+        return CardTileInfo(
+            name=self.card_id,
+            short_name=self.card_id[:7],
+            rarity=self.rarity,
+            position=position,
+            species=self.card_id,
+            element=None,
+            flavor="(catalog miss)",
+            hp=1, hp_max=1, atk=0, defense=0, spd=0,
+        )
 
 
 @dataclass
@@ -392,7 +415,13 @@ def _render_grid_and_detail(view: CollectionView,
 
 def _card_to_tile(card: Optional[OwnedCard], idx: int, cursor: int, *,
                   mode: RenderMode, color: bool) -> Tile:
-    """Render one collection card as a Tile."""
+    """Render one collection card as a Tile.
+
+    Phase F: art region holds the composited card (gold/rarity border, name,
+    element chip, stats strip, flavor) baked in by daimon.play.card_tile.
+    Captions slim down to TUI-only state (×N copy count). Card name +
+    rarity + element are visible inside the composited tile itself.
+    """
     selected = (idx == cursor)
     if card is None:
         return render_tile(
@@ -405,24 +434,18 @@ def _card_to_tile(card: Optional[OwnedCard], idx: int, cursor: int, *,
             color=color,
         )
 
-    rar_col = rarity_color(card.rarity) if color else None
-    elem_col = element_color(card.element) if color else None
-
-    name_text = card.card_id
-    if color:
-        name_text = colorize(name_text, rar_col, bold=selected)
-    count_text = f"×{card.count}" if card.count > 1 else " "
+    # Caption row 1 — copy count badge (the only TUI-only state).
+    count_text = f"×{card.count}" if card.count > 1 else ""
     if color and card.count > 1:
         count_text = colorize(count_text, BRIGHT_GREEN, bold=True)
+    cap1 = pad_visible(count_text, TILE_W - 2, align="right")
 
-    cap1 = pad_visible(name_text, TILE_W - 2 - 4) + pad_visible(count_text, 4, align="right")
-
-    rar_text = card.rarity[:6]
-    elem_text = card.element[:6]
-    if color:
-        rar_text = colorize(rar_text, rar_col, bold=False)
-        elem_text = colorize(elem_text, elem_col, bold=True)
-    cap2 = pad_visible(rar_text, 9) + pad_visible(elem_text, TILE_W - 2 - 9, align="right")
+    # Caption row 2 — selection cursor marker (gives the focused tile an
+    # under-tile signal in addition to the cyan border).
+    cap2 = ""
+    if selected and color:
+        cap2 = colorize("◀ FOCUS", BRIGHT_CYAN, bold=True)
+    cap2 = pad_visible(cap2, TILE_W - 2)
 
     border = None
     if mode == RenderMode.OVERLAY_ONLY:
@@ -440,6 +463,7 @@ def _card_to_tile(card: Optional[OwnedCard], idx: int, cursor: int, *,
         mode=mode,
         border_color_rgb=border,
         color=color,
+        composited_info=card.to_tile_info(position=idx % 6),
     )
 
 
@@ -470,6 +494,7 @@ def _render_detail_panel(card: Optional[OwnedCard], *,
         mode=mode,
         border_color_rgb=(130, 220, 240) if mode == RenderMode.OVERLAY_ONLY else None,
         color=color,
+        composited_info=card.to_tile_info(),
     )
 
     rar_text = colorize(card.rarity, rar_col, bold=color) if color else card.rarity

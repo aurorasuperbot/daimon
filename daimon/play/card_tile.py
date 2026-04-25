@@ -531,6 +531,69 @@ def tile_info_from_card_state(state: CardState) -> CardTileInfo:
     )
 
 
+def tile_info_from_catalog_payload(
+    payload: dict,
+    *,
+    position: int = 0,
+    art_path: Optional[Path] = None,
+) -> CardTileInfo:
+    """Build a CardTileInfo from a catalog card's JSON payload (dict).
+
+    The TUI screens (shop / collection / loadout-edit) all start from
+    catalog dicts loaded by :mod:`daimon.catalog.loader` — this is the
+    bridge to the composited-tile renderer. Accepts a dict (not a
+    ``CatalogCard``) so this module avoids an import-cycle on catalog.
+
+    ``art_path`` overrides the payload's ``art`` field — pass it when
+    a specific skin variant is selected (shop preview / equipped skin).
+    Falls back to the payload's own ``art`` value otherwise; finally to
+    None (renderer uses the placeholder gradient).
+
+    Combat rarity (legendary/epic/rare/uncommon/common) is read from
+    ``payload['rarity']`` — explicitly NOT the shop's price-tier rarity
+    (rare/super_rare). The two namespaces are independent.
+    """
+    elem_str = payload.get("element", "NORMAL")
+    # Catalog payloads use uppercase enum names ("FIRE"); PlayElement
+    # values are lowercase ("fire"). Try both forms before giving up.
+    element: Optional[PlayElement] = None
+    if isinstance(elem_str, str):
+        try:
+            element = PlayElement(elem_str.lower())
+        except (ValueError, KeyError):
+            try:
+                element = PlayElement[elem_str.upper()]
+            except (ValueError, KeyError):
+                element = None
+
+    name = payload.get("name") or payload.get("card_id") or "?"
+    species = payload.get("species") or payload.get("card_id") or ""
+    hp_max = int(payload.get("hp", 1))
+
+    if art_path is None:
+        art_field = payload.get("art")
+        if art_field:
+            p = Path(art_field)
+            if p.exists():
+                art_path = p
+
+    return CardTileInfo(
+        name=name,
+        short_name=name[:7],
+        rarity=payload.get("rarity", "common"),
+        position=position,
+        species=species,
+        element=element,
+        flavor=payload.get("flavor", ""),
+        hp=hp_max,
+        hp_max=hp_max,
+        atk=int(payload.get("atk", 0)),
+        defense=int(payload.get("def", 0)),
+        spd=int(payload.get("spd", 0)),
+        art_path=art_path,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Public entry points
 # ---------------------------------------------------------------------------
@@ -646,3 +709,43 @@ def render_card_thumbnail(
     return render_card_tile(
         info, width, height, placeholder_art=placeholder_art, show_hp_bar=False,
     )
+
+
+# ---------------------------------------------------------------------------
+# Disk-cache path access — for the OVERLAY pipeline (KGP painter + screenshot)
+# ---------------------------------------------------------------------------
+
+def compose_tile_to_path(
+    info: CardTileInfo,
+    width: int = DEFAULT_W,
+    height: int = DEFAULT_H,
+    *,
+    is_dead: bool = False,
+    placeholder_art: Optional[Path] = None,
+) -> Path:
+    """Compose the base tile and return the on-disk cache path of the PNG.
+
+    Why this exists: the TUI overlay pipeline (live KGP painter + the
+    deterministic screenshot renderer) both refer to art via
+    :class:`ImageOverlay.image_path` — a real file on disk. Phase F replaces
+    the per-tile *raw* card art in that field with the *composited* tile
+    (gold rarity border, element chip, stats strip, flavor text — full
+    chrome). Composing in memory then writing to a temp file would
+    re-transmit the same bytes on every redraw; instead we lean on
+    :func:`_compose_base_tile`'s built-in disk cache so a (info, w, h) combo
+    is composed once per session and the KGP image_id (derived from the
+    path string) stays stable across redraws.
+
+    Active-effects + live-HP overlays are NOT applied here (they're per-frame
+    state, never cached). Pre-match TUIs (shop / collection / loadout-edit)
+    don't need them; battle-UI surfaces should keep calling
+    :func:`render_card_tile` directly.
+
+    Defaults are the compose-pipeline native size (280×392). Callers free
+    to pass smaller dims for bandwidth-sensitive paths, but a single shared
+    size across all TUI surfaces maximizes cache reuse — the terminal
+    re-uploads each card's bitmap exactly once per session.
+    """
+    _compose_base_tile(info, width, height, is_dead, placeholder_art)
+    key = _cache_key(info, width, height, is_dead, placeholder_art)
+    return _CACHE_DIR / f"{key}.png"

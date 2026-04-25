@@ -4,29 +4,43 @@ A *tile* is one card visualised as an image-bearing rectangle that can be
 laid out next to other tiles in a grid (shop's 2×3 offering, collection's
 N×M browse, loadout editor's catalog grid + 6 slot frames).
 
-Visual structure of one tile:
+Visual structure of one tile (composited mode — the Phase F path):
 
-    ┌────────────────┐
-    │                │
-    │   ART AREA     │     <- art_h rows, real image (PIL paste in PNG mode,
-    │                │        truecolor half-block in TTY mode)
-    │                │
-    │                │
-    ├────────────────┤
-    │ aegis_lion     │     <- caption_lines[0]
-    │ rare    300¤   │     <- caption_lines[1] (color-coded)
-    └────────────────┘
+    ╔════════════════╗     <- outer ASCII chrome (selection + dim/ghost state)
+    ║ ┌────────────┐ ║
+    ║ │ FULL CARD  │ ║     <- composited PIL tile (gold rarity border, name,
+    ║ │ COMPOSITE  │ ║        element chip, stats strip, flavor text — all
+    ║ │            │ ║        baked in by daimon.play.card_tile.render_card_tile)
+    ║ │            │ ║
+    ║ └────────────┘ ║
+    ╠════════════════╣
+    ║ [N] aegis_lion ║     <- caption_lines[0] — TUI-specific (slot index, etc.)
+    ║ rare    300¤   ║     <- caption_lines[1] — TUI-specific (price, state)
+    ╚════════════════╝
+
+The composited tile is produced by ``card_tile.render_card_tile`` (or its
+disk-cache helper :func:`card_tile.compose_tile_to_path`) so EVERY surface
+that paints a card — battle UI, shop, collection, loadout editor — sees
+the same chrome, art, and stats. Captions stay slim: they carry the only
+state the composited tile DOESN'T (slot index, price, sold/equipped flag,
+collection count).
 
 The tile renderer returns both:
 
   * ``lines`` — list of ANSI strings, ``height`` rows of ``width`` cells —
     suitable for splicing into a frame string for both live TTY display
     and the ANSI-frame → PNG pipeline.
-  * ``local_overlay`` — when ``mode == OVERLAY_ONLY`` the art area is
-    intentionally blank in ``lines``; this :class:`ImageOverlay` record
-    tells the screenshot renderer where to paste the real PIL bitmap. The
-    (row, col) on the overlay are LOCAL to the tile (0,0 = top-left of the
-    art area). Composition helpers translate them to absolute frame coords.
+  * ``local_overlay`` — the art area is blank cells in ``lines``; this
+    :class:`ImageOverlay` record points at the composited-tile PNG so the
+    KGP painter (live terminal) and the screenshot pipeline (PNG export)
+    both paint the same bitmap. The (row, col) on the overlay are LOCAL
+    to the tile (0,0 = top-left of the art area). Composition helpers
+    translate them to absolute frame coords.
+
+Legacy raw-art mode is still wired (``composited_info=None`` + ``card_id``
+set) so existing screenshot fixtures and bare-bones tests keep passing —
+but every TUI surface in the code base now passes ``composited_info`` and
+gets the full chrome.
 
 Tiles are stateless data classes — call :func:`render_tile` with the card
 state for the tick, throw the result away when the next tick comes.
@@ -43,6 +57,7 @@ from daimon.play.art_render import (
     TileArt,
     render_card_art,
 )
+from daimon.play.card_tile import CardTileInfo, compose_tile_to_path
 from daimon.play.screenshot import ImageOverlay
 from daimon.play.tui_style import (
     BG_GRAY,
@@ -134,13 +149,16 @@ def render_tile(*,
                 ghost: bool = False,
                 mode: RenderMode = RenderMode.OVERLAY_ONLY,
                 border_color_rgb: Optional[Tuple[int, int, int]] = None,
-                color: bool = True) -> Tile:
+                color: bool = True,
+                composited_info: Optional[CardTileInfo] = None) -> Tile:
     """Render one card tile.
 
     Parameters
     ----------
     card_id:
-        The card identifier; resolved to art via :func:`art_render.resolve_card_art`.
+        The card identifier; resolved to art via :func:`art_render.resolve_card_art`
+        when ``composited_info`` is None. When ``composited_info`` is given,
+        ``card_id`` is used only for legacy placeholder labels.
     width:
         Total cell width of the tile (including borders).
     art_h:
@@ -149,17 +167,31 @@ def render_tile(*,
         Lines printed under the art region. Empty strings render as blanks
         so layout stays aligned across tiles.
     skin_slug:
-        Optional skin slug to render a specific variant.
+        Optional skin slug to render a specific variant. Ignored when
+        ``composited_info`` is given (skin selection is baked into the
+        :class:`CardTileInfo`'s ``art_path`` field upstream).
     selected, dim, ghost:
         Visual state flags. ``selected`` swaps to a double-rule border;
         ``ghost`` emits a dotted frame (for empty loadout slots, where
         ``card_id`` may be ``""``); ``dim`` greys the chrome (sold/owned).
     mode:
-        Half-block (live TTY) vs OVERLAY_ONLY (screenshot pipeline).
+        Live TTY vs OVERLAY_ONLY (screenshot pipeline). KGP painting
+        always happens via OVERLAY_ONLY; live TTY no longer has a
+        non-overlay path after Phase E.
     border_color_rgb:
         Used by the screenshot renderer to colour the overlay border.
         TTY mode applies this to the chrome via the closest ANSI bright
         code — selected = bright_cyan, dirty = bright_yellow, etc.
+    composited_info:
+        When set, the art region is filled with the FULL composited card
+        tile (gold rarity border, element chip, name, stats strip, flavor
+        text) instead of just the raw card-art image. The composited
+        bitmap is produced via :func:`card_tile.compose_tile_to_path` and
+        cached on disk; the overlay points at that cached PNG so KGP's
+        image_id stays stable across redraws. This is the Phase F path —
+        every TUI surface should pass it. Leaving it None keeps the
+        legacy raw-art path alive for existing screenshot fixtures and
+        bare-bones tests.
 
     Returns
     -------
@@ -217,6 +249,25 @@ def render_tile(*,
                     content = DIM + content + RESET
             art_lines.append(_wrap(v) + content + _wrap(v))
         local_overlay = None
+    elif composited_info is not None:
+        # Phase F path: the overlay PNG is the FULL composited tile (gold
+        # border + stats strip + flavor text + element chip + rarity halo
+        # all baked in by daimon.play.card_tile). The TUI's outer ASCII
+        # chrome (corners + selection border) just frames the composited
+        # image — captions sit below the tile as before so TUI-specific
+        # info (price, OWNED state, slot index) stays legible.
+        art_lines = [_wrap(v) + " " * inner_w + _wrap(v) for _ in range(art_h)]
+        composited_path = compose_tile_to_path(composited_info)
+        local_overlay = ImageOverlay(
+            row=1,           # skip top border
+            col=1,           # skip left border
+            rows=art_h,
+            cols=inner_w,
+            image_path=composited_path,
+            border_color=border_color_rgb,
+            border_width=2 if selected else 0,
+            glow=4 if selected else 0,
+        )
     else:
         art = render_card_art(card_id, inner_w, art_h,
                               skin_slug=skin_slug, mode=mode,

@@ -54,6 +54,7 @@ from daimon.engine.loadout import MAX_SAME_SPECIES, validate_loadout
 from daimon.engine.types import TEAM_SIZE
 from daimon.play.art_render import RenderMode, paint_overlays_as_kgp
 from daimon.render.wezterm_bundle import terminal_supports_kgp
+from daimon.play.card_tile import CardTileInfo, tile_info_from_catalog_payload
 from daimon.play.hud.keyboard import Key, keyboard_reader_or_dummy
 from daimon.play.screenshot import ImageOverlay
 from daimon.play.tile import (
@@ -173,6 +174,10 @@ class CatalogEntry:
     @property
     def spd(self) -> int:
         return int(self.payload.get("spd", 0))
+
+    def to_tile_info(self, *, position: int = 0) -> CardTileInfo:
+        """Build a CardTileInfo for the composited-tile overlay path (Phase F)."""
+        return tile_info_from_catalog_payload(self.payload, position=position)
 
 
 @dataclass
@@ -457,27 +462,30 @@ def _render_grids(view: EditorView, *,
 def _catalog_tile(entry: CatalogEntry, global_idx: int, view: EditorView,
                   in_loadout: bool, *,
                   mode: RenderMode, color: bool) -> Tile:
-    """Render one catalog card tile."""
+    """Render one catalog card tile.
+
+    Phase F: art region holds the composited card (gold rarity border, name,
+    element chip, stats, flavor) baked in by daimon.play.card_tile. Captions
+    slim down to TUI-only state: a ✓ marker when this card is already in the
+    loadout. Card identity (name/rarity/element) is visible inside the
+    composited tile itself.
+    """
     selected = (view.pane == Pane.CATALOG
                 and global_idx == view.catalog_cursor)
 
-    rar_col = rarity_color(entry.rarity) if color else None
-    elem_col = element_color(entry.element) if color else None
+    # Caption row 1 — ✓ marker when card is already on the team.
+    if in_loadout:
+        marker = colorize("✓ EQUIPPED", BRIGHT_GREEN, bold=True) if color else "✓ EQUIPPED"
+    else:
+        marker = ""
+    cap1 = pad_visible(marker, TILE_W - 2)
 
-    name_text = entry.card_id
-    marker = "✓" if in_loadout else " "
-    if color:
-        name_text = colorize(name_text, rar_col, bold=selected)
-        if in_loadout:
-            marker = colorize("✓", BRIGHT_GREEN, bold=True)
-    cap1 = pad_visible(marker + " " + name_text, TILE_W - 2)
-
-    rar_text = _rarity_short(entry.rarity)
-    elem_text = entry.element[:5]
-    if color:
-        rar_text = colorize(rar_text, rar_col)
-        elem_text = colorize(elem_text, elem_col, bold=True)
-    cap2 = pad_visible(rar_text, 5) + pad_visible(elem_text, TILE_W - 2 - 5, align="right")
+    # Caption row 2 — focus/cursor marker.
+    if selected and color:
+        cap2 = colorize("◀ FOCUS", BRIGHT_CYAN, bold=True)
+    else:
+        cap2 = ""
+    cap2 = pad_visible(cap2, TILE_W - 2)
 
     border = None
     if mode == RenderMode.OVERLAY_ONLY:
@@ -497,12 +505,18 @@ def _catalog_tile(entry: CatalogEntry, global_idx: int, view: EditorView,
         mode=mode,
         border_color_rgb=border,
         color=color,
+        composited_info=entry.to_tile_info(position=global_idx % TEAM_SIZE),
     )
 
 
 def _loadout_tile(slot: LoadoutSlot, slot_idx: int, view: EditorView, *,
                   mode: RenderMode, color: bool) -> Tile:
-    """Render one loadout slot — empty (ghost) or filled (image tile)."""
+    """Render one loadout slot — empty (ghost) or filled (image tile).
+
+    Phase F: filled slots show the composited card tile in the art region;
+    captions carry only the TUI-specific slot index ([0]..[5]) and an
+    optional empty/cursor marker.
+    """
     selected = (view.pane == Pane.LOADOUT and slot_idx == view.loadout_cursor)
     if slot.entry is None:
         cap1 = pad_visible(f"[{slot_idx}]", TILE_W - 2)
@@ -520,19 +534,20 @@ def _loadout_tile(slot: LoadoutSlot, slot_idx: int, view: EditorView, *,
             color=color,
         )
     ce = slot.entry
-    rar_col = rarity_color(ce.rarity) if color else None
-    elem_col = element_color(ce.element) if color else None
-    name_text = ce.card_id
-    if color:
-        name_text = colorize(name_text, rar_col, bold=selected)
-    cap1 = pad_visible(f"[{slot_idx}] " + name_text, TILE_W - 2)
 
-    rar_text = _rarity_short(ce.rarity)
-    elem_text = ce.element[:5]
+    # Caption row 1 — slot index handle (the TUI's only addressing).
+    idx_text = f"[{slot_idx}]"
     if color:
-        rar_text = colorize(rar_text, rar_col)
-        elem_text = colorize(elem_text, elem_col, bold=True)
-    cap2 = pad_visible(rar_text, 5) + pad_visible(elem_text, TILE_W - 2 - 5, align="right")
+        idx_text = colorize(idx_text, BRIGHT_CYAN if selected else GRAY,
+                            bold=selected)
+    cap1 = pad_visible(idx_text, TILE_W - 2)
+
+    # Caption row 2 — focus marker (only when this is the cursor slot).
+    if selected and color:
+        cap2 = colorize("◀ FOCUS", BRIGHT_CYAN, bold=True)
+    else:
+        cap2 = ""
+    cap2 = pad_visible(cap2, TILE_W - 2)
 
     border = None
     if mode == RenderMode.OVERLAY_ONLY:
@@ -550,6 +565,7 @@ def _loadout_tile(slot: LoadoutSlot, slot_idx: int, view: EditorView, *,
         mode=mode,
         border_color_rgb=border,
         color=color,
+        composited_info=ce.to_tile_info(position=slot_idx),
     )
 
 
