@@ -70,7 +70,10 @@ def _upstream_asset(target_os: str, target_arch: str, version: str) -> str:
             )
         # Ubuntu22 tarball: contains usr/bin/wezterm{,-gui,-mux-server} +
         # a single 'strip-ansi-escapes' helper. xz-compressed.
-        return f"WezTerm-{version}-Ubuntu22.04.tar.xz"
+        # Note: upstream uses lowercase 'wezterm' + period separator (NOT
+        # 'WezTerm-...-Ubuntu22.04.tar.xz' which is the Windows/macOS
+        # naming pattern). Burned 2026-04-25 in wezterm-bundle-v1.0.
+        return f"wezterm-{version}.Ubuntu22.04.tar.xz"
     if target_os == "macos":
         # Universal binary inside a .zip containing WezTerm.app bundle.
         # Upstream publishes one zip that includes both x86_64 and aarch64
