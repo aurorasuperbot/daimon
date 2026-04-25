@@ -9,10 +9,18 @@ name: WezTerm Bundle Release
 #     run summary without creating a release (useful for dry-runs).
 #
 # Matrix:
-#   linux/x86_64       — ubuntu-latest runner, upstream Ubuntu22.04.tar.xz
-#   macos/x86_64       — macos-13 runner (intel),  upstream macOS .zip
-#   macos/aarch64      — macos-14 runner (apple silicon), same upstream zip
-#   windows/x86_64     — windows-latest runner, upstream Windows .zip
+#   linux/x86_64       — upstream Ubuntu22.04.tar.xz
+#   macos/x86_64       — upstream macOS .zip (universal binary, both arches share)
+#   macos/aarch64      — same upstream macOS .zip as x86_64
+#   windows/x86_64     — upstream Windows .zip
+#
+# Every target runs on ubuntu-latest. The build script is pure stdlib
+# (urllib + tarfile + zipfile) and does no compilation — it downloads an
+# upstream artifact and re-packages select binaries into a flat .tar.gz.
+# Nothing in that pipeline is platform-specific, so paying for scarce
+# macos-13 / macos-14 / windows-latest runners is pure waste; burned
+# 2026-04-25 when wezterm-bundle-v1.0's macos-13 job sat in queue 2+ hours
+# while linux/macos-aarch64/windows finished in <1 minute each.
 #
 # Linux aarch64 is intentionally absent — upstream WezTerm has no official
 # Linux ARM build. Adding it requires a build-from-source job (deferred V1).
@@ -45,22 +53,19 @@ concurrency:
 jobs:
   build:
     name: build ${{ matrix.target_os }}-${{ matrix.target_arch }}
-    runs-on: ${{ matrix.runner }}
+    # Every target builds on ubuntu-latest — see file header for rationale.
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-latest
-            target_os: linux
+          - target_os: linux
             target_arch: x86_64
-          - runner: macos-13
-            target_os: macos
+          - target_os: macos
             target_arch: x86_64
-          - runner: macos-14
-            target_os: macos
+          - target_os: macos
             target_arch: aarch64
-          - runner: windows-latest
-            target_os: windows
+          - target_os: windows
             target_arch: x86_64
 
     steps:
