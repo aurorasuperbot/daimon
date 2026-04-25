@@ -483,6 +483,80 @@ def test_collection_corrupt(monkeypatch, tmp_path):
     assert result["error"] == "corrupt_collection"
 
 
+def test_collection_rollup_shape(monkeypatch, tmp_path):
+    """dm_collection MUST return rarity_counts + by_card rollups so agents
+    can render a 'collection screen' without bucketing serials themselves."""
+    path = tmp_path / "collection.json"
+    path.write_text(json.dumps({
+        "serials": [
+            {"serial": "u1", "card_id": "blazewolf",   "pack": "v1",
+             "rarity": "common",    "minted_via": "pull"},
+            {"serial": "u2", "card_id": "blazewolf",   "pack": "v1",
+             "rarity": "common",    "minted_via": "pull"},
+            {"serial": "u3", "card_id": "magma_tyrant","pack": "v1",
+             "rarity": "legendary", "minted_via": "pull"},
+            {"serial": "u4", "card_id": "ash_strider", "pack": "v1",
+             "rarity": "rare",      "minted_via": "pull"},
+            {"serial": "u5", "card_id": "ash_strider", "pack": "v1",
+             "rarity": "rare",      "minted_via": "pull"},
+            {"serial": "u6", "card_id": "ash_strider", "pack": "v1",
+             "rarity": "rare",      "minted_via": "pull"},
+        ]
+    }))
+    monkeypatch.setattr(mcp_server, "COLLECTION_PATH", path)
+    result = _call(dm_collection)
+
+    assert result["status"] == "ok"
+    assert result["count"] == 6
+    assert result["unique_cards"] == 3
+    assert result["rarity_counts"] == {"common": 2, "rare": 3, "legendary": 1}
+
+    # by_card sorted by rarity (common < rare < legendary), then card_id.
+    rows = result["by_card"]
+    assert [r["card_id"] for r in rows] == [
+        "blazewolf", "ash_strider", "magma_tyrant",
+    ]
+    assert {r["card_id"]: r["count"] for r in rows} == {
+        "blazewolf": 2, "ash_strider": 3, "magma_tyrant": 1,
+    }
+    # Raw serials still present for callers that want the full list.
+    assert len(result["serials"]) == 6
+
+
+def test_collection_missing_includes_rollup_shape(monkeypatch, tmp_path):
+    """Even on no_collection, the rollup keys must be present (empty)
+    so callers can rely on a stable schema."""
+    monkeypatch.setattr(mcp_server, "COLLECTION_PATH",
+                        tmp_path / "no_such_file.json")
+    result = _call(dm_collection)
+    assert result["error"] == "no_collection"
+    assert result["count"] == 0
+    assert result["unique_cards"] == 0
+    assert result["rarity_counts"] == {}
+    assert result["by_card"] == []
+    assert result["serials"] == []
+
+
+def test_collection_unknown_rarity_sorts_last(monkeypatch, tmp_path):
+    """Cards with rarity values outside the known order must not crash
+    the sort — they bucket to the end."""
+    path = tmp_path / "collection.json"
+    path.write_text(json.dumps({
+        "serials": [
+            {"serial": "u1", "card_id": "weird_card", "pack": "v1",
+             "rarity": "mythic_plus", "minted_via": "pull"},
+            {"serial": "u2", "card_id": "blazewolf", "pack": "v1",
+             "rarity": "common", "minted_via": "pull"},
+        ]
+    }))
+    monkeypatch.setattr(mcp_server, "COLLECTION_PATH", path)
+    result = _call(dm_collection)
+    rows = result["by_card"]
+    # common comes before mythic_plus (unknown ranks last).
+    assert rows[0]["card_id"] == "blazewolf"
+    assert rows[1]["card_id"] == "weird_card"
+
+
 # ---------------------------------------------------------------------------
 # dm_pull / dm_mine_status (real implementations)
 # ---------------------------------------------------------------------------
@@ -621,6 +695,10 @@ def test_mine_status_no_ledger(monkeypatch, tmp_path):
     assert result["status"] == "ok"
     assert result["balance"] == 0
     assert result["ledger_entries"] == 0
+    # Phase-5: purchase rollup must be present even on a fresh ledger so
+    # callers can rely on a stable schema.
+    assert result["total_purchased"] == 0
+    assert result["purchase_count"] == 0
 
 
 def test_mine_status_with_ledger(monkeypatch, tmp_path):
@@ -635,6 +713,68 @@ def test_mine_status_with_ledger(monkeypatch, tmp_path):
     assert result["balance"] == 12
     assert result["mine_count"] == 1
     assert result["verified"] is True
+    # Phase-5: zero purchases yet, so spend totals are zero but present.
+    assert result["total_purchased"] == 0
+    assert result["purchase_count"] == 0
+
+
+def test_mine_status_includes_purchase_totals(monkeypatch, tmp_path):
+    """After a shop purchase, dm_mine_status must surface total_purchased
+    + purchase_count so the agent can reconcile spend without scanning the
+    raw ledger. The playtest report flagged this hole — closes it."""
+    _isolate_paths(monkeypatch, tmp_path)
+
+    from daimon.identity import generate_identity
+    from daimon.mining import append_mine_entry
+    from daimon.mining.ledger import append_purchase_entry
+
+    generate_identity(force=True)
+    append_mine_entry(tool_name="Edit", amount=2000,
+                     factors={"base": 4}, novelty_key="seed")
+    append_purchase_entry(
+        cost=300, card_id="blazewolf", skin_slug="ukiyoe_scroll",
+        skin_axis="cultural", rarity="rare",
+    )
+    append_purchase_entry(
+        cost=800, card_id="magma_tyrant", skin_slug="bestiary_folio",
+        skin_axis="anatomical", rarity="super_rare",
+    )
+
+    result = _call(dm_mine_status)
+    assert result["status"] == "ok"
+    assert result["balance"] == 2000 - 300 - 800
+    assert result["total_mined"] == 2000
+    assert result["total_purchased"] == 1100
+    assert result["purchase_count"] == 2
+    # Purchase entries should also surface in `recent` with their skin
+    # metadata so the agent can render a "recent activity" log.
+    skin_recents = [r for r in result["recent"] if r.get("kind") == "purchase"]
+    assert len(skin_recents) == 2
+    assert any(r.get("skin_slug") == "ukiyoe_scroll" for r in skin_recents)
+    assert any(r.get("skin_slug") == "bestiary_folio" for r in skin_recents)
+
+
+def test_whoami_includes_purchase_totals(monkeypatch, tmp_path):
+    """dm_whoami absorbs the same _mining_stats_or_empty payload, so the
+    same purchase-rollup contract applies there too."""
+    _isolate_paths(monkeypatch, tmp_path)
+
+    from daimon.identity import generate_identity
+    from daimon.mining import append_mine_entry
+    from daimon.mining.ledger import append_purchase_entry
+
+    generate_identity(force=True)
+    append_mine_entry(tool_name="Edit", amount=1000,
+                     factors={"base": 4}, novelty_key="seed")
+    append_purchase_entry(
+        cost=300, card_id="ash_strider", skin_slug="hieroglyph_tomb",
+        skin_axis="cultural", rarity="rare",
+    )
+
+    result = _call(dm_whoami)
+    assert result["total_purchased"] == 300
+    assert result["purchase_count"] == 1
+    assert result["balance"] == 700
 
 
 # ---------------------------------------------------------------------------

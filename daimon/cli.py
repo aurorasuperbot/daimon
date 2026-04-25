@@ -382,8 +382,18 @@ def mine_status(as_json: bool) -> None:
 
     if not _LP.exists():
         if as_json:
-            click.echo(_json.dumps({"balance": 0, "ledger_entries": 0,
-                                    "verified": True, "recent": []}))
+            click.echo(_json.dumps({
+                "balance": 0,
+                "total_mined": 0,
+                "total_pulled": 0,
+                "total_purchased": 0,
+                "mine_count": 0,
+                "pull_count": 0,
+                "purchase_count": 0,
+                "ledger_entries": 0,
+                "verified": True,
+                "recent": [],
+            }))
         else:
             click.echo("balance:        0")
             click.echo("ledger:         (empty — no productive work recorded yet)")
@@ -399,14 +409,17 @@ def mine_status(as_json: bool) -> None:
             "balance": stats.balance,
             "total_mined": stats.total_mined,
             "total_pulled": stats.total_pulled,
+            "total_purchased": stats.total_purchased,
             "mine_count": stats.mine_count,
             "pull_count": stats.pull_count,
+            "purchase_count": stats.purchase_count,
             "ledger_entries": stats.entry_count,
             "verified": verification.get("ok"),
             "errors": verification.get("errors", []),
             "recent": [{k: v for k, v in e.items()
                         if k in ("ts", "kind", "amount", "tool_name",
-                                 "card_id", "rarity")}
+                                 "card_id", "rarity", "skin_slug",
+                                 "skin_axis")}
                        for e in recent],
         }, indent=2))
         return
@@ -414,6 +427,8 @@ def mine_status(as_json: bool) -> None:
     click.echo(f"balance:        {stats.balance}")
     click.echo(f"total mined:    {stats.total_mined}  ({stats.mine_count} events)")
     click.echo(f"total pulled:   {stats.total_pulled}  ({stats.pull_count} events)")
+    click.echo(f"total purchased:{stats.total_purchased:>4}  "
+               f"({stats.purchase_count} skins)")
     click.echo(f"ledger:         {stats.entry_count} entries — "
                f"{'OK' if verification.get('ok') else 'CORRUPT'}")
     if not verification.get("ok"):
@@ -424,7 +439,8 @@ def mine_status(as_json: bool) -> None:
         for e in recent[-10:]:
             kind = e.get("kind", "?")
             amount = e.get("amount", 0)
-            label = e.get("tool_name") or e.get("card_id") or ""
+            label = (e.get("tool_name") or e.get("card_id")
+                     or e.get("skin_slug") or "")
             click.echo(f"  {e.get('ts', '')[:19]}  {kind:8} {amount:+5}  {label}")
 
 

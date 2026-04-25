@@ -271,8 +271,10 @@ def _mining_stats_or_empty() -> Dict[str, Any]:
             "balance": 0,
             "total_mined": 0,
             "total_pulled": 0,
+            "total_purchased": 0,
             "mine_count": 0,
             "pull_count": 0,
+            "purchase_count": 0,
             "ledger_entries": 0,
             "verified": True,
             "recent": [],
@@ -282,15 +284,17 @@ def _mining_stats_or_empty() -> Dict[str, Any]:
     recent = [
         {k: v for k, v in e.items()
          if k in ("ts", "kind", "amount", "tool_name", "card_id",
-                  "rarity", "pack")}
+                  "rarity", "pack", "skin_slug", "skin_axis")}
         for e in get_recent_entries(limit=10)
     ]
     out: Dict[str, Any] = {
         "balance": stats.balance,
         "total_mined": stats.total_mined,
         "total_pulled": stats.total_pulled,
+        "total_purchased": stats.total_purchased,
         "mine_count": stats.mine_count,
         "pull_count": stats.pull_count,
+        "purchase_count": stats.purchase_count,
         "ledger_entries": stats.entry_count,
         "verified": bool(verification.get("ok")),
         "recent": recent,
@@ -793,16 +797,45 @@ def dm_loadout_validate(loadout: Any) -> Dict[str, Any]:
 
 @mcp.tool()
 def dm_collection() -> Dict[str, Any]:
-    """List cards owned by the local identity.
+    """List cards owned by the local identity, with rollup summaries.
 
     Reads ~/.config/daimon/collection.json — a JSON document of shape:
-      {"serials": [{"serial": "uuid", "card_id": "...", "pack": "..."}]}
+      {"serials": [{"serial": "uuid", "card_id": "...", "pack": "...",
+                    "rarity": "...", "minted_at": "...", "minted_via": "..."}]}
 
-    Returns {"serials": [...], "count": int} or {"error": "no_collection"} if
-    the file doesn't exist (fresh install).
+    Returns:
+      {
+        "status": "ok",
+        "count": int,                        # total serials owned
+        "unique_cards": int,                 # distinct card_ids
+        "rarity_counts": {                   # serial counts by rarity
+            "common": int, "uncommon": int, "rare": int,
+            "epic": int, "legendary": int
+        },
+        "by_card": [                         # one row per unique card_id,
+            {                                # sorted by rarity then card_id
+                "card_id": "...",
+                "rarity": "...",
+                "count": int                 # number of serials of this card
+            },
+            ...
+        ],
+        "serials": [...]                     # full raw list (unchanged)
+      }
+
+    On error:
+      {"error": "no_collection", ...}     — fresh install, nothing owned
+      {"error": "corrupt_collection", "message": "..."}
     """
     if not COLLECTION_PATH.exists():
-        return {"error": "no_collection", "serials": [], "count": 0}
+        return {
+            "error": "no_collection",
+            "count": 0,
+            "unique_cards": 0,
+            "rarity_counts": {},
+            "by_card": [],
+            "serials": [],
+        }
     try:
         data = json.loads(COLLECTION_PATH.read_text())
     except json.JSONDecodeError as e:
@@ -811,7 +844,42 @@ def dm_collection() -> Dict[str, Any]:
     serials = data.get("serials", [])
     if not isinstance(serials, list):
         return {"error": "corrupt_collection", "message": "serials is not a list"}
-    return {"serials": serials, "count": len(serials)}
+
+    # Rollup: rarity bucket counts + per-card row aggregation.
+    _RARITY_ORDER = ("common", "uncommon", "rare", "epic", "legendary")
+
+    def _rarity_sort_key(r: str) -> int:
+        try:
+            return _RARITY_ORDER.index(r)
+        except ValueError:
+            return len(_RARITY_ORDER)
+
+    rarity_counts: Dict[str, int] = {}
+    by_card_map: Dict[str, Dict[str, Any]] = {}
+    for s in serials:
+        if not isinstance(s, dict):
+            continue
+        cid = s.get("card_id") or "?"
+        rar = s.get("rarity") or "?"
+        rarity_counts[rar] = rarity_counts.get(rar, 0) + 1
+        row = by_card_map.setdefault(
+            cid, {"card_id": cid, "rarity": rar, "count": 0}
+        )
+        row["count"] += 1
+
+    by_card = sorted(
+        by_card_map.values(),
+        key=lambda r: (_rarity_sort_key(r["rarity"]), r["card_id"]),
+    )
+
+    return {
+        "status": "ok",
+        "count": len(serials),
+        "unique_cards": len(by_card_map),
+        "rarity_counts": rarity_counts,
+        "by_card": by_card,
+        "serials": serials,
+    }
 
 
 @mcp.tool()
