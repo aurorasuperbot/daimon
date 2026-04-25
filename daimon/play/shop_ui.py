@@ -3,11 +3,14 @@
 Browse today's 6-slot rotation as a 3×2 grid of card-art TILES with a side
 detail panel showing the focused card. Same agentic-first contract:
 
-  * ``render_frame(view, mode=...) -> (frame_str, overlays)`` — pure, no I/O.
-    HALFBLOCK mode rasterises the art into the frame string itself (live
-    terminals); OVERLAY_ONLY emits blank cells and a list of
-    :class:`ImageOverlay` records the screenshot pipeline pastes on top.
-  * ``run_shop_tui()`` — human event loop. Default mode HALFBLOCK.
+  * ``render_frame(view) -> (frame_str, overlays)`` — pure, no I/O. Always
+    emits OVERLAY_ONLY: blank cells where the art goes, plus a list of
+    :class:`ImageOverlay` records. The live runner KGP-paints them via
+    :func:`paint_overlays_as_kgp` (bundled WezTerm only); the screenshot
+    pipeline pastes the real PIL bitmaps on top.
+  * ``run_shop_tui()`` — human event loop. Bails with a clean error if
+    invoked in a TTY that isn't the bundled WezTerm (auto-relaunch
+    bypassed via ``--in-place``, headless SSH, etc.).
   * ``--no-tui`` / ``--json`` on the CLI keep the scripted paths working.
 
 Layout (110 col × ~28 row frame):
@@ -86,6 +89,20 @@ from daimon.play.tui_style import (
 )
 from daimon.shop import ShopState
 from daimon.shop.rotation import RotationSlot
+
+# ---------------------------------------------------------------------------
+# Hard-require error message — surfaced when a TTY caller bypassed the
+# launcher's auto-relaunch into the bundled WezTerm (or KGP isn't
+# available for some other reason). DAIMON ships its own terminal; the
+# half-block fallback was retired in Phase E.
+# ---------------------------------------------------------------------------
+
+_TERMINAL_REQUIRED_ERROR = (
+    "error: DAIMON's interactive TUIs require the bundled WezTerm to render card art.\n"
+    "  • Run `daimon install` to install the terminal (idempotent — safe to re-run).\n"
+    "  • Or drop --in-place so DAIMON auto-launches in WezTerm for you.\n"
+)
+
 
 # ---------------------------------------------------------------------------
 # Layout constants — V2 frame
@@ -178,16 +195,19 @@ class ShopView:
 # ---------------------------------------------------------------------------
 
 def render_frame(view: ShopView, *,
-                 mode: RenderMode = RenderMode.HALFBLOCK,
+                 mode: RenderMode = RenderMode.OVERLAY_ONLY,
                  color: bool = True,
                  width: int = WIDTH
                  ) -> Tuple[str, List[ImageOverlay]]:
     """Return (frame_string, overlays).
 
-    HALFBLOCK rasterises card art into the frame text itself (live
-    terminals); OVERLAY_ONLY emits blank cells under each tile's art region
-    and returns absolute-coord overlays so :mod:`screenshot` can paste real
-    PIL bitmaps over them. Live runners ignore the overlays list.
+    Always emits OVERLAY_ONLY: blank cells under each tile's art region
+    plus a list of absolute-coord :class:`ImageOverlay` records. The live
+    runner KGP-paints them via :func:`paint_overlays_as_kgp`; the
+    screenshot pipeline pastes real PIL bitmaps over them. The ``mode``
+    parameter is preserved for backward-compat with screenshot harnesses
+    but only ``OVERLAY_ONLY`` is supported now (PLACEHOLDER kicks in
+    automatically when a card has no art on disk).
     """
     s = view.state
 
@@ -509,7 +529,7 @@ def _short_path(p: str, max_len: int = 60) -> str:
 
 @dataclass
 class ShopRunner:
-    """Event-loop driver for the shop TUI (live-terminal, HALFBLOCK mode)."""
+    """Event-loop driver for the shop TUI (live-terminal, KGP-paints overlays)."""
     state_loader: Callable[[], ShopState]
     purchaser: Callable[[int], "tuple[bool, str]"]
     sink: TextIO = field(default_factory=lambda: sys.stdout)
@@ -527,6 +547,10 @@ class ShopRunner:
                               identity_name=self.identity_name)
 
     def run(self) -> int:
+        if self._is_tty() and not terminal_supports_kgp():
+            sys.stderr.write(_TERMINAL_REQUIRED_ERROR)
+            sys.stderr.flush()
+            return 2
         try:
             self._enter_screen()
             with keyboard_reader_or_dummy(self.keyboard) as kb:
@@ -543,7 +567,7 @@ class ShopRunner:
             self._exit_screen()
         return 0
 
-    def render_once(self, *, mode: RenderMode = RenderMode.HALFBLOCK
+    def render_once(self, *, mode: RenderMode = RenderMode.OVERLAY_ONLY
                     ) -> Tuple[str, List[ImageOverlay]]:
         return render_frame(self._view, mode=mode,
                             color=self.color, width=self.width)
@@ -620,23 +644,23 @@ class ShopRunner:
             return False
 
     def _render(self, *, force: bool = False) -> None:
-        # KGP path (in our bundled WezTerm): emit blank art regions in the
-        # text frame, then KGP-paint each ImageOverlay's bitmap on top.
-        # Falls back to half-block when running in a non-KGP terminal.
-        use_kgp = terminal_supports_kgp() and self._is_tty()
-        mode = RenderMode.OVERLAY_ONLY if use_kgp else RenderMode.HALFBLOCK
-        screen, overlays = render_frame(self._view, mode=mode,
+        # Always emit OVERLAY_ONLY: the text frame leaves blank cells for
+        # each tile's art region; on a TTY we KGP-paint the real bitmap on
+        # top via paint_overlays_as_kgp. Non-TTY sinks (pipes, screenshot
+        # harness) get the text frame only — overlays surface via the
+        # public render_once / render_frame API for downstream pipelines.
+        # The startup check in run() guarantees the TTY supports KGP.
+        screen, overlays = render_frame(self._view,
                                         color=self.color, width=self.width)
         sig = (self._view.cursor, self._view.state.balance,
                tuple((sl.sold, sl.purchased_at) for sl in self._view.state.slots),
                self._view.flash, self._view.state.weekly_count,
-               self._view.state.seconds_until_rotation // 60,
-               use_kgp)
+               self._view.state.seconds_until_rotation // 60)
         if not force and sig == self._last_signature:
             return
-        kgp_paint = paint_overlays_as_kgp(overlays) if use_kgp else ""
         self._last_signature = sig
         if self._is_tty():
+            kgp_paint = paint_overlays_as_kgp(overlays)
             self.sink.write(HOME + screen + kgp_paint + "\n")
         else:
             self.sink.write(screen + "\n")

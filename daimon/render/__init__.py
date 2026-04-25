@@ -1,24 +1,21 @@
-"""Render layer — TUI + 7-tier chafa cascade + hybrid frame/art renderer.
+"""Render layer — PIL card composer + Kitty Graphics Protocol encoder.
 
-Three primary entry points:
+Two primary entry points for callers outside this package:
 
   compose_card(card, info, output_path)
       PIL-based PNG card renderer. Produces a 280×392 frame with rarity-driven
       palette + supersample. Used for sharing on the web, Telegram, etc.
 
-  render_hybrid(card, info, tier=...)
-      Terminal renderer. Frame as terminal cells (always crisp), art panel via
-      chafa cascade. Default tier auto-detected from terminal capability.
-
-  detect_tier()
-      Returns the best tier (1–7) the current terminal supports.
+  kgp.encode_transmit_and_display(...)  (and the helpers in :mod:`daimon.render.kgp`)
+      Terminal renderer. Streams full-fidelity PNG bytes to the bundled
+      WezTerm via Kitty Graphics Protocol APC sequences. Replaces the
+      legacy chafa cascade / hybrid renderer that was retired in Phase E.
 
 The legacy proof scripts that locked the design language are preserved at
 scripts/render_legacy/ for reference.
 """
 
 from daimon.render.art import art_path_for
-from daimon.render.cascade import Tier, detect_tier
 from daimon.render.compose import (
     CardRenderInfo,
     Palette,
@@ -27,17 +24,13 @@ from daimon.render.compose import (
     palette_for,
     render_info_from_pack_dict,
 )
-from daimon.render.hybrid import render_hybrid
 
 __all__ = [
     "CardRenderInfo",
     "Palette",
-    "Tier",
     "art_path_for",
     "compose_card",
     "compose_card_from_pack_dict",
-    "detect_tier",
     "palette_for",
-    "render_hybrid",
     "render_info_from_pack_dict",
 ]

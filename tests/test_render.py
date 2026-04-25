@@ -5,16 +5,19 @@ Covers:
   - compose_card produces a PNG of the requested size
   - compose_card works without an art file (placeholder mode)
   - compose_card_from_pack_dict integrates cards loader + render layer
-  - render_hybrid produces non-empty terminal output with frame chars
-  - render_hybrid never reads card.flavor through the engine path
-    (regression guard for prompt-injection invariant)
-  - detect_tier returns a valid tier
+  - engine isolation: render-text changes can't leak into combat math
+
+The legacy chafa cascade / hybrid renderer (render_hybrid + detect_tier)
+was retired in Phase E together with the half-block fallback. The bundled
+WezTerm + KGP painter superseded those code paths — see
+``daimon/play/art_render.py`` and ``daimon/render/kgp.py``, with KGP
+encoder coverage in ``tests/test_kgp.py`` and painter coverage in
+``tests/test_kgp_painter.py``.
 """
 
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -24,9 +27,7 @@ from daimon.render import (
     CardRenderInfo,
     compose_card,
     compose_card_from_pack_dict,
-    detect_tier,
     palette_for,
-    render_hybrid,
 )
 
 
@@ -180,76 +181,6 @@ def test_render_info_accepts_nested_render_only():
     info = render_info_from_pack_dict(pack_card, Path("."))
     assert info.name == "Nested Name"
     assert info.rarity == "epic"
-
-
-# ---------------------------------------------------------------------------
-# Hybrid renderer
-# ---------------------------------------------------------------------------
-
-def test_render_hybrid_produces_output(sample_card, sample_info):
-    out = render_hybrid(sample_card, sample_info, tier=7, ansi=False)
-    assert out
-    assert "TEST CARD" in out
-    # V2: element chip replaces the old slot chip in the header row
-    assert "FIRE" in out
-
-
-def test_render_hybrid_includes_stats(sample_card, sample_info):
-    out = render_hybrid(sample_card, sample_info, tier=7, ansi=False)
-    assert "ATK:" in out
-    assert "12" in out  # atk
-    assert "DEF:" in out
-    assert "HP:" in out
-    assert "SPD:" in out
-
-
-def test_render_hybrid_includes_trigger_summary(sample_card, sample_info):
-    out = render_hybrid(sample_card, sample_info, tier=7, ansi=False)
-    assert "ON_ATTACK" in out
-    assert "BUFF_ATK" in out
-    # Critical: trigger summary is enum-based, never prose. The card has no
-    # text fields the engine could be tricked into reading.
-
-
-def test_render_hybrid_t7_uses_ascii_chars(sample_card, sample_info):
-    out = render_hybrid(sample_card, sample_info, tier=7, ansi=False)
-    # T7 falls back to ASCII frame
-    assert "+" in out  # corners
-    assert "-" in out  # horizontal
-    # No box-drawing unicode
-    assert "╔" not in out
-    assert "═" not in out
-
-
-def test_render_hybrid_t1_uses_box_drawing(sample_card, sample_info):
-    out = render_hybrid(sample_card, sample_info, tier=1, ansi=False)
-    assert "╔" in out or "║" in out
-
-
-def test_render_hybrid_handles_no_triggers(sample_info):
-    plain = Card(card_id="vanilla", species="vanilla_s", element=Element.NATURE,
-                 atk=5, defense=5, hp=20, spd=5, triggers=())
-    out = render_hybrid(plain, sample_info, tier=7, ansi=False)
-    assert "no triggers" in out
-
-
-def test_render_hybrid_truncates_long_name(sample_card):
-    long_name = "X" * 100
-    info = CardRenderInfo(name=long_name, rarity="common")
-    out = render_hybrid(sample_card, info, tier=7, ansi=False, width_cells=40)
-    # No line should massively overflow
-    for line in out.split("\n"):
-        # ANSI-stripped length should be ≤ width_cells + small slack
-        assert len(line) <= 60
-
-
-# ---------------------------------------------------------------------------
-# Cascade tier detection
-# ---------------------------------------------------------------------------
-
-def test_detect_tier_returns_valid():
-    tier = detect_tier()
-    assert tier in (1, 2, 3, 4, 5, 6, 7)
 
 
 # ---------------------------------------------------------------------------

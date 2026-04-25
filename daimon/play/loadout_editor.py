@@ -7,8 +7,11 @@ Save with `s`, quit with `q`.
 
 Surface contract (mirrors shop_ui / collection_ui):
 
-  * ``render_frame(view, mode=...) -> (frame_str, overlays)`` — pure renderer
-  * ``LoadoutEditorRunner.run()`` — interactive event loop
+  * ``render_frame(view) -> (frame_str, overlays)`` — pure renderer; always
+    emits OVERLAY_ONLY (blank cells + ImageOverlay records the live runner
+    KGP-paints, the screenshot pipeline pastes PIL bitmaps over).
+  * ``LoadoutEditorRunner.run()`` — interactive event loop. Bails with a
+    clean error if the TTY isn't the bundled WezTerm.
   * Saved file is ``{"name", "cards"}`` JSON, fungible across the CLI surface
 
 Layout (130 col × ~30 row):
@@ -82,6 +85,19 @@ from daimon.play.tui_style import (
     rarity_color,
     status_bar,
     visible_len,
+)
+
+
+# ---------------------------------------------------------------------------
+# Hard-require error message — surfaced when a TTY caller bypassed the
+# launcher's auto-relaunch into the bundled WezTerm. DAIMON ships its own
+# terminal; the half-block fallback was retired in Phase E.
+# ---------------------------------------------------------------------------
+
+_TERMINAL_REQUIRED_ERROR = (
+    "error: DAIMON's interactive TUIs require the bundled WezTerm to render card art.\n"
+    "  • Run `daimon install` to install the terminal (idempotent — safe to re-run).\n"
+    "  • Or drop --in-place so DAIMON auto-launches in WezTerm for you.\n"
 )
 
 
@@ -247,11 +263,16 @@ def validate_view(view: EditorView) -> ValidationResult:
 # ---------------------------------------------------------------------------
 
 def render_frame(view: EditorView, *,
-                 mode: RenderMode = RenderMode.HALFBLOCK,
+                 mode: RenderMode = RenderMode.OVERLAY_ONLY,
                  color: bool = True,
                  width: int = WIDTH
                  ) -> Tuple[str, List[ImageOverlay]]:
-    """Build the editor frame. Returns ``(frame_string, overlays)``."""
+    """Build the editor frame. Returns ``(frame_string, overlays)``.
+
+    Always emits OVERLAY_ONLY (blank art cells + absolute-coord overlays).
+    The ``mode`` parameter is preserved for backward compat with the
+    screenshot harness; only ``OVERLAY_ONLY`` is supported now.
+    """
     val = validate_view(view)
 
     # ----- HEADER -----
@@ -641,6 +662,10 @@ class LoadoutEditorRunner:
     _last_signature: Optional[tuple] = field(default=None, init=False)
 
     def run(self) -> int:
+        if self._is_tty() and not terminal_supports_kgp():
+            sys.stderr.write(_TERMINAL_REQUIRED_ERROR)
+            sys.stderr.flush()
+            return 2
         try:
             self._enter_screen()
             with keyboard_reader_or_dummy(self.keyboard) as kb:
@@ -657,7 +682,7 @@ class LoadoutEditorRunner:
             self._exit_screen()
         return 0
 
-    def render_once(self, *, mode: RenderMode = RenderMode.HALFBLOCK
+    def render_once(self, *, mode: RenderMode = RenderMode.OVERLAY_ONLY
                     ) -> Tuple[str, List[ImageOverlay]]:
         return render_frame(self.view, mode=mode,
                             color=self.color, width=self.width)
@@ -788,23 +813,23 @@ class LoadoutEditorRunner:
             return False
 
     def _render(self, *, force: bool = False) -> None:
-        # KGP path (in our bundled WezTerm): emit blank art regions in the
-        # text frame, then KGP-paint each ImageOverlay's bitmap on top.
-        # Falls back to half-block when running in a non-KGP terminal.
-        use_kgp = terminal_supports_kgp() and self._is_tty()
-        mode = RenderMode.OVERLAY_ONLY if use_kgp else RenderMode.HALFBLOCK
-        screen, overlays = render_frame(self.view, mode=mode,
+        # Always emit OVERLAY_ONLY: the text frame leaves blank cells for
+        # each tile's art region; on a TTY we KGP-paint the real bitmap on
+        # top via paint_overlays_as_kgp. Non-TTY sinks (pipes, screenshot
+        # harness) get the text frame only — overlays surface via the
+        # public render_once API for downstream pipelines.
+        # The startup check in run() guarantees the TTY supports KGP.
+        screen, overlays = render_frame(self.view,
                                         color=self.color, width=self.width)
         sig = (self.view.pane, self.view.catalog_cursor,
                self.view.loadout_cursor,
                tuple((s.entry.card_id if s.entry else None) for s in self.view.slots),
-               self.view.dirty, self.view.flash,
-               use_kgp)
+               self.view.dirty, self.view.flash)
         if not force and sig == self._last_signature:
             return
-        kgp_paint = paint_overlays_as_kgp(overlays) if use_kgp else ""
         self._last_signature = sig
         if self._is_tty():
+            kgp_paint = paint_overlays_as_kgp(overlays)
             self.sink.write(HOME + screen + kgp_paint + "\n")
         else:
             self.sink.write(screen + "\n")

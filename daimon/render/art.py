@@ -1,7 +1,7 @@
 """Per-card art path resolution — equipped-skin aware.
 
 Single source of truth for "given a card_id, what PNG do I render?". Used
-by every renderer (compose_card, render_hybrid, the play HUD's art panel)
+by every renderer (compose_card, the KGP painter, the play HUD's art panel)
 so a player who equips a skin sees it everywhere — battles, replays, the
 collection view, the shop preview.
 

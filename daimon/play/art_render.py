@@ -1,30 +1,32 @@
 """Card-art rendering primitives for the interactive TUIs.
 
-Two output paths:
+DAIMON ships its own terminal (the bundled WezTerm — see
+:mod:`daimon.render.wezterm_bundle`), so the only live-rendering path is
+**Kitty Graphics Protocol** (KGP): full-fidelity PNG bytes streamed via
+APC sequences, painted in-place over blank cells in the text frame.
 
-  1. **Live terminal** — render a card art file as a stack of ANSI half-block
-     lines (`▀` glyph with truecolor fg/bg). Universal: works on any modern
-     terminal that speaks 24-bit color (Kitty, iTerm2, Alacritty, Ghostty,
-     WezTerm, gnome-terminal, foot, mintty…). One char per cell × 2 px per
-     cell vertical resolution.
+The legacy half-block (▀ truecolor) fallback was removed in Phase E once
+the bundled-terminal launcher (Phase C) made every launch land inside our
+WezTerm. Users that bypass the auto-relaunch with ``--in-place`` get a
+clean error pointing at ``daimon install`` rather than degraded rendering.
 
-  2. **Screenshot** — *no half-block step*. The PNG renderer in
-     ``screenshot.py`` accepts an :class:`ImageOverlay` list and pastes the
-     real PIL image directly into the canvas at the right cell coordinates.
-     This produces a pixel-perfect screenshot for design review.
+Two output paths share this module:
 
-Both paths share one resolver: :func:`resolve_card_art`. It wraps the
-engine's :func:`daimon.render.art.art_path_for` and adds a couple of
-convenience layers (in-memory thumbnail cache, missing-art placeholder).
+  1. **Live terminal** (bundled WezTerm) — the TUI emits a frame full of
+     blank cells via :class:`RenderMode.OVERLAY_ONLY`, then calls
+     :func:`paint_overlays_as_kgp` to paint the real bitmaps on top via
+     Kitty Graphics Protocol.
 
-This module is render-only — it never reads card metadata or makes
-decisions about which art belongs to which card. Callers pass in card_id
-+ optional skin_slug; we return pixels.
+  2. **Screenshot** — the PNG renderer in :mod:`daimon.play.screenshot`
+     accepts the same :class:`ImageOverlay` records and pastes the real
+     PIL bitmaps directly into the canvas at the right cell coordinates.
+     Pixel-perfect for design review.
 
-Why no Kitty/iTerm2 graphics protocol path here? V2 ships universal
-half-block first; pixel-protocol upgrades land in V3 once we know how the
-half-block layout reads in real use. The architecture leaves room for
-additional renderers — see :class:`RenderMode`.
+Both paths share one resolver: :func:`resolve_card_art`, which wraps the
+engine's :func:`daimon.render.art.art_path_for` and adds a small
+in-memory thumbnail cache + missing-art placeholder. The module never
+reads card metadata or makes decisions about which art belongs to which
+card — callers pass in card_id + optional skin_slug; we return pixels.
 """
 
 from __future__ import annotations
@@ -34,10 +36,6 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
-
-from PIL import Image
-
-from daimon.play.tui_style import RESET
 
 # ---------------------------------------------------------------------------
 # Asset resolution
@@ -85,73 +83,25 @@ def resolve_card_art(card_id: str, *,
 class RenderMode(str, Enum):
     """How a tile's art region is filled.
 
-    HALFBLOCK: 24-bit color half-block (▀) — universal live-terminal mode.
-    PLACEHOLDER: solid blanks + corner glyphs — for `--no-tui` / no-color
-                 / missing-art.
-    OVERLAY_ONLY: emit blanks; the SCREENSHOT renderer will paste the PIL
-                  image over the cells. Used by the PNG render path so we
-                  never half-block-rasterize when generating a still image.
+    OVERLAY_ONLY: emit blanks; the SCREENSHOT pipeline pastes the PIL
+                  image, the LIVE pipeline KGP-paints it. The default
+                  and only "real art" mode now that half-block has been
+                  retired in favour of the bundled WezTerm.
+    PLACEHOLDER:  solid blanks + corner glyphs — for `--no-tui` /
+                  no-color / missing-art tiles where there's no PNG to
+                  display.
     """
 
-    HALFBLOCK = "halfblock"
-    PLACEHOLDER = "placeholder"
     OVERLAY_ONLY = "overlay_only"
+    PLACEHOLDER = "placeholder"
 
 
 # ---------------------------------------------------------------------------
-# Half-block rendering
+# Placeholder + overlay-blank glyph rendering
 # ---------------------------------------------------------------------------
 
-# Upper half-block — fg paints the top half-pixel, bg paints the bottom.
-HALF_BLOCK = "\u2580"
-
-# Glyphs for the placeholder mode.
 PLACEHOLDER_FILL = "\u2592"     # ▒ medium shade — reads as "art here"
 PLACEHOLDER_CORNERS = ("┌", "┐", "└", "┘")
-
-
-def _load_resized(image_path: Path, w_px: int, h_px: int) -> Image.Image:
-    """Load + resize ``image_path`` to (w_px, h_px) RGB. LANCZOS sampler."""
-    img = Image.open(image_path).convert("RGB")
-    return img.resize((w_px, h_px), Image.LANCZOS)
-
-
-def render_halfblock(image_path: Path,
-                     cells_w: int, cells_h: int) -> List[str]:
-    """Render ``image_path`` as ``cells_h`` ANSI lines of ``cells_w`` chars.
-
-    Each line uses upper-half-block (▀) glyphs with truecolor fg + bg so
-    each cell encodes a 1×2 pixel block. Result is a true 24-bit colour
-    rasterisation — works in any terminal that supports `\\x1b[38;2;...m`
-    SGR sequences.
-
-    Lines are RESET-terminated so colour state doesn't bleed into adjacent
-    cells when the caller splices them into a wider frame.
-    """
-    if cells_w <= 0 or cells_h <= 0:
-        return []
-    img = _load_resized(image_path, cells_w, cells_h * 2)
-    px = img.load()
-    out: List[str] = []
-    for cy in range(cells_h):
-        parts: List[str] = []
-        last_top: Optional[tuple] = None
-        last_bot: Optional[tuple] = None
-        for cx in range(cells_w):
-            top = px[cx, cy * 2]
-            bot = px[cx, cy * 2 + 1]
-            # Re-emit SGR only when colour changes — keeps the line short
-            # enough that long rows don't blow out terminal buffers.
-            if top != last_top:
-                parts.append(f"\x1b[38;2;{top[0]};{top[1]};{top[2]}m")
-                last_top = top
-            if bot != last_bot:
-                parts.append(f"\x1b[48;2;{bot[0]};{bot[1]};{bot[2]}m")
-                last_bot = bot
-            parts.append(HALF_BLOCK)
-        parts.append(RESET)
-        out.append("".join(parts))
-    return out
 
 
 def render_placeholder(cells_w: int, cells_h: int, *,
@@ -178,11 +128,11 @@ def render_placeholder(cells_w: int, cells_h: int, *,
 
 
 def render_overlay_blank(cells_w: int, cells_h: int) -> List[str]:
-    """Blank cells, used when a screenshot will paste real PIL pixels here.
+    """Blank cells, used when KGP / the screenshot renderer paints pixels here.
 
-    The frame composer stitches these into the layout; the screenshot
-    renderer overlays the actual image on top. Live terminals never call
-    this path (they'd see nothing), only the PNG pipeline does.
+    The frame composer stitches these into the layout; the live pipeline
+    then paints the bitmap via :func:`paint_overlays_as_kgp` and the
+    screenshot pipeline pastes the PIL image on top.
     """
     blank = " " * cells_w
     return [blank for _ in range(cells_h)]
@@ -197,9 +147,10 @@ def render_overlay_blank(cells_w: int, cells_h: int) -> List[str]:
 class TileArt:
     """One rendered tile-art block.
 
-    ``lines`` are ANSI strings with visible width ``cells_w``. ``image_path``
-    is preserved so the PNG renderer can find the source bitmap when the
-    mode is OVERLAY_ONLY.
+    ``lines`` are blank ANSI strings with visible width ``cells_w`` (or
+    placeholder glyphs when the card has no art on disk). ``image_path``
+    is preserved so the painter / screenshot pipeline can find the source
+    bitmap to paint over the blanks.
     """
     lines: List[str]
     cells_w: int
@@ -210,7 +161,7 @@ class TileArt:
 
 def render_card_art(card_id: str, cells_w: int, cells_h: int, *,
                     skin_slug: Optional[str] = None,
-                    mode: RenderMode = RenderMode.HALFBLOCK,
+                    mode: RenderMode = RenderMode.OVERLAY_ONLY,
                     placeholder_label: Optional[str] = None) -> TileArt:
     """High-level entry point: card_id → ready-to-splice art block.
 
@@ -221,9 +172,7 @@ def render_card_art(card_id: str, cells_w: int, cells_h: int, *,
     img = resolve_card_art(card_id, skin_slug=skin_slug)
     effective_mode = mode if img is not None else RenderMode.PLACEHOLDER
 
-    if effective_mode == RenderMode.HALFBLOCK and img is not None:
-        lines = render_halfblock(img, cells_w, cells_h)
-    elif effective_mode == RenderMode.OVERLAY_ONLY and img is not None:
+    if effective_mode == RenderMode.OVERLAY_ONLY and img is not None:
         lines = render_overlay_blank(cells_w, cells_h)
     else:
         lines = render_placeholder(cells_w, cells_h,
@@ -248,7 +197,7 @@ def render_card_art(card_id: str, cells_w: int, cells_h: int, *,
 # KGP (our bundled WezTerm — see daimon/render/wezterm_bundle.py).
 #
 # The flow:
-#   1. TUI calls render_frame(..., mode=RenderMode.OVERLAY_ONLY) → frame_str + overlays
+#   1. TUI calls render_frame(...) → frame_str + overlays (always OVERLAY_ONLY now)
 #   2. TUI prints frame_str (blanks where art goes)
 #   3. TUI prints paint_overlays_as_kgp(overlays) — terminal renders bitmaps
 #
