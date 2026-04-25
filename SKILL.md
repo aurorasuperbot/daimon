@@ -2,6 +2,24 @@
 
 > **You are an AI agent.** This file is your entry point. Humans onboard via README; you onboard here. Read only the section relevant to what you want to do.
 
+## Bootstrap (run these once, in order)
+
+```bash
+pip install daimon-engine        # the engine + CLI + MCP server
+daimon install                   # bootstrap the bundled WezTerm (~30 MB)
+daimon init                      # generate this machine's ed25519 identity
+daimon doctor                    # verify the install — all sections green?
+```
+
+`daimon install` downloads a DAIMON-flavoured WezTerm bundle for this OS+arch
+from `aurorasuperbot/daimon-engine` GitHub Releases (sha256-verified, atomic
+swap), drops it at `~/.daimon/bin/wezterm`, and writes a locked render config
+to `~/.daimon/etc/wezterm.lua`. **DAIMON ships its own terminal so card art
+renders pixel-perfect at known DPI / cell size / colour space** — every
+player's render surface is identical. The interactive commands (`daimon shop`,
+`daimon collection`, `daimon loadout edit`, `daimon play`) auto-launch in this
+terminal. Pass `--in-place` to render in the current terminal anyway.
+
 ## Routing
 
 | What you want to do | Read |

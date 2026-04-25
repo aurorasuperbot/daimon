@@ -272,3 +272,129 @@ def test_remove_bundle_clears_bin_and_etc(fake_root, tmp_path):
     assert wb.bin_dir() in removed
     assert wb.etc_dir() in removed
     assert wb.is_installed() is False
+
+
+# ---------------------------------------------------------------------------
+# Auto-relaunch decision logic
+# ---------------------------------------------------------------------------
+
+
+class _FakeStdout:
+    """Stand-in for sys.stdout in TTY-detection tests."""
+    def __init__(self, is_tty: bool):
+        self._is_tty = is_tty
+
+    def isatty(self) -> bool:
+        return self._is_tty
+
+
+def _install_fake_bundle(fake_root: Path, tmp_path: Path) -> None:
+    tar = _make_fake_bundle_tarball(tmp_path / "bundle.tar.gz")
+    wb.install_from_tarball(tar, version="wezterm-bundle-vTEST")
+
+
+def test_should_relaunch_skips_when_already_inside(fake_root, tmp_path,
+                                                   monkeypatch):
+    _install_fake_bundle(fake_root, tmp_path)
+    monkeypatch.setenv(wb.INSIDE_TERMINAL_ENV, "1")
+    monkeypatch.setattr("sys.stdout", _FakeStdout(True))
+    monkeypatch.setenv("DISPLAY", ":0")  # Linux guard
+    ok, reason = wb.should_relaunch_in_bundled_terminal()
+    assert ok is False
+    assert reason is None  # silent — already inside is not a hint-worthy case
+
+
+def test_should_relaunch_skips_when_not_a_tty(fake_root, tmp_path,
+                                              monkeypatch):
+    _install_fake_bundle(fake_root, tmp_path)
+    monkeypatch.delenv(wb.INSIDE_TERMINAL_ENV, raising=False)
+    monkeypatch.setattr("sys.stdout", _FakeStdout(False))
+    monkeypatch.setenv("DISPLAY", ":0")
+    ok, reason = wb.should_relaunch_in_bundled_terminal()
+    assert ok is False
+    assert reason is None  # silent — piped output is not a hint-worthy case
+
+
+def test_should_relaunch_returns_hint_when_not_installed(fake_root,
+                                                        monkeypatch):
+    # No install fixture — bundle absent.
+    monkeypatch.delenv(wb.INSIDE_TERMINAL_ENV, raising=False)
+    monkeypatch.setattr("sys.stdout", _FakeStdout(True))
+    monkeypatch.setenv("DISPLAY", ":0")
+    ok, reason = wb.should_relaunch_in_bundled_terminal()
+    assert ok is False
+    assert reason is not None and "daimon install" in reason
+
+
+@pytest.mark.skipif(platform.system() != "Linux",
+                    reason="DISPLAY guard is Linux-only")
+def test_should_relaunch_skips_when_no_display_on_linux(fake_root, tmp_path,
+                                                       monkeypatch):
+    _install_fake_bundle(fake_root, tmp_path)
+    monkeypatch.delenv(wb.INSIDE_TERMINAL_ENV, raising=False)
+    monkeypatch.setattr("sys.stdout", _FakeStdout(True))
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    ok, reason = wb.should_relaunch_in_bundled_terminal()
+    assert ok is False
+    assert reason is not None and "graphical" in reason.lower()
+
+
+@pytest.mark.skipif(platform.system() != "Linux",
+                    reason="DISPLAY guard is Linux-only")
+def test_should_relaunch_returns_true_when_all_conditions_met(fake_root,
+                                                              tmp_path,
+                                                              monkeypatch):
+    _install_fake_bundle(fake_root, tmp_path)
+    monkeypatch.delenv(wb.INSIDE_TERMINAL_ENV, raising=False)
+    monkeypatch.setattr("sys.stdout", _FakeStdout(True))
+    monkeypatch.setenv("DISPLAY", ":0")
+    ok, reason = wb.should_relaunch_in_bundled_terminal()
+    assert ok is True
+    assert reason is None
+
+
+def test_should_relaunch_require_tty_false_skips_tty_check(fake_root, tmp_path,
+                                                          monkeypatch):
+    """Callers that don't care about TTY (e.g. tests) can disable the guard."""
+    _install_fake_bundle(fake_root, tmp_path)
+    monkeypatch.delenv(wb.INSIDE_TERMINAL_ENV, raising=False)
+    monkeypatch.setattr("sys.stdout", _FakeStdout(False))  # not a TTY
+    monkeypatch.setenv("DISPLAY", ":0")  # Linux guard satisfied
+    ok, reason = wb.should_relaunch_in_bundled_terminal(require_tty=False)
+    if platform.system() == "Linux":
+        assert ok is True
+        assert reason is None
+
+
+def test_relaunch_in_bundled_terminal_raises_when_not_installed(fake_root):
+    with pytest.raises(wb.WezTermNotInstalledError):
+        wb.relaunch_in_bundled_terminal(["daimon", "shop"])
+
+
+def test_relaunch_in_bundled_terminal_calls_execvpe_with_inside_env(
+        fake_root, tmp_path, monkeypatch):
+    """Verify the env passed to execvpe sets DAIMON_INSIDE_TERMINAL=1."""
+    _install_fake_bundle(fake_root, tmp_path)
+    captured: dict = {}
+
+    def _fake_execvpe(file, args, env):
+        captured["file"] = file
+        captured["args"] = args
+        captured["env"] = env
+        # Must raise — execvpe normally never returns; raising surfaces any
+        # tests that forget to short-circuit the caller's flow.
+        raise SystemExit(0)
+
+    monkeypatch.setattr("os.execvpe", _fake_execvpe)
+    with pytest.raises(SystemExit):
+        wb.relaunch_in_bundled_terminal(["daimon", "shop"])
+
+    assert captured["file"] == str(wb.wezterm_bin())
+    assert captured["env"][wb.INSIDE_TERMINAL_ENV] == "1"
+    # The inner command appears after `--`.
+    assert "--" in captured["args"]
+    sep = captured["args"].index("--")
+    assert captured["args"][sep + 1:] == ["daimon", "shop"]
+    # Locked config was rewritten.
+    assert wb.wezterm_config_path().is_file()

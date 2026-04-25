@@ -42,6 +42,36 @@ ART_PURE_COMMANDS = frozenset({
 })
 
 
+def _maybe_relaunch_in_terminal(*, in_place: bool, sub_argv: list[str]) -> None:
+    """Re-exec the current command inside DAIMON's bundled WezTerm.
+
+    Called by interactive TUI commands (``play`` / ``shop`` / ``collection`` /
+    ``loadout edit``) immediately before they launch their TUI. If the
+    relaunch happens, this function never returns — ``os.execvpe`` replaces
+    the process. Otherwise it returns and the caller proceeds in-place.
+
+    The ``--in-place`` flag on each command suppresses the relaunch entirely,
+    for users (or agents) who explicitly want to render in their current
+    terminal.
+
+    When the bundle isn't installed, prints a one-line hint pointing at
+    ``daimon install`` but does NOT abort — the in-place TUI still works
+    (degraded), it just won't render card art crisply.
+    """
+    if in_place:
+        return
+    from daimon.render.wezterm_bundle import (
+        relaunch_in_bundled_terminal,
+        should_relaunch_in_bundled_terminal,
+    )
+    ok, reason = should_relaunch_in_bundled_terminal()
+    if ok:
+        relaunch_in_bundled_terminal(["daimon", *sub_argv])
+        return  # unreachable on success; defensive
+    if reason:
+        click.echo(f"hint: {reason}", err=True)
+
+
 @click.group()
 @click.version_option(__version__, prog_name="daimon")
 @click.pass_context
@@ -290,8 +320,11 @@ def match(loadout_a: str, loadout_b: str, seed: str | None) -> None:
               help="Start each match paused instead of auto-playing.")
 @click.option("--tick-ms", default=50, type=int,
               help="Loop tick interval in ms (default: 50 = 20 Hz).")
+@click.option("--in-place", is_flag=True,
+              help="Render in the current terminal instead of auto-launching "
+                   "DAIMON's bundled WezTerm.")
 def play(state_path: str | None, no_color: bool, no_input: bool,
-         paused: bool, tick_ms: int) -> None:
+         paused: bool, tick_ms: int, in_place: bool) -> None:
     """Spectator HUD — watch matches play out live in this terminal.
 
     Opens a long-lived ASCII window that watches state.json for new match
@@ -307,6 +340,22 @@ def play(state_path: str | None, no_color: bool, no_input: bool,
 
     Idle screen shows a list of recently-seen matches. Quit any time with q.
     """
+    # Auto-launch in our bundled WezTerm so card art renders pixel-perfect.
+    # Forwards the flags so the relaunched window picks them up.
+    forward: list[str] = ["play"]
+    if state_path:
+        forward.extend(["--state", state_path])
+    if no_color:
+        forward.append("--no-color")
+    if no_input:
+        forward.append("--no-input")
+    if paused:
+        forward.append("--paused")
+    if tick_ms != 50:
+        forward.extend(["--tick-ms", str(tick_ms)])
+    forward.append("--in-place")  # the relaunched child runs in-place
+    _maybe_relaunch_in_terminal(in_place=in_place, sub_argv=forward)
+
     from daimon.play.hud import run_play
 
     rc = run_play(
@@ -871,9 +920,12 @@ def _format_secs(secs: int) -> str:
               help="Show details for one slot only.")
 @click.option("--no-tui", "no_tui", is_flag=True,
               help="Skip the interactive TUI; print a plain text listing.")
+@click.option("--in-place", is_flag=True,
+              help="Render in the current terminal instead of auto-launching "
+                   "DAIMON's bundled WezTerm.")
 @click.pass_context
 def shop(ctx: click.Context, as_json: bool, slot_idx: int | None,
-         no_tui: bool) -> None:
+         no_tui: bool, in_place: bool) -> None:
     """Browse today's 6-slot skin shop. Refreshes daily at 00:00 UTC.
 
     By default launches an interactive TUI (←→ select, ENTER buy, R refresh,
@@ -903,6 +955,10 @@ def shop(ctx: click.Context, as_json: bool, slot_idx: int | None,
                 and slot_idx is None
                 and sys.stdout.isatty())
     if want_tui:
+        # Auto-launch in our bundled WezTerm — TUI only relaunches because
+        # the text/JSON paths don't need pixel-perfect art rendering.
+        _maybe_relaunch_in_terminal(in_place=in_place,
+                                    sub_argv=["shop", "--in-place"])
         from daimon.play.shop_ui import run_shop_tui
         sys.exit(run_shop_tui())
 
@@ -1124,8 +1180,11 @@ def _rarity_sort_key(r: str) -> int:
               help="Filter to one card_id (shows every serial of that card).")
 @click.option("--no-tui", "no_tui", is_flag=True,
               help="Skip the interactive TUI; print a plain text listing.")
+@click.option("--in-place", is_flag=True,
+              help="Render in the current terminal instead of auto-launching "
+                   "DAIMON's bundled WezTerm.")
 def collection(as_json: bool, rarity: str | None, card: str | None,
-               no_tui: bool) -> None:
+               no_tui: bool, in_place: bool) -> None:
     """Browse cards owned by this identity.
 
     By default launches an interactive TUI (↑↓ select, S sort, F rarity-filter,
@@ -1153,6 +1212,9 @@ def collection(as_json: bool, rarity: str | None, card: str | None,
                 and card is None
                 and sys.stdout.isatty())
     if want_tui:
+        # Auto-launch in our bundled WezTerm for the same reason as shop.
+        _maybe_relaunch_in_terminal(in_place=in_place,
+                                    sub_argv=["collection", "--in-place"])
         from daimon.play.collection_ui import run_collection_tui
         sys.exit(run_collection_tui())
 
@@ -1757,7 +1819,10 @@ def loadout_new(out: str | None, catalog: str | None) -> None:
               help="Catalog id to draw cards from (default: v1_alpha).")
 @click.option("--no-tui", "no_tui", is_flag=True,
               help="Refuse to launch the TUI (returns 2). For non-TTY agents.")
-def loadout_edit(name: str, catalog_id: str, no_tui: bool) -> None:
+@click.option("--in-place", is_flag=True,
+              help="Render in the current terminal instead of auto-launching "
+                   "DAIMON's bundled WezTerm.")
+def loadout_edit(name: str, catalog_id: str, no_tui: bool, in_place: bool) -> None:
     """Open the interactive split-pane loadout editor for ``name``.
 
     Catalog appears on the left, your 6-slot team on the right. Live
@@ -1790,6 +1855,13 @@ def loadout_edit(name: str, catalog_id: str, no_tui: bool) -> None:
             err=True,
         )
         sys.exit(2)
+
+    # Auto-launch in our bundled WezTerm so the editor's card art renders
+    # at the locked DPI / cell-size / colour-space.
+    _maybe_relaunch_in_terminal(
+        in_place=in_place,
+        sub_argv=["loadout", "edit", name, "--catalog", catalog_id, "--in-place"],
+    )
 
     from daimon.play.loadout_editor import run_loadout_editor
     sys.exit(run_loadout_editor(name, catalog_id=catalog_id))

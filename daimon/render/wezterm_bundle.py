@@ -246,6 +246,83 @@ def launch(command: List[str], *,
 
 
 # ---------------------------------------------------------------------------
+# Auto-relaunch — interactive TUI commands re-exec into our bundled WezTerm
+# so users always get the locked render surface, regardless of which
+# terminal they typed `daimon shop` from.
+# ---------------------------------------------------------------------------
+
+#: Env-var sentinel set when we relaunch into our terminal. Prevents an
+#: infinite re-exec loop and lets nested commands skip the relaunch.
+INSIDE_TERMINAL_ENV = "DAIMON_INSIDE_TERMINAL"
+
+
+def should_relaunch_in_bundled_terminal(*,
+                                        require_tty: bool = True
+                                        ) -> tuple[bool, Optional[str]]:
+    """Decide whether to re-exec the current process into our bundled WezTerm.
+
+    Returns ``(True, None)`` when the relaunch should happen.
+    Returns ``(False, reason)`` otherwise — ``reason`` is a short
+    human-readable string the caller can echo as a hint, or ``None`` when
+    the situation isn't worth surfacing (already inside, piped output).
+
+    Conditions checked, in order:
+      1. ``DAIMON_INSIDE_TERMINAL=1`` already set → no relaunch (silent).
+      2. ``require_tty`` AND stdout is not a TTY → no relaunch (silent).
+         This is the agent / pipe path: caller wants text out, not a window.
+      3. Bundle not installed → no relaunch, returns a hint reason.
+      4. Linux without ``$DISPLAY`` and ``$WAYLAND_DISPLAY`` → no relaunch,
+         no graphical session to spawn into.
+      5. Otherwise → relaunch.
+
+    macOS and Windows have an implicit display, so guard #4 is Linux-only.
+    """
+    import sys
+
+    if os.environ.get(INSIDE_TERMINAL_ENV) == "1":
+        return False, None
+    if require_tty and not sys.stdout.isatty():
+        return False, None
+    if not is_installed():
+        return False, "DAIMON terminal not installed (run `daimon install`)"
+    if platform.system() == "Linux":
+        if not (os.environ.get("DISPLAY")
+                or os.environ.get("WAYLAND_DISPLAY")):
+            return False, "no graphical display detected"
+    return True, None
+
+
+def relaunch_in_bundled_terminal(command: List[str], *,
+                                 cwd: Optional[Path] = None) -> None:
+    """Replace the current process with our WezTerm running ``command``.
+
+    Uses ``os.execvpe`` so the parent shell's exit code reflects the WezTerm
+    window's exit. Sets ``DAIMON_INSIDE_TERMINAL=1`` in the child env so the
+    re-launched ``daimon`` invocation skips this relaunch and proceeds to
+    the actual TUI.
+
+    Always rewrites the locked config first (so daimon-engine upgrades
+    refresh the on-disk config the new window will load).
+
+    Raises :class:`WezTermNotInstalledError` if the bundle isn't present —
+    callers should gate this with :func:`should_relaunch_in_bundled_terminal`
+    rather than relying on the exception path for control flow.
+
+    NOTE: this function never returns under normal conditions — execvpe
+    replaces the process. It only returns control if execvpe itself fails.
+    """
+    if not is_installed():
+        raise WezTermNotInstalledError(
+            f"daimon's bundled WezTerm not installed at {wezterm_bin()}; "
+            "run `daimon install` to bootstrap.")
+    write_locked_config()
+    argv = build_launch_argv(command, cwd=cwd)
+    env = dict(os.environ)
+    env[INSIDE_TERMINAL_ENV] = "1"
+    os.execvpe(argv[0], argv, env)
+
+
+# ---------------------------------------------------------------------------
 # Tarball extraction (called by the installer)
 # ---------------------------------------------------------------------------
 
