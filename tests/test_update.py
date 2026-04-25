@@ -572,6 +572,42 @@ class TestChecker:
         )
         checker.ensure_art_available()  # must not raise
 
+    def test_ensure_art_available_skips_when_opted_out_and_no_pack(
+        self, art_dir: Path, monkeypatch, capsys
+    ):
+        """DAIMON_NO_AUTO_UPDATE=1 is an UNCONDITIONAL opt-out.
+
+        Even with no pack installed, the env var must suppress the
+        synchronous first-run fetch. The function emits a one-line
+        stderr warning and returns — it must NOT raise, and downstream
+        ``art_path_for`` will soft-fail to None.
+        """
+        # No pack installed — confirm starting state.
+        assert not checker.is_pack_installed()
+
+        monkeypatch.setenv("DAIMON_NO_AUTO_UPDATE", "1")
+        # Both network paths must NOT be called.
+        monkeypatch.setattr(
+            checker, "spawn_background_check",
+            lambda: pytest.fail("spawn called when opted out"),
+        )
+
+        def _no_network(*_a, **_kw):
+            pytest.fail("network/fetch called when opted out")
+
+        monkeypatch.setattr(api, "urlopen", _no_network)
+        monkeypatch.setattr(fetcher, "_http_open", _no_network)
+
+        checker.ensure_art_available()  # must not raise
+
+        # Pack should still be missing — opt-out means no install.
+        assert not checker.is_pack_installed()
+
+        # Warning should mention the env var + the missing-pack situation.
+        captured = capsys.readouterr()
+        assert "DAIMON_NO_AUTO_UPDATE" in captured.err
+        assert "no art pack" in captured.err.lower()
+
     def test_ensure_art_available_spawns_when_due(
         self, art_dir: Path, monkeypatch
     ):

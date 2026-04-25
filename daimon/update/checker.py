@@ -205,7 +205,8 @@ def ensure_art_available(
 
         installed   auto_update   check_due   action
         ----------  ------------  ----------  ---------------------------
-        no          *             *           SYNCHRONOUS download (block)
+        no          no            *           WARN to stderr, return
+        no          yes           *           SYNCHRONOUS download (block)
         yes         no            *           no-op
         yes         yes           no          no-op
         yes         yes           yes         spawn detached check
@@ -214,13 +215,37 @@ def ensure_art_available(
     (used by the explicit ``daimon update`` command — there we WANT to
     block on the network call).
 
+    ``DAIMON_NO_AUTO_UPDATE=1`` is an UNCONDITIONAL opt-out: it suppresses
+    the first-run sync fetch as well as background checks. When opted out
+    with no pack installed we emit a one-line stderr warning explaining
+    the state (rendering will fall back to placeholders via
+    ``art_path_for``'s soft-fail) so the user understands why art is
+    missing. This contract matches the documented behavior in the
+    package docstring.
+
     This function never raises on network failure when a pack is already
     installed — that's the whole point of the rate-limit + background
-    pattern. First-run failures DO propagate (the caller can't proceed
-    without art).
+    pattern. First-run network failures DO propagate when auto-update is
+    enabled (the caller asked for the fetch and we couldn't deliver).
     """
+    # Opt-out short-circuit — UNCONDITIONAL. If the user set
+    # DAIMON_NO_AUTO_UPDATE=1 they explicitly do not want network calls,
+    # full stop. We honor it whether or not a pack is installed.
+    if not auto_update_enabled():
+        if not is_pack_installed(pack_name):
+            sys.stderr.write(
+                f"daimon: DAIMON_NO_AUTO_UPDATE=1 is set but no art pack "
+                f"is installed at {art_pack_dir(pack_name)}.\n"
+                f"  rendering will fall back to placeholders.\n"
+                f"  to install: unset DAIMON_NO_AUTO_UPDATE and re-run, "
+                f"or download the pack manually.\n"
+            )
+            sys.stderr.flush()
+        return
+
     if not is_pack_installed(pack_name):
-        # First run — synchronous fetch with the user watching.
+        # First run, auto-update enabled — synchronous fetch with the
+        # user watching.
         from daimon.update.fetcher import do_update
         cache_dir().mkdir(parents=True, exist_ok=True)
         sys.stderr.write(
@@ -238,9 +263,6 @@ def ensure_art_available(
         except Exception as e:
             update_last_check(error=str(e), action="install_failed")
             raise
-        return
-
-    if not auto_update_enabled():
         return
 
     if not is_check_due():
