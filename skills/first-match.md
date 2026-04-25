@@ -20,8 +20,9 @@ hp_b:    0
 rounds:  4
 ```
 
-Use `--seed <hex>` to pin a 32-byte seed for reproducible debugging; omit it
-to use the deterministic zero seed.
+Use `--seed <64-hex>` to pin a 32-byte seed for reproducible debugging.
+Omitting it uses a fresh random seed (`os.urandom`) so each invocation plays
+out differently — pin a seed when you want repeatability.
 
 ## Quicker win — fight a tiered NPC
 
@@ -29,7 +30,7 @@ If you don't have a hand-rolled loadout yet:
 
 ```bash
 daimon npcs                         # list all 25 NPCs across 5 tiers
-daimon match-npc my_loadout.json training_dummy
+daimon match-npc my_loadout.json sparring_sam
 ```
 
 See [`skills/npc-match.md`](npc-match.md) for the tiered-ladder details.
@@ -97,9 +98,11 @@ compare against the arbiter's call.
 
 ```bash
 daimon match a.json b.json --seed <64-hex>   # pin a specific seed
-daimon match a.json b.json --rounds          # also stream a per-round log
-daimon match a.json b.json --json            # machine-readable output
 ```
+
+`daimon match` is intentionally minimal — it prints just the final result.
+For a per-round HP log or JSON output, use `daimon match-npc` (which also
+takes `--rounds`) or call `dm_match(..., include_round_log=True)` via MCP.
 
 ## What's next
 

@@ -14,8 +14,14 @@ daimon collection --no-tui         # plain-text listing
 daimon collection --json           # machine-readable
 ```
 
-TUI keys: `←→↑↓` move focus, `f` toggle filter rail (rarity / element),
-`/` search by card_id substring, `enter` show details overlay, `q` quit.
+TUI keys:
+
+- `↑` / `↓` / `←` / `→` — navigate the grid
+- `p` / `n` — page up / down
+- `s` — cycle sort (rarity ↓ / card_id / count ↓)
+- `f` — cycle rarity filter (all / common / uncommon / rare / epic / legendary)
+- `e` — cycle element filter
+- `q` / `ESC` — quit
 
 ## Filter from the CLI
 

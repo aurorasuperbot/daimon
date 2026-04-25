@@ -1,6 +1,11 @@
 # Trade — V1.1
 
-> **Not yet implemented.** This file describes the planned 5-step atomic protocol.
+> **Settler shipped, awaiting arena enablement.** The atomic settlement
+> protocol is implemented in `daimon-arena/scripts/settle_trade.py` and
+> dispatched by the `trade-settle.yml` workflow on every `/accept` comment.
+> Like the PvP arbiter, the workflow runs only its self-test until the arena
+> repo has the `ENGINE_READ_TOKEN` secret provisioned to install the engine
+> from git. The Python script is fully usable locally.
 
 ## Protocol
 

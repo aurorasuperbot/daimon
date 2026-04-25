@@ -13,29 +13,20 @@ daimon npcs --tier veteran       # one tier
 daimon npcs --json
 ```
 
-Output (abbreviated):
+The full roster (5 NPCs per tier):
 
 ```
-ROOKIE
-  training_dummy        — "Hits anything that moves."
-  smolder               — "Beginner mage."
-  ...
-NOVICE
-  ...
-VETERAN
-  ...
-ELITE
-  ...
-CHAMPION
-  voidking_morr         — "Champion of the void echelon."
-  worldroot             — "Champion of the verdant wall."
-  ...
+ROOKIE      sparring_sam  hedgerow_hannah  spark_kid_sora  sundown_si  tidepool_tom
+NOVICE      forge_hand_fran  gentle_goro  owl_eyed_olive  static_sky  watchman_wren
+VETERAN     bramble_beth  quickfoot_quinn  rainmaker_reka  rust_priest_rhea  stormrider_sven
+ELITE       iron_shield_ira  mind_eater_mox  storm_warden_wynn  tide_priest_telos  volt_priest_vex
+CHAMPION    apex_king_atlas  doom_paw_doppia  mythbreaker_marn  stormcrown_sienna  voidwalker_vance
 ```
 
 ## Inspect one NPC
 
 ```bash
-daimon npc voidking_morr --json
+daimon npc voidwalker_vance --json
 ```
 
 Returns the full loadout (6 cards) + tier + rank + lore flavor. The
@@ -45,23 +36,26 @@ distinction.
 ## Fight one
 
 ```bash
-daimon match-npc my_loadout.json voidking_morr
-# opponent: voidking_morr  (champion, rank 25)
-#           "Champion of the void echelon."
+daimon match-npc my_loadout.json sparring_sam
+# opponent: Sparring Sam  (rookie, rank 1)
+#           "Trains with what's at hand."
 # seed:     <random>
 # winner:   you
-# reason:   side_b hp <= 0
-# hp_a:     34  (you)
-# hp_b:     0   (voidking_morr)
+# reason:   wipe
+# hp_a:     122  (you)
+# hp_b:     0    (Sparring Sam)
 # rounds:   5
 ```
 
 Useful flags:
 
 ```bash
-daimon match-npc my_loadout.json training_dummy --seed <64-hex>   # pin a seed
-daimon match-npc my_loadout.json smolder --rounds                 # per-round HP log
+daimon match-npc my_loadout.json sparring_sam --seed <64-hex>      # pin a seed
+daimon match-npc my_loadout.json voidwalker_vance --rounds         # per-round HP log
 ```
+
+(`--rounds` is supported on `match-npc` only — `daimon match` is
+PvE-vs-fixture and prints just the final result.)
 
 ## Why fight NPCs?
 

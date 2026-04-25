@@ -9,13 +9,18 @@ species.** Once a loadout is saved, you reference it by name everywhere
 ```bash
 daimon catalog list --rarity rare         # browse the pool
 daimon catalog card voltcat_apex          # inspect one card
-daimon loadout new my_volt --from-template volt_burst   # scaffold from a template
-daimon loadout edit my_volt               # interactive TUI editor
-daimon loadout validate my_volt           # structural check
+daimon loadout new --out ./my_volt.json   # scaffold a starter template (first 6 catalog cards)
+daimon loadout edit my_volt               # interactive TUI editor (operates on the saved name)
+daimon loadout validate ./my_volt.json    # structural check (takes a path)
 daimon loadout save ./my_volt.json my_volt   # save under that name
 daimon loadout list                       # see all saved
 daimon loadout load my_volt               # print to stdout
 ```
+
+`daimon loadout new` prints the template to stdout by default; `--out PATH`
+writes it to a file. The output is showcase-format (`{"loadout_id": "...",
+"loadout": ["card_id", ...]}`) — edit the array, then `daimon loadout save`
+the file under a name.
 
 ## Validate
 
@@ -56,27 +61,45 @@ daimon loadout edit volt_burst        # auto-launches WezTerm
 daimon loadout edit volt_burst --in-place    # current terminal
 ```
 
-TUI keys: `←→↑↓` move focus, `enter` swap a card, `s` save, `v` validate
-in-place, `q` quit (prompts if unsaved).
+TUI keys (split-pane catalog ⇄ loadout):
+
+- `↑` / `↓` — move cursor in the focused pane
+- `TAB` / `←` / `→` — swap focus between CATALOG and LOADOUT
+- `ENTER` / `+` — add the cursor card to the first empty loadout slot
+- `-` — drop the loadout slot under the cursor
+- `s` — save and exit (refuses if the loadout is invalid)
+- `q` / `ESC` — quit without saving
+
+Live validation against `engine.Loadout` runs on every change (TEAM_SIZE=6,
+≤2 same-species).
 
 ## Showcase loadouts (ship with the engine)
 
-Browse `daimon/loadouts/showcase/` for hand-built reference loadouts
+Browse `daimon/loadouts/showcase/` for 10 hand-built reference loadouts
 covering every archetype:
 
 ```bash
 ls daimon/loadouts/showcase/
-# l1_inferno_aggro.json    l6_volt_tempo.json
-# l2_bulwark_wall.json     l7_...
-# ...
+# showcase_l1_inferno_burnstack.json    showcase_l6_syncretic_mono_void.json
+# showcase_l2_bulwark_thorns.json       showcase_l7_prism_pantheon.json
+# showcase_l3_tidal_trickle.json        showcase_l8_funeral_pyre.json
+# showcase_l4_stormchain_tempo.json     showcase_l9_apex_predator.json
+# showcase_l5_revenant_cascade.json     showcase_l10_worldroot_garden.json
+# manifest.json
 ```
 
 These are the canonical examples — point at them with `daimon match` to
 get a fight going without hand-building from scratch:
 
 ```bash
-daimon match daimon/loadouts/showcase/l1_inferno_aggro.json daimon/loadouts/showcase/l2_bulwark_wall.json
+daimon match \
+  daimon/loadouts/showcase/showcase_l1_inferno_burnstack.json \
+  daimon/loadouts/showcase/showcase_l2_bulwark_thorns.json
 ```
+
+Showcase files use the wrapped format (`{"loadout_id": "...", "loadout":
+["card_id", ...]}`) — `load_loadout_file` accepts that shape, the bare
+list, and the `{"cards": [...]}` form interchangeably.
 
 ## Loadout shape (V2 monster JSON)
 

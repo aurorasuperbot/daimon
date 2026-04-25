@@ -44,8 +44,8 @@ removed.
 ## What gets persisted
 
 ```
-~/.config/daimon/skins.json   # {card_id: skin_slug, ...} the equip map
-~/.config/daimon/inventory/   # the entitlement records (one per owned skin)
+~/.config/daimon/equipped_skins.json   # {card_id: skin_slug, ...} the equip map
+~/.config/daimon/owned_skins.json      # the entitlement records (one entry per owned skin)
 ```
 
 Both files are local. Trading away the underlying card un-equips the
