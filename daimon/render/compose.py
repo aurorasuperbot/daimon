@@ -122,8 +122,8 @@ APNG_FRAME_DURATION_MS = {
 }
 
 # Overlay band proportions (fraction of card height)
-TOP_BAND_FRAC = 0.16        # top fade band height
-BOTTOM_BAND_FRAC = 0.38     # bottom fade band height (must hold stats + flavor)
+TOP_BAND_FRAC = 0.18        # top fade band height (holds badge + chip + title)
+BOTTOM_BAND_FRAC = 0.42     # bottom fade band height (holds stats strip + flavor)
 
 # Fallback font search paths (DejaVu first, Liberation second, default last)
 _FONT_BOLD = [
@@ -562,7 +562,7 @@ def _draw_top_overlay(card_img: Image.Image, card: Card, info: "CardRenderInfo",
     # Rarity badge — small rounded tag pinned to the top-left corner of the
     # band. Drawn first so the title can sit to its right.
     rt_text = info.rarity.upper()
-    rt_font = _font(_FONT_BOLD, 7, s)
+    rt_font = _font(_FONT_BOLD, 9, s)
     rt_pad_x, rt_pad_y = 5 * s, 3 * s
     rt_x = 6 * s
     rt_y = 5 * s
@@ -582,11 +582,12 @@ def _draw_top_overlay(card_img: Image.Image, card: Card, info: "CardRenderInfo",
               font=rt_font, fill=pal.accent)
     badge_right = badge_box[2]
 
-    # Title — sits on the second row of the band, full-width
-    title_font = _font(_FONT_BOLD, 13, s)
+    # Title — sits on the second row of the band, centered. Badge + chip
+    # share the row above, so the title gets the full card width here.
+    title_font = _font(_FONT_BOLD, 17, s)
     title = (info.name or card.card_id).upper()
     # Truncate gracefully if too long for the available width
-    max_title_w = W - 14 * s - 60 * s   # leave space for element chip on right
+    max_title_w = W - 14 * s
     while title:
         tb = draw.textbbox((0, 0), title, font=title_font)
         if tb[2] - tb[0] <= max_title_w:
@@ -594,7 +595,9 @@ def _draw_top_overlay(card_img: Image.Image, card: Card, info: "CardRenderInfo",
         title = title[:-1]
     if title != (info.name or card.card_id).upper():
         title = title.rstrip() + "…"
-    title_x = 8 * s
+    tb_final = draw.textbbox((0, 0), title, font=title_font)
+    title_w = tb_final[2] - tb_final[0]
+    title_x = (W - title_w) // 2
     title_y = badge_box[3] + 4 * s
     # Subtle title shadow for legibility on bright art
     draw.text((title_x + max(1, s // 2), title_y + max(1, s // 2)),
@@ -603,7 +606,7 @@ def _draw_top_overlay(card_img: Image.Image, card: Card, info: "CardRenderInfo",
 
     # Element chip — top-right of the band
     chip_text = card.element.name
-    chip_font = _font(_FONT_BOLD, 8, s)
+    chip_font = _font(_FONT_BOLD, 11, s)
     chip_pad_x, chip_pad_y = 5 * s, 3 * s
     chip_bbox = draw.textbbox((0, 0), chip_text, font=chip_font)
     chip_w = chip_bbox[2] - chip_bbox[0]
@@ -653,8 +656,8 @@ def _draw_bottom_overlay(card_img: Image.Image, card: Card, info: "CardRenderInf
     # Stats strip — placed inside the solid zone so labels/values are
     # always readable regardless of the underlying art's brightness.
     stats_top = solid_top + 6 * s
-    stat_label_font = _font(_FONT_BOLD, 7, s)
-    stat_val_font = _font(_FONT_BOLD, 14, s)
+    stat_label_font = _font(_FONT_BOLD, 10, s)
+    stat_val_font = _font(_FONT_BOLD, 20, s)
 
     def _foil(base: tuple) -> tuple:
         if foil_strength <= 0:
@@ -673,7 +676,7 @@ def _draw_bottom_overlay(card_img: Image.Image, card: Card, info: "CardRenderInf
         ("SPD", card.spd, _foil(pal.accent)),
     ]
     col_w = W // 4
-    val_y = stats_top + 10 * s
+    val_y = stats_top + 14 * s
     for i, (lbl, val, col) in enumerate(stats):
         cx = i * col_w + col_w // 2
         bbox = draw.textbbox((0, 0), lbl, font=stat_label_font)
@@ -692,38 +695,41 @@ def _draw_bottom_overlay(card_img: Image.Image, card: Card, info: "CardRenderInf
     sep_color = pal.accent_dark
     for i in range(1, 4):
         x = i * col_w
-        draw.line([(x, stats_top + 2 * s), (x, val_y + 14 * s)],
+        draw.line([(x, stats_top + 2 * s), (x, val_y + 20 * s)],
                   fill=sep_color, width=max(1, s // 2))
 
-    stats_bottom_y = val_y + 16 * s
+    stats_bottom_y = val_y + 22 * s
 
     # Divider between stats and flavor
     draw.line([(10 * s, stats_bottom_y), (W - 10 * s, stats_bottom_y)],
               fill=pal.accent_dark, width=max(1, s))
 
-    # Flavor — italic, wraps to up to 3 lines
+    # Flavor — italic, wraps to up to 3 lines, centered for the empty space
     if info.flavor:
-        flavor_font = _font(_FONT_ITALIC, 10, s)
-        flavor_top = stats_bottom_y + 6 * s
+        flavor_font = _font(_FONT_ITALIC, 13, s)
+        flavor_top = stats_bottom_y + 8 * s
         words = info.flavor.split()
         lines: list[str] = []
         current = ""
+        # Slightly tighter wrap target since glyphs are bigger now
         for w in words:
-            if len(current) + len(w) + 1 > 32:
+            if len(current) + len(w) + 1 > 26:
                 lines.append(current); current = w
             else:
                 current = (current + " " + w).strip()
         if current:
             lines.append(current)
-        line_h = 13 * s
+        line_h = 17 * s
         for i, line in enumerate(lines[:3]):
             text = f'"{line}"' if i == 0 else line
+            tb = draw.textbbox((0, 0), text, font=flavor_font)
+            tw = tb[2] - tb[0]
+            tx = (W - tw) // 2
+            ty = flavor_top + i * line_h
             # Shadow then text for crisp italic on uneven backgrounds
-            draw.text((10 * s + max(1, s // 2),
-                       flavor_top + i * line_h + max(1, s // 2)),
+            draw.text((tx + max(1, s // 2), ty + max(1, s // 2)),
                       text, font=flavor_font, fill=(0, 0, 0))
-            draw.text((10 * s, flavor_top + i * line_h),
-                      text, font=flavor_font, fill=pal.accent_light)
+            draw.text((tx, ty), text, font=flavor_font, fill=pal.accent_light)
 
     return card_img
 
