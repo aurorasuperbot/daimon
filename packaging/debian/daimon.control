@@ -1,0 +1,16 @@
+Package: daimon
+Version: 0.0.0
+Section: games
+Priority: optional
+Architecture: amd64
+Maintainer: aurorasuperbot <aurorasuperbot@users.noreply.github.com>
+Depends: libfontconfig1, libxkbcommon0, libxcb1
+Recommends: claude-code
+Homepage: https://github.com/aurorasuperbot/daimon
+Description: Terminal-first agentic-first TCG / autobattler
+ DAIMON is a terminal-first, agentic-first trading-card game and
+ autobattler. The CLI runs inside a bundled WezTerm so card art
+ renders pixel-perfect via the Kitty Graphics Protocol, and a
+ PostToolUse hook in Claude Code mines in-game currency from
+ productive agent activity. Ships with the dmn-mcp stdio server
+ so AI agents can play (and lose) autonomously.

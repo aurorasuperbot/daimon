@@ -1,0 +1,59 @@
+# AppImage recipe for DAIMON. Built by `appimage-builder` in CI:
+#
+#   appimage-builder --recipe packaging/appimage/daimon.AppImageBuilder.yml
+#
+# The recipe expects the Linux distribution archive to have been
+# extracted at `AppDir/usr/bin/` already — release-binaries.yml does
+# this in a follow-up step (deferred V1.5; for now manual).
+#
+# Bump `version` on each release. SHA pinning isn't required here —
+# the tarball is staged from the same workflow run that builds the
+# AppImage, so they're guaranteed to match.
+
+version: 1
+script:
+  - mkdir -p AppDir/usr/bin
+  - tar xzf dist/daimon-linux-x86_64.tar.gz -C /tmp
+  - cp -r /tmp/daimon-linux-x86_64/* AppDir/usr/bin/
+
+AppDir:
+  path: ./AppDir
+
+  app_info:
+    id: io.github.aurorasuperbot.daimon
+    name: DAIMON
+    icon: utilities-terminal
+    version: "0.0.0"  # BUMP ME on every release
+    exec: usr/bin/daimon
+    exec_args: $@
+
+  apt:
+    arch:
+      - amd64
+    sources:
+      - sourceline: deb http://archive.ubuntu.com/ubuntu jammy main universe
+        key_url: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920D1991BC93C
+    include:
+      # WezTerm has no apt deps when shipped as a static bundle, but
+      # libfontconfig + libxkbcommon are still required for the GUI
+      # binary to render anything.
+      - libfontconfig1
+      - libxkbcommon0
+      - libxcb1
+    exclude: []
+
+  files:
+    exclude:
+      - usr/share/man
+      - usr/share/doc
+      - usr/share/locale
+
+  test:
+    fedora:
+      image: fedora:39
+      command: ./AppRun --version
+
+AppImage:
+  arch: x86_64
+  update-information: gh-releases-zsync|aurorasuperbot|daimon|latest|daimon-*x86_64.AppImage.zsync
+  sign-key: None
