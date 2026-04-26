@@ -76,6 +76,7 @@ language interpretation only if none match.
 | `@daimon match-npc <Name>`        | `dm_match_npc(loadout, npc_id)`    | post the post-match summary              |
 | `@daimon init`                    | `dm_init()`                        | post pubkey + mnemonic warning           |
 | `@daimon show my collection`      | `dm_collection()`                  | post a compact summary                   |
+| `@daimon quests` / `@daimon daily`| `dm_quests()`                      | post the 3 quests + claimed-rewards diff |
 | `@daimon status` / `@daimon`      | `dm_home_card()`                   | same as `home`                           |
 
 For patterns NOT in this table (e.g. `@daimon play someone fun` or

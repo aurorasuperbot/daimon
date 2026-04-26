@@ -456,6 +456,119 @@ def _render_recent_pulls(recent_pulls: List[Dict[str, Any]]) -> str:
     )
 
 
+_TIER_COLOR = {
+    "easy": "#67e8f9",     # cyan-300 — quick, low-effort
+    "medium": _C_ACCENT,   # indigo — focused
+    "hard": "#f472b6",     # pink-400 — multi-step
+}
+
+
+def _render_quest_row(quest: Dict[str, Any]) -> str:
+    """One quest as a single-line row with progress bar + reward chip.
+
+    Renders three states:
+      * claimed → check-marked, low-opacity, "+N¤" muted
+      * complete (unclaimed) → bright accent CTA chip "claim ready"
+      * in-progress → standard row with fractional progress text
+    """
+    title = quest.get("title", "?")
+    tier = quest.get("tier", "")
+    reward = int(quest.get("reward", 0))
+    progress = int(quest.get("progress", 0))
+    target = max(int(quest.get("target", 1)), 1)
+    complete = bool(quest.get("complete"))
+    claimed = bool(quest.get("claimed"))
+
+    pct = min(100, int(round(progress * 100 / target)))
+    bar_color = _TIER_COLOR.get(tier, _C_ACCENT)
+
+    if claimed:
+        status_chip = (
+            f'<span style="color:{_C_MUTED};font-size:11px;'
+            'font-weight:600;letter-spacing:0.5px;">'
+            f"+{reward}¤  ✓"
+            "</span>"
+        )
+        title_color = _C_MUTED
+        bar_color = _C_MUTED
+    elif complete:
+        status_chip = (
+            f'<span style="background:{_C_WIN};color:{_C_BG};'
+            'padding:2px 6px;border-radius:4px;font-size:11px;'
+            'font-weight:700;letter-spacing:0.5px;">'
+            f"+{reward}¤  CLAIM READY"
+            "</span>"
+        )
+        title_color = _C_TEXT
+    else:
+        status_chip = (
+            f'<span style="color:{_C_MUTED};font-size:11px;'
+            'font-family:monospace;">'
+            f"{progress}/{target}  ·  +{reward}¤"
+            "</span>"
+        )
+        title_color = _C_TEXT
+
+    return (
+        f'<div style="margin-bottom:6px;">'
+        '<div style="display:flex;justify-content:space-between;'
+        'align-items:center;gap:8px;margin-bottom:3px;">'
+        f'<span style="color:{title_color};font-size:12px;'
+        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+        f"{_esc(title)}"
+        "</span>"
+        f"{status_chip}"
+        "</div>"
+        # Progress bar — rendered even when claimed (full-width muted) so
+        # rows stay vertically aligned and the eye reads the section as
+        # a coherent column.
+        f'<div style="background:{_C_PANEL_HI};border-radius:3px;'
+        'height:4px;overflow:hidden;">'
+        f'<div style="background:{bar_color};height:100%;'
+        f'width:{pct}%;"></div>'
+        "</div>"
+        "</div>"
+    )
+
+
+def _render_daily_quests(quests: List[Dict[str, Any]]) -> str:
+    """Daily quest panel — 3 rows, one per tier, with progress + claim chips.
+
+    Hidden when ``quests`` is empty (fresh install before the first
+    ``dm_home`` / ``dm_quests`` call has rolled the day's set).
+    """
+    if not quests:
+        return ""
+
+    # Compact header line: "DAILY QUESTS  ·  N/3 complete  ·  +X¤ pending".
+    completed = sum(1 for q in quests if q.get("complete"))
+    pending = sum(int(q.get("reward", 0))
+                  for q in quests
+                  if q.get("complete") and not q.get("claimed"))
+
+    sub_bits: List[str] = [f"{completed}/{len(quests)} complete"]
+    if pending:
+        sub_bits.append(f"+{pending}¤ pending")
+    sub_line = "  ·  ".join(sub_bits)
+
+    rows = "".join(_render_quest_row(q) for q in quests)
+
+    return (
+        f'<div style="background:{_C_PANEL};border-radius:8px;'
+        'padding:10px 12px;margin-bottom:12px;">'
+        '<div style="display:flex;justify-content:space-between;'
+        'align-items:baseline;margin-bottom:8px;">'
+        f'<div style="font-size:10px;color:{_C_MUTED};'
+        'letter-spacing:1px;">DAILY QUESTS</div>'
+        f'<div style="font-size:10px;color:{_C_MUTED};">'
+        f"{_esc(sub_line)}"
+        "</div>"
+        "</div>"
+        f"{rows}"
+        "</div>"
+    )
+
+
 def _render_loadouts(loadouts: List[Dict[str, Any]]) -> str:
     """Saved-loadouts strip with an inline 'build new' CTA when empty."""
     if not loadouts:
@@ -530,12 +643,14 @@ def render_home_card(payload: Dict[str, Any]) -> str:
     recent_pulls = payload.get("recent_pulls") or []
     recommended = payload.get("recommended_npc")
     loadouts = payload.get("saved_loadouts") or []
+    daily_quests = payload.get("daily_quests") or []
 
     body = "".join([
         _render_header(identity, rank, balance, pull),
         _render_play_cta(recommended),
         _render_secondary_actions(pull),
         _render_stats_strip(rank, recent_matches),
+        _render_daily_quests(daily_quests),
         _render_recent_pulls(recent_pulls),
         _render_loadouts(loadouts),
     ])

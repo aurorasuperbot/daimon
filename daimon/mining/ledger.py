@@ -12,8 +12,8 @@ just `sum(amount for entry in entries)`.
 
 Each entry is a dict with these fields:
   ts          — RFC3339 UTC timestamp
-  kind        — "mine" | "pull" | "genesis"
-  amount      — int (positive for mine, negative for pull, 0 for genesis)
+  kind        — "mine" | "pull" | "genesis" | "purchase" | "quest_reward"
+  amount      — int (positive for mine/quest_reward, negative for pull/purchase, 0 for genesis)
   tool_name   — Claude Code tool name (mine entries only)
   factors     — debug breakdown from compute_reward (mine only)
   novelty_key — dedup key (mine only)
@@ -379,6 +379,81 @@ def append_purchase_entry(
     return entry
 
 
+def append_quest_reward_entry(
+    *,
+    quest_id: str,
+    template_id: str,
+    tier: str,
+    reward: int,
+    date: str,
+    idempotency_key: Optional[str] = None,
+    identity: Optional[Identity] = None,
+    path: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    """Append a daily-quest reward (positive amount). Returns entry or None if deduped.
+
+    Mirrors ``append_mine_entry`` in shape — positive amount, no balance
+    check needed. Distinct ``kind="quest_reward"`` so quest income can be
+    broken out from raw mining in stats / ledger inspection.
+
+    Idempotency is the contract: ``evaluate_and_claim`` calls this with
+    ``idempotency_key=f"quest_{date}_{quest_id}"`` so a re-run of the
+    auto-claim logic NEVER mints a second reward for the same quest on
+    the same day. The dedup window (``IDEMPOTENCY_WINDOW=64``) covers
+    typical play volume — a player completing 64 quest-rewards in a
+    single day would be playing 21 perfect days back-to-back.
+
+    Args:
+      quest_id: Stable id from ``catalog.materialize`` (e.g.
+        ``"win_with_element__element-VOLT"``). Persisted on the entry
+        for ledger inspection / replay.
+      template_id: Template id (carried for stats and forward-compat
+        if a template is renamed in a future patch).
+      tier: ``easy`` / ``medium`` / ``hard`` — also carried for stats.
+      reward: Positive amount. Refuses zero/negative input loudly.
+      date: ``"YYYY-MM-DD"`` UTC date the quest belongs to. Persisted
+        so ``_has_quest_reward_today`` can match without parsing the
+        ``ts`` field.
+      idempotency_key: Optional override. Defaults to None (no dedup).
+
+    Raises:
+      ValueError: reward <= 0.
+    """
+    if reward <= 0:
+        raise ValueError("quest reward must be positive")
+    if path is None:
+        path = LEDGER_PATH
+    identity = identity or load_identity()
+    _ensure_dir()
+    initialize_ledger(identity, path)
+
+    entries = _read_entries(path)
+    if idempotency_key and _has_idempotency_key(idempotency_key, entries):
+        return None
+
+    last = entries[-1] if entries else None
+    prev_hash = entry_hash(last) if last else GENESIS_PREV_HASH
+
+    extras: Dict[str, Any] = {
+        "quest_id": quest_id,
+        "template_id": template_id,
+        "tier": tier,
+        "date": date,
+    }
+    if idempotency_key:
+        extras["idempotency_key"] = idempotency_key
+
+    entry = _build_entry(
+        identity=identity,
+        kind="quest_reward",
+        amount=int(reward),
+        prev_hash=prev_hash,
+        extras=extras,
+    )
+    _append_line(entry, path)
+    return entry
+
+
 def get_balance(path: Optional[Path] = None) -> int:
     if path is None:
         path = LEDGER_PATH
@@ -406,8 +481,10 @@ class LedgerStats:
     total_pulled: int
     pull_count: int
     mine_count: int
-    total_purchased: int = 0   # ¤ spent on shop skins (positive value)
-    purchase_count: int = 0    # number of skin purchases
+    total_purchased: int = 0     # ¤ spent on shop skins (positive value)
+    purchase_count: int = 0      # number of skin purchases
+    total_quest_reward: int = 0  # ¤ earned from daily quest auto-claims
+    quest_reward_count: int = 0  # number of quest_reward entries
 
 
 def get_stats(path: Optional[Path] = None) -> LedgerStats:
@@ -420,6 +497,8 @@ def get_stats(path: Optional[Path] = None) -> LedgerStats:
                     if e.get("kind") == "pull"]
     purchase_amounts = [int(e.get("amount", 0)) for e in entries
                         if e.get("kind") == "purchase"]
+    quest_amounts = [int(e.get("amount", 0)) for e in entries
+                     if e.get("kind") == "quest_reward"]
     return LedgerStats(
         entry_count=len(entries),
         balance=sum(int(e.get("amount", 0)) for e in entries),
@@ -429,6 +508,8 @@ def get_stats(path: Optional[Path] = None) -> LedgerStats:
         mine_count=sum(1 for e in entries if e.get("kind") == "mine"),
         total_purchased=-sum(purchase_amounts),
         purchase_count=len(purchase_amounts),
+        total_quest_reward=sum(quest_amounts),
+        quest_reward_count=len(quest_amounts),
     )
 
 

@@ -35,7 +35,8 @@ runs do silent, rate-limited (24 h) background update checks.
 | Play your first match (PvE vs fixture loadout) | [`skills/first-match.md`](skills/first-match.md) |
 | Fight a tiered NPC (Rookie → Champion ladder) | [`skills/npc-match.md`](skills/npc-match.md) |
 | Challenge another agent (PvP, commit-reveal) | [`skills/duel-pvp.md`](skills/duel-pvp.md) |
-| Use DAIMON through MCP tools (37 `dm_*` tools) | [`skills/mcp.md`](skills/mcp.md) |
+| Use DAIMON through MCP tools (38 `dm_*` tools) | [`skills/mcp.md`](skills/mcp.md) |
+| Daily quests — 3 deterministic per UTC day, auto-claimed rewards | [`skills/mcp.md`](skills/mcp.md) (`dm_quests`) |
 | React to `@daimon` mentions in the LivingAgent webapp chat | [`skills/chat-watcher.md`](skills/chat-watcher.md) |
 | Earn currency from your daily work (mining hook) | [`skills/mine.md`](skills/mine.md) |
 | Spend currency on a gacha pull | [`skills/pull.md`](skills/pull.md) |
@@ -66,10 +67,11 @@ V1 alpha. Shipped:
 - **Engine kernel** + 200 cards across 6 elements (FIRE / WATER / NATURE / VOLT / VOID + NORMAL splash) and 6 archetypes (rarity histogram 98C/60U/28R/8E/6L)
 - **PvE**: `daimon match` deterministic battles + 25-NPC tiered ladder (Rookie / Novice / Veteran / Elite / Champion) via `daimon match-npc`
 - **PvP**: commit-reveal protocol + GitHub-Actions arbiter wired end-to-end (`daimon-arena/scripts/arbitrate.py`)
-- **MCP server**: 37 `dm_*` tools covering identity, catalog, collection, loadouts, matches, NPC fights, gacha pulls, skin shop / equip, PvP, leaderboard, disputes, card proposals, chat home card + inbox watcher
+- **MCP server**: 38 `dm_*` tools covering identity, catalog, collection, loadouts, matches, NPC fights, gacha pulls, skin shop / equip, PvP, leaderboard, disputes, card proposals, chat home card + inbox watcher, daily quests
 - **Mining**: Claude Code `PostToolUse` hook → signed receipts → currency balance (real, live)
 - **Gacha**: `daimon pull` spends 100 currency, mints a UUID-serialised card from the active pack
 - **Skin shop**: 6-slot daily rotation, currency-priced, equip/unequip per card
+- **Daily quests**: 3-tier deterministic roll (easy 25¤ / medium 50¤ / hard 100¤), ledger-backed auto-claim, panel on the chat home card
 - **Bundled terminal**: WezTerm release at `wezterm-bundle-v1.0` published per-OS/arch; `daimon install` resolves it
 - **Art pack**: 200-card pack at `art-v1.1` (1.6 GB, includes skin variants); `daimon update` keeps it fresh
 - **Render**: KGP (Kitty Graphics Protocol) via the bundled WezTerm, PIL-composited card chrome (gold rarity borders, element chips, stats strips), terminal-native animations per `docs/animation_design.md`

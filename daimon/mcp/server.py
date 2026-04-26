@@ -5,21 +5,25 @@ play autonomously. The server is **read-only with respect to the engine** —
 all engine entry points are pure functions, the server just adapts arguments
 and serializes results.
 
-V1 scope (this file) — 32 tools total (21 locked 2026-04-21 + dm_init
-follow-up shipped same day + 3 NPC roster tools shipped 2026-04-22 +
-dm_mine_status deprecated alias + dm_pvp_reveal added 2026-04-24 when
-arena wiring landed + 5 shop tools shipped 2026-04-24 alongside the
-400-PNG skin pack):
+V1 scope (this file) — tools span identity, catalog, collection,
+matches/PvP, arena, disputes, shop, inbox, quests. The exact tool count
+drifts as we ship — verify with ``grep -c "^@mcp.tool" daimon/mcp/server.py``
+rather than trusting any single number in this docstring.
 
 Identity + currency:
   dm_init              → bootstrap identity + BIP39 mnemonic (one-time)
   dm_whoami            → pubkey + handle + balance + totals (absorbed mine_status)
   dm_home              → one-call snapshot for the chat home card (identity +
                          balance + recent matches/pulls + recommended NPC +
-                         saved loadouts) — sources: ledger + mine_buffer +
-                         arena.my_rank + npcs roster, no new persistence
+                         saved loadouts + daily quests) — sources: ledger +
+                         mine_buffer + arena.my_rank + npcs roster + quests
   dm_register          → open identity registration Issue in arena
   dm_mine_status       → DEPRECATED alias for dm_whoami; kept for back-compat
+
+Daily quests:
+  dm_quests            → today's 3 rolled quests + progress + auto-claim
+                         (HMAC-deterministic per (pubkey, UTC date); same
+                         primitive as the skin shop rotation)
 
 Catalog (pure-local):
   dm_expansions        → list installed catalogs (manifest metadata)
@@ -102,6 +106,7 @@ from daimon.play.adapter import (
     ParticipantInfo,
     match_result_to_match,
 )
+from daimon.play.publish import publish_match_state, publish_pull_state
 from daimon.play.state import new_id, write_state
 
 # ---------------------------------------------------------------------------
@@ -578,6 +583,120 @@ def _recommended_npc(
     return None
 
 
+def _quest_progress_to_dict(prog) -> Dict[str, Any]:
+    """Serialize a ``QuestProgress`` dataclass for the JSON response.
+
+    Centralized so dm_home, dm_quests, and the post-action auto-claim hook
+    all return the same shape.
+    """
+    return {
+        "quest_id": prog.quest_id,
+        "template_id": prog.template_id,
+        "title": prog.title,
+        "tier": prog.tier,
+        "reward": prog.reward,
+        "progress": prog.progress,
+        "target": prog.target,
+        "complete": prog.complete,
+        "claimed": prog.claimed,
+    }
+
+
+def _ensure_today_quests():
+    """Roll today's quests if missing/stale and persist. Returns (identity, quests).
+
+    Returns ``(None, [])`` on missing identity. Any other error during
+    roll/save logs + propagates ``(identity, [])`` so the caller renders
+    an empty quest panel rather than crashing.
+    """
+    try:
+        from daimon.identity import load_identity
+        from daimon.quests import (
+            load_quests, roll_today, save_quests, today_str,
+        )
+    except Exception:  # noqa: BLE001
+        return None, []
+
+    try:
+        identity = load_identity()
+    except FileNotFoundError:
+        return None, []
+    except Exception:  # noqa: BLE001
+        logger.exception("quests: load_identity failed")
+        return None, []
+
+    today = today_str()
+    record = load_quests()
+    needs_roll = (
+        record is None
+        or record.get("date") != today
+        or record.get("pubkey_hex") != identity.pubkey_hex
+    )
+    if needs_roll:
+        try:
+            quests = roll_today(identity.pubkey_hex)
+            save_quests(
+                date=today,
+                pubkey_hex=identity.pubkey_hex,
+                quests=quests,
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("quests: re-roll failed")
+            return identity, []
+    else:
+        quests = record["quests"]
+
+    return identity, quests
+
+
+def _read_quests_progress() -> List[Dict[str, Any]]:
+    """Read-only quest snapshot — for ``dm_home`` / glanceable surfaces.
+
+    Rolls today's quests if missing (idempotent persist) but NEVER mints
+    a quest reward. Reads only the ledger + ticker. Use this where the
+    contract is "snapshot the world" so calling the tool can't shift
+    balance under the user's feet.
+    """
+    from daimon.quests import evaluate_progress
+    identity, quests = _ensure_today_quests()
+    if not quests:
+        return []
+    try:
+        snapshot = evaluate_progress(quests)
+    except Exception:  # noqa: BLE001
+        logger.exception("quests: evaluate_progress failed")
+        return []
+    return [_quest_progress_to_dict(p) for p in snapshot]
+
+
+def _refresh_and_claim_quests() -> List[Dict[str, Any]]:
+    """Evaluate progress AND auto-claim rewards — for action tools.
+
+    Called from ``dm_pull`` / ``dm_match`` / ``dm_match_npc`` / ``dm_quests``
+    after a state-changing event so a quest that just hit its goal pays out
+    before the response returns. Idempotent at the ledger layer (auto-claim
+    is dedup'd via ``idempotency_key``). Read-only callers should use
+    ``_read_quests_progress`` instead — auto-claim must NOT fire from
+    ``dm_home`` or balance would mutate as a side effect of inspection.
+
+    Best-effort — returns ``[]`` on missing identity or any error so a
+    transient quest-layer hiccup never blocks the underlying tool's
+    response.
+    """
+    from daimon.quests import evaluate_and_claim, today_str
+    identity, quests = _ensure_today_quests()
+    if identity is None or not quests:
+        return []
+    try:
+        snapshot = evaluate_and_claim(
+            quests, identity=identity, today=today_str(),
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("quests: evaluate_and_claim failed")
+        return []
+    return [_quest_progress_to_dict(p) for p in snapshot]
+
+
 def _saved_loadouts_summary() -> List[Dict[str, Any]]:
     """List saved loadouts (name + card_count). Mirrors dm_loadout_list
     but trimmed for the home payload — no paths, no mtimes, no corrupt
@@ -632,7 +751,10 @@ def dm_home() -> Dict[str, Any]:
                            "rarity", "note"}, ...] (newest-first, ≤5),
        "recommended_npc": {"npc_id", "name", "tier", "rank",
                            "flavor", "reason"} | null,
-       "saved_loadouts": [{"name", "card_count"}, ...]}
+       "saved_loadouts": [{"name", "card_count"}, ...],
+       "daily_quests": [{"quest_id", "template_id", "title", "tier",
+                         "reward", "progress", "target",
+                         "complete", "claimed"}, ...]   # exactly 3 entries}
 
     Returns {"error": "no_identity", ...} if `daimon init` has never run.
     Never raises — every sub-source is wrapped in best-effort fallback so the
@@ -660,6 +782,14 @@ def dm_home() -> Dict[str, Any]:
             registered = bool(metadata.get("registered"))
         except Exception:
             pass
+
+    # Daily quests — READ-ONLY here. dm_home is glanceable; auto-claim
+    # would mutate balance as a side effect of inspecting the home card,
+    # which surprises any caller that called dm_home expecting an
+    # idempotent snapshot. Action tools (dm_match*, dm_pull, dm_quests)
+    # run the claim path, so quests still pay out the moment the player
+    # actually does the thing.
+    daily_quests = _read_quests_progress()
 
     # Mining stats — already best-effort (returns empty-shape on no ledger).
     mining = _mining_stats_or_empty()
@@ -742,6 +872,7 @@ def dm_home() -> Dict[str, Any]:
         "recent_pulls": recent_pulls,
         "recommended_npc": recommended,
         "saved_loadouts": _saved_loadouts_summary(),
+        "daily_quests": daily_quests,
     }
 
 
@@ -796,6 +927,87 @@ def dm_home_card() -> Dict[str, Any]:
         "message": message,
         "html": html,
         "payload": payload,
+    }
+
+
+# ---------------------------------------------------------------------------
+# dm_quests — daily quest progress + auto-claim
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def dm_quests() -> Dict[str, Any]:
+    """Return today's 3 daily quests with current progress + claim status.
+
+    Daily quests are deterministically rolled from ``(pubkey, UTC date)``
+    so two calls in the same UTC day return the same 3 goals (1 easy +
+    1 medium + 1 hard, in that order). The roll auto-rotates at 00:00
+    UTC — same instant the skin shop rotates.
+
+    This tool also runs the auto-claim flow as a side effect: any quest
+    whose progress just hit its target gets a positive
+    ``kind="quest_reward"`` ledger entry (with the quest's reward amount).
+    Idempotent at the ledger layer (``idempotency_key``), so repeat calls
+    in the same day NEVER mint a duplicate reward.
+
+    Returns:
+      {"status": "ok",
+       "date": "YYYY-MM-DD",
+       "pubkey_hex": "...",
+       "quests": [
+         {"quest_id": "...",
+          "template_id": "...",
+          "title": "Win 3 matches",
+          "tier": "hard",
+          "reward": 100,
+          "progress": 1, "target": 3,
+          "complete": false, "claimed": false},
+         ...
+       ],
+       "totals": {"completed": int, "total": int,
+                  "rewards_pending": int, "rewards_claimed": int,
+                  "max_daily_reward": int}}
+
+    Failure envelope:
+      {"error": "no_identity", "hint": "..."}
+    """
+    try:
+        from daimon.identity import load_identity
+        from daimon.quests import today_str
+    except Exception as e:  # noqa: BLE001
+        return {"error": "internal_error",
+                "message": f"quests import failed: {type(e).__name__}: {e}"}
+
+    try:
+        identity = load_identity()
+    except FileNotFoundError:
+        return {"error": "no_identity",
+                "hint": "Call `dm_init` (MCP) or run `daimon init` (CLI) "
+                        "to bootstrap an identity."}
+
+    quests = _refresh_and_claim_quests()
+
+    completed = sum(1 for q in quests if q.get("complete"))
+    rewards_pending = sum(int(q.get("reward", 0))
+                          for q in quests
+                          if q.get("complete") and not q.get("claimed"))
+    rewards_claimed = sum(int(q.get("reward", 0))
+                          for q in quests
+                          if q.get("claimed"))
+    max_daily = sum(int(q.get("reward", 0)) for q in quests)
+
+    return {
+        "status": "ok",
+        "date": today_str(),
+        "pubkey_hex": identity.pubkey_hex,
+        "quests": quests,
+        "totals": {
+            "completed": completed,
+            "total": len(quests),
+            "rewards_pending": rewards_pending,
+            "rewards_claimed": rewards_claimed,
+            "max_daily_reward": max_daily,
+        },
     }
 
 
@@ -1032,30 +1244,9 @@ def dm_match(
 
     result = resolve_match(a, b, seed_bytes)
 
-    state_id = new_id("match")
-
-    # Build the V2 Match payload via the engine→schema adapter. We pull
-    # real display metadata (name, rarity, short_name, art_path) from the
-    # raw loadout payload — the engine drops those fields, but the renderer
-    # needs them. When a card has no display fields (synthetic test
-    # loadouts), the adapter synthesizes defaults from species.
-    match_payload = match_result_to_match(
-        result, a, b,
-        match_id=state_id,
-        player=ParticipantInfo(
-            name="player", rank="",
-            card_displays=_card_displays_from_raw(a_raw),
-        ),
-        opponent=ParticipantInfo(
-            name="opponent", rank="",
-            card_displays=_card_displays_from_raw(b_raw),
-        ),
-    )
-    state_payload: Dict[str, Any] = json.loads(match_payload.model_dump_json())
-
     # Build the legacy round log for the agent-facing response (when
     # include_round_log=True). The state file no longer carries this — it
-    # carries the V2 Match payload above — but agents that requested the
+    # carries the V2 Match payload — but agents that requested the
     # round-by-round trace expect the human-readable string log.
     full_rounds = [
         {
@@ -1067,13 +1258,21 @@ def dm_match(
         for r in result.rounds
     ]
 
-    # Side effect: publish to the single state file so the game terminal
-    # (if running) picks it up and animates. Never let a state-write failure
-    # bubble up — the match result itself is what the agent needs.
-    try:
-        write_state("match", state_payload, id=state_id)
-    except Exception:  # noqa: BLE001 — state-write is best-effort
-        pass
+    # Single canonical publisher — writes state.json AND mirrors a "match"
+    # entry to the mining ticker (which the daily-quest matchers consume).
+    # Sandbox match → no opponent_tier; the beat_tier quest matcher will
+    # treat this entry as "doesn't qualify".
+    state_id = publish_match_state(
+        result=result,
+        loadout_a=a, loadout_b=b,
+        a_raw=a_raw, b_raw=b_raw,
+        player_name="player",
+        opponent_name="opponent",
+    ) or new_id("match")
+
+    # After-action quest evaluation. Idempotent — safe to run on every
+    # match, claims any quest that just hit its goal.
+    daily_quests = _refresh_and_claim_quests()
 
     out: Dict[str, Any] = {
         "winner": result.winner,
@@ -1083,6 +1282,7 @@ def dm_match(
         "round_count": len(result.rounds),
         "seed": seed_bytes.hex(),
         "state_id": state_id,
+        "daily_quests": daily_quests,
     }
     if include_round_log:
         out["rounds"] = full_rounds
@@ -1276,21 +1476,6 @@ def dm_match_npc(
         return {"error": "invalid_input", "message": str(e)}
 
     result = resolve_match(a_lo, npc_lo, seed_bytes)
-    state_id = new_id("match")
-
-    match_payload = match_result_to_match(
-        result, a_lo, npc_lo,
-        match_id=state_id,
-        player=ParticipantInfo(
-            name="player", rank="",
-            card_displays=_card_displays_from_raw(a_raw),
-        ),
-        opponent=ParticipantInfo(
-            name=npc.name, rank=npc.tier,
-            card_displays=_card_displays_from_raw(npc_raw),
-        ),
-    )
-    state_payload: Dict[str, Any] = json.loads(match_payload.model_dump_json())
 
     full_rounds = [
         {
@@ -1302,10 +1487,21 @@ def dm_match_npc(
         for r in result.rounds
     ]
 
-    try:
-        write_state("match", state_payload, id=state_id)
-    except Exception:  # noqa: BLE001 — best-effort
-        pass
+    # Canonical publisher → writes state.json AND mirrors a "match" entry
+    # to the mining ticker with the NPC's tier so the
+    # ``beat_tier_{medium,hard}`` daily-quest matchers can fire.
+    state_id = publish_match_state(
+        result=result,
+        loadout_a=a_lo, loadout_b=npc_lo,
+        a_raw=a_raw, b_raw=npc_raw,
+        player_name="player",
+        opponent_name=npc.name,
+        opponent_rank=npc.tier,
+        opponent_tier=npc.tier,
+    ) or new_id("match")
+
+    # After-action quest evaluation — claims any quest that just hit its goal.
+    daily_quests = _refresh_and_claim_quests()
 
     out: Dict[str, Any] = {
         "status": "ok",
@@ -1323,6 +1519,7 @@ def dm_match_npc(
             "rank": npc.rank,
             "flavor": npc.flavor,
         },
+        "daily_quests": daily_quests,
     }
     if include_round_log:
         out["rounds"] = full_rounds
@@ -1529,17 +1726,21 @@ def dm_pull(seed: Optional[str] = None,
 
     receipt_dict = receipt.to_dict()
 
-    # Side effect: publish to the single state file so the game terminal
-    # (if running) picks up this pull and plays the reveal animation. A
-    # state-write failure must never block the pull itself — the mint is
-    # already committed to the ledger.
-    state_id = new_id("pull")
-    try:
-        write_state("pull", dict(receipt_dict), id=state_id)
-    except Exception:  # noqa: BLE001 — state-write is best-effort
-        pass
+    # Canonical publisher → writes state.json AND mirrors a "pull" entry
+    # to the mining ticker. The mint is already committed to the ledger,
+    # so a publish failure is logged + ignored.
+    state_id = publish_pull_state(receipt_dict=dict(receipt_dict)) or new_id("pull")
 
-    return {"status": "ok", "state_id": state_id, **receipt_dict}
+    # After-action quest evaluation — claims any quest that just hit its goal
+    # (e.g. "Pull a card" / "Pull 2 cards"). Idempotent.
+    daily_quests = _refresh_and_claim_quests()
+
+    return {
+        "status": "ok",
+        "state_id": state_id,
+        "daily_quests": daily_quests,
+        **receipt_dict,
+    }
 
 
 # ---------------------------------------------------------------------------

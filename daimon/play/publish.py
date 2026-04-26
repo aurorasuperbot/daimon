@@ -89,6 +89,36 @@ def _displays_from_raw(cards_raw: list[Any]) -> tuple[Optional[CardDisplay], ...
     return tuple(out)
 
 
+def loadout_mono_element(raw_cards: list[Any]) -> Optional[str]:
+    """Return the shared element if every card in the loadout matches, else None.
+
+    Used by the daily-quest "win with mono-{element}" matcher (see
+    ``daimon.quests.progress``) — we record the element on the match
+    ticker entry only when the loadout is provably mono-element. Mixed
+    loadouts (or any card missing an ``element`` field) yield ``None``,
+    which the matcher treats as "doesn't qualify".
+
+    Operates on the raw payload list (not the engine ``Loadout``) so we
+    don't need to reach into Card internals — every payload coming
+    through ``publish_match_state`` already has the dict-shape variants
+    here. Returns the element as the upper-case string used in the
+    ``ELEMENTS`` tuple in ``daimon.quests.catalog``.
+    """
+    if not raw_cards:
+        return None
+    seen: set[str] = set()
+    for c in raw_cards:
+        if not isinstance(c, dict):
+            return None
+        el = c.get("element")
+        if not isinstance(el, str) or not el:
+            return None
+        seen.add(el.upper())
+        if len(seen) > 1:
+            return None
+    return next(iter(seen)) if len(seen) == 1 else None
+
+
 def publish_match_state(
     *,
     result: MatchResult,
@@ -100,12 +130,18 @@ def publish_match_state(
     player_rank: str = "",
     opponent_name: str = "opponent",
     opponent_rank: str = "",
+    opponent_tier: str = "",
 ) -> Optional[str]:
     """Publish a freshly resolved match to state.json. Best-effort.
 
     Returns the ``state_id`` on success, ``None`` on any failure (logged).
     The caller's primary action — printing the result, returning JSON to MCP,
     etc. — must NOT be gated on this succeeding.
+
+    The ``opponent_tier`` kwarg (when provided) is recorded on the match
+    ticker entry so the daily-quest "beat a {tier}-tier NPC" matcher can
+    fire. PvP / sandbox matches without a tier just leave it blank — the
+    matcher treats blank as "doesn't qualify".
     """
     state_id = new_id("match")
     try:
@@ -135,11 +171,20 @@ def publish_match_state(
         outcome = "win"
     else:
         outcome = "loss"
+    extra: Dict[str, Any] = {
+        "state_id": state_id,
+        "opponent": opponent_name,
+        "outcome": outcome,
+    }
+    if opponent_tier:
+        extra["opponent_tier"] = opponent_tier
+    el = loadout_mono_element(a_raw)
+    if el:
+        extra["loadout_element"] = el
     _ticker(
         "match",
         note=f"vs {opponent_name} ({outcome})",
-        extra={"state_id": state_id, "opponent": opponent_name,
-               "outcome": outcome},
+        extra=extra,
     )
     return state_id
 

@@ -33,7 +33,7 @@ For Claude Code, add to `~/.config/claude/mcp_servers.json`:
 
 ## Tools
 
-All 37 tools are prefixed `dm_` to make them unambiguous in tool listings.
+All 38 tools are prefixed `dm_` to make them unambiguous in tool listings.
 Status legend: **live** = local, no network; **live (arena)** = shells out
 to `gh` to write to `aurorasuperbot/daimon-arena` (or `daimon-cards` for
 card proposals); **live (webapp)** = long-polls the LivingAgent webapp
@@ -162,7 +162,7 @@ because the `dm_skins_owned` view collapses with `dm_skin_equip` /
 
 | Tool | Purpose | Status |
 |---|---|---|
-| `dm_home()` | JSON snapshot of identity + balance + tier + last 5 pulls + saved loadouts. Pure read. | live |
+| `dm_home()` | JSON snapshot of identity + balance + tier + last 5 pulls + saved loadouts + today's daily quests. Pure read — does NOT auto-claim. | live |
 | `dm_home_card()` | Same payload + a ready-to-post `:::html` Marvel-Snap-style chat card (`{message, html, payload}`). | live |
 
 `dm_home_card` is the canonical way to surface DAIMON state in the
@@ -175,6 +175,43 @@ message back to whoever is running the watcher loop.
 When no identity exists, both tools return a minimal "init me" payload
 instead of an error — the home card is the new-user landing page, so
 it has to render even before `dm_init` has been called.
+
+The `daily_quests` field on the payload is the same list returned by
+`dm_quests` (3 quests, one per tier). `dm_home` is a glanceable read,
+so it never mints rewards — auto-claim only fires from `dm_quests`,
+`dm_match`, `dm_match_npc`, and `dm_pull`. This keeps the home card
+idempotent (calling it 100 times in a row does NOT pay out 100 rewards).
+
+### Daily quests (1) — local
+
+| Tool | Purpose | Status |
+|---|---|---|
+| `dm_quests()` | Roll today's 3 quests (one per tier: easy / medium / hard), evaluate progress from ledger + ticker, auto-claim any newly complete reward. | live |
+
+Quests are deterministically rolled from `HMAC-SHA256(pubkey, "YYYY-MM-DD")`
+— same primitive as the skin shop rotation, so every machine running the
+same identity sees the same 3 quests on the same UTC date. The roll is
+cached in `~/.config/daimon/quests.json` and silently re-rolled on date
+change, pubkey change, or schema bump.
+
+Tier rewards are locked: easy = 25¤, medium = 50¤, hard = 100¤ (175¤
+total per UTC day, or 1.75 gacha pulls). Auto-claim writes a
+`quest_reward` entry to the mining ledger with idempotency key
+`quest_<date>_<quest_id>`, so re-evaluating after a claim is a no-op.
+
+The daily-quest matcher consumes:
+
+  - `mining/buffer.jsonl` ticker entries `kind="match"` (with `outcome`,
+    `opponent_tier`, `loadout_element` in `extra`) — counts wins, beats
+    against tiered NPCs, and mono-element wins.
+  - `mining/buffer.jsonl` ticker entries `kind="pull"` — counts gacha
+    pulls.
+  - `mining/ledger.jsonl` `kind="mine"` entries — counts mined currency.
+
+That's why `dm_match` / `dm_match_npc` / `dm_pull` all return a
+`daily_quests` field after the action — they trigger the auto-claim
+re-evaluation, and the caller gets the updated quest list (including
+any rewards just minted) in the same response.
 
 ### Chat inbox (3) — webapp long-poll
 
