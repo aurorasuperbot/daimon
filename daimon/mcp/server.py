@@ -424,6 +424,96 @@ def dm_init(force: bool = False) -> Dict[str, Any]:
 
 
 @mcp.tool()
+def dm_onboard(
+    force: bool = False,
+    wire_claude_code: bool = False,
+    spawn_prefetch: bool = True,
+) -> Dict[str, Any]:
+    """One-shot first-run setup, agent-driven variant of `daimon onboard`.
+
+    Folds identity generation, recovery file write, manifest fetch,
+    starter-card prefetch, and (optionally) Claude Code hook wiring
+    into a single tool call. The default `wire_claude_code=False`
+    matches the typical agent flow: the agent is already running
+    *inside* Claude Code, so the daimon MCP server is by definition
+    already wired. The PostToolUse mining hook is a separate question
+    — leave wiring it to the user (`daimon mine install-hook` from
+    their terminal), or pass `wire_claude_code=True` if the user
+    explicitly asked for the full setup via this tool.
+
+    Args:
+      force: If True, overwrite an existing identity. DESTRUCTIVE.
+      wire_claude_code: If True, also write the daimon mcpServers
+             entry + PostToolUse hook into ~/.claude/settings.json.
+             The MCP entry is idempotent (a redundant write of the
+             current path is a no-op); the hook write is gated on
+             the user accepting the prompt at their end.
+      spawn_prefetch: If True, spawn a detached background prefetcher
+             for non-starter cards. Default True.
+
+    Returns on success:
+      {"status": "ok",
+       "identity_action": "generated" | "already_present",
+       "pubkey_hex": "<hex>",
+       "mnemonic": "word1 word2 ...",   # empty when identity already existed
+       "recovery_path": "/abs/path/to/recovery.txt" | null,
+       "manifest_action": "installed" | "already_present" | "failed",
+       "manifest_version": "v1_alpha" | null,
+       "manifest_error": "..." | null,
+       "starter_fetched": ["card_id", ...],
+       "starter_failed": [["card_id", "error"], ...],
+       "prefetch_pid": int | null,
+       "claude_code_action": "wired" | "refreshed" | "already_present"
+                            | "skipped" | "failed",
+       "claude_code_settings": "/abs/.claude/settings.json" | null,
+       "claude_code_backup": "/abs/.../settings.json.bak.*" | null,
+       "claude_code_error": "..." | null,
+       "claude_code_mcp_command": "/abs/dmn-mcp" | null,
+       "warning": "Save the mnemonic NOW..."}    # only when mnemonic is non-empty
+
+    Surface the mnemonic to the user IMMEDIATELY — show it as plain
+    text and ask them to write it down before continuing. DAIMON
+    never persists it; this tool returns it once and loses it.
+    """
+    from daimon.onboard import run_onboard
+
+    try:
+        result = run_onboard(
+            force_identity=force,
+            confirm_mnemonic=None,  # the agent handles confirmation surface-side
+            wire_claude_code=wire_claude_code,
+            spawn_prefetch=spawn_prefetch,
+        )
+    except FileExistsError as e:
+        return {
+            "error": "identity_exists",
+            "message": str(e),
+            "hint": "Pass force=true to overwrite (DESTRUCTIVE — "
+                    "old collection + ledger position will be lost "
+                    "unless you have the mnemonic).",
+        }
+    except Exception as e:  # noqa: BLE001 — structured-error contract
+        return {
+            "error": "internal_error",
+            "message": f"{type(e).__name__}: {e}",
+        }
+
+    payload: Dict[str, Any] = {
+        "status": "ok",
+        **result.to_dict(),
+    }
+    if result.mnemonic:
+        payload["warning"] = (
+            "Save the mnemonic NOW. It is shown once only — DAIMON "
+            "never persists it. A copy was also written to "
+            f"{result.recovery_path or '<recovery file>'} (mode 0600). "
+            "Loss of both mnemonic and identity.key means loss of your "
+            "collection."
+        )
+    return payload
+
+
+@mcp.tool()
 def dm_whoami() -> Dict[str, Any]:
     """Return the local DAIMON identity + mining snapshot.
 

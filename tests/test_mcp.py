@@ -188,6 +188,163 @@ def test_init_unblocks_whoami_end_to_end(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# dm_onboard — wraps run_onboard() for agents inside Claude Code
+# ---------------------------------------------------------------------------
+
+def _fake_onboard_result(**overrides):
+    """Build a stub OnboardResult. Defaults to a happy-path 'fresh identity'."""
+    from daimon.onboard.orchestrator import OnboardResult
+    defaults = dict(
+        identity_action="generated",
+        pubkey_hex="ab" * 32,
+        mnemonic=" ".join(["word"] * 24),
+        recovery_path="/fake/recovery.txt",
+        manifest_action="installed",
+        manifest_version="v1_alpha",
+        manifest_error=None,
+        starter_fetched=["c1", "c2"],
+        starter_failed=[],
+        prefetch_pid=4242,
+        claude_code_action="skipped",
+    )
+    defaults.update(overrides)
+    return OnboardResult(**defaults)
+
+
+def test_onboard_default_skips_claude_code(monkeypatch, tmp_path):
+    """Default `wire_claude_code=False` means run_onboard sees False."""
+    from daimon.mcp.server import dm_onboard
+    captured = {}
+
+    def fake_run_onboard(**kwargs):
+        captured.update(kwargs)
+        return _fake_onboard_result()
+
+    monkeypatch.setattr("daimon.onboard.run_onboard", fake_run_onboard)
+    result = _call(dm_onboard)
+    assert result["status"] == "ok"
+    assert captured["wire_claude_code"] is False
+    assert captured["force_identity"] is False
+    assert captured["spawn_prefetch"] is True
+    # confirm_mnemonic must be None — the agent surfaces the gate itself.
+    assert captured["confirm_mnemonic"] is None
+
+
+def test_onboard_returns_full_envelope(monkeypatch):
+    from daimon.mcp.server import dm_onboard
+
+    monkeypatch.setattr(
+        "daimon.onboard.run_onboard",
+        lambda **_: _fake_onboard_result(),
+    )
+    result = _call(dm_onboard)
+    assert result["identity_action"] == "generated"
+    assert result["pubkey_hex"] == "ab" * 32
+    assert len(result["mnemonic"].split()) == 24
+    assert result["manifest_action"] == "installed"
+    assert result["starter_fetched"] == ["c1", "c2"]
+    assert result["prefetch_pid"] == 4242
+    # Mnemonic-bearing response must include the warning so an agent
+    # surfaces it to the user.
+    assert "warning" in result
+    assert "mnemonic" in result["warning"].lower()
+
+
+def test_onboard_no_warning_when_identity_already_present(monkeypatch):
+    from daimon.mcp.server import dm_onboard
+
+    monkeypatch.setattr(
+        "daimon.onboard.run_onboard",
+        lambda **_: _fake_onboard_result(
+            identity_action="already_present",
+            mnemonic="",
+            recovery_path=None,
+        ),
+    )
+    result = _call(dm_onboard)
+    assert result["status"] == "ok"
+    assert result["mnemonic"] == ""
+    # No mnemonic → no warning (nothing to save).
+    assert "warning" not in result
+
+
+def test_onboard_force_passes_through(monkeypatch):
+    from daimon.mcp.server import dm_onboard
+    captured = {}
+
+    def fake_run_onboard(**kwargs):
+        captured.update(kwargs)
+        return _fake_onboard_result()
+
+    monkeypatch.setattr("daimon.onboard.run_onboard", fake_run_onboard)
+    _call(dm_onboard, force=True)
+    assert captured["force_identity"] is True
+
+
+def test_onboard_wire_claude_code_passes_through(monkeypatch):
+    from daimon.mcp.server import dm_onboard
+    captured = {}
+
+    def fake_run_onboard(**kwargs):
+        captured.update(kwargs)
+        return _fake_onboard_result(
+            claude_code_action="wired",
+            claude_code_settings="/abs/.claude/settings.json",
+            claude_code_mcp_command="/abs/dmn-mcp",
+        )
+
+    monkeypatch.setattr("daimon.onboard.run_onboard", fake_run_onboard)
+    result = _call(dm_onboard, wire_claude_code=True)
+    assert captured["wire_claude_code"] is True
+    assert result["claude_code_action"] == "wired"
+    assert result["claude_code_mcp_command"] == "/abs/dmn-mcp"
+
+
+def test_onboard_handles_existing_identity_error(monkeypatch):
+    from daimon.mcp.server import dm_onboard
+
+    def boom(**_):
+        raise FileExistsError("identity already exists at /x/identity.key")
+
+    monkeypatch.setattr("daimon.onboard.run_onboard", boom)
+    result = _call(dm_onboard)
+    assert result["error"] == "identity_exists"
+    assert "force" in result["hint"].lower()
+
+
+def test_onboard_normalises_unexpected_errors(monkeypatch):
+    from daimon.mcp.server import dm_onboard
+
+    def boom(**_):
+        raise RuntimeError("disk on fire")
+
+    monkeypatch.setattr("daimon.onboard.run_onboard", boom)
+    result = _call(dm_onboard)
+    assert result["error"] == "internal_error"
+    assert "disk on fire" in result["message"]
+
+
+def test_onboard_surfaces_manifest_failure_without_raising(monkeypatch):
+    """Manifest fetch errors are reported in-band — never as an MCP exception."""
+    from daimon.mcp.server import dm_onboard
+
+    monkeypatch.setattr(
+        "daimon.onboard.run_onboard",
+        lambda **_: _fake_onboard_result(
+            manifest_action="failed",
+            manifest_version=None,
+            manifest_error="GitHub API: 503",
+            starter_fetched=[],
+            prefetch_pid=None,
+        ),
+    )
+    result = _call(dm_onboard)
+    assert result["status"] == "ok"
+    assert result["manifest_action"] == "failed"
+    assert result["manifest_error"] == "GitHub API: 503"
+
+
+# ---------------------------------------------------------------------------
 # dm_whoami
 # ---------------------------------------------------------------------------
 
@@ -783,10 +940,12 @@ def test_whoami_includes_purchase_totals(monkeypatch, tmp_path):
 
 def test_all_tools_registered():
     """Locked 21-tool surface + dm_init + 3 NPC tools + deprecated alias +
-    dm_pvp_reveal (added 2026-04-24 when arena wiring landed)."""
+    dm_pvp_reveal (added 2026-04-24 when arena wiring landed) +
+    dm_onboard (added 2026-04-26 to fold the four-step bootstrap into a
+    single agent-callable tool)."""
     names = {
-        # Identity + currency
-        "dm_init", "dm_whoami", "dm_register",
+        # Identity + currency + onboarding
+        "dm_init", "dm_onboard", "dm_whoami", "dm_register",
         "dm_mine_status",  # deprecated alias, kept for back-compat
         # Catalog
         "dm_expansions", "dm_catalog_list", "dm_catalog_card", "dm_card_compare",
@@ -804,9 +963,9 @@ def test_all_tools_registered():
         # Disputes
         "dm_dispute_open", "dm_card_propose",
     }
-    # 21 locked tools + dm_init + 3 NPC tools + 1 deprecated alias
-    # + dm_pvp_reveal = 27.
-    assert len(names) == 27
+    # 21 locked tools + dm_init + dm_onboard + 3 NPC tools
+    # + 1 deprecated alias + dm_pvp_reveal = 28.
+    assert len(names) == 28
     for n in names:
         assert hasattr(mcp_server, n), f"{n} missing from server module"
 
