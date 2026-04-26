@@ -130,11 +130,12 @@ APNG_FRAME_DURATION_MS = {
 
 # Overlay band proportions (fraction of card height)
 TOP_BAND_FRAC = 0.18        # top fade band height (holds badge + chip + title)
-# 0.56 budgets enough vertical room for worst-case bottom content:
-#   stats strip (42 design-px) + 2 wrapped trigger lines (48 design-px) +
-#   3-line flavor (51 design-px) + gaps. Gives ~922 supersampled-px in the
-#   solid (post-fade) sub-zone at s=6, which fits the worst-case 200-card
-#   catalog without overflow.
+# 0.56 budgets enough vertical room for worst-case bottom content with the
+# effects-prominent hierarchy locked 2026-04-26:
+#   stats strip (42 design-px) + 2 wrapped trigger lines at 13/11pt
+#   (~50 design-px) + 2-line flavor at 10pt italic (~30 design-px) + gaps.
+# Gives ~922 supersampled-px in the solid (post-fade) sub-zone at s=6,
+# which fits the worst-case 200-card catalog without overflow.
 BOTTOM_BAND_FRAC = 0.56     # bottom fade band height (holds stats strip + triggers + flavor)
 
 # Font fallback search paths.
@@ -275,6 +276,81 @@ def _font(paths: list[str], size_pt: int, supersample: int) -> ImageFont.ImageFo
         f"(last error: {last_err}). Bundled fonts live in "
         f"daimon/render/fonts/ — verify they ship with the wheel."
     )
+
+
+def _fit_title(draw: ImageDraw.ImageDraw, raw_name: str, max_w: int, s: int):
+    """Auto-fit a card name into the available header width without ever
+    truncating it. Returns ``(lines, font)``.
+
+    Strategy — Santiago locked 2026-04-26: "it should be smaller AND take
+    two lines if necessary, properly centered, never cropped." Two-line wrap
+    at the canonical 17 pt is strictly preferred over a shrunk single line:
+
+      1. Single line at canonical 17 pt — most names land here.
+      2. If 17 pt single-line doesn't fit: two-line wrap at decreasing sizes
+         17 -> 11 pt. Split-point preference: first comma (preserves
+         "Title, Subtitle" patterns like "CHALCHIUHTLICUE, JADE-SKIRT"),
+         then the space nearest the char midpoint, last-resort raw char
+         midpoint for single mega-words.
+      3. Pass-3 rescue: only if EVERY two-line attempt overflowed (extreme
+         narrow geometry or a single mega-word that's still too long even
+         halved at 11 pt), fall back to single-line at 16/15/14/13/12/11.
+      4. Hard fallback: 11 pt with the first candidate split.
+
+    Why prefer 2-line wrap over single-line shrinking:
+      A 12 pt title surrounded by 17 pt titles on other cards reads as
+      "this card is broken." A 2-line wrap at 17 pt reads as "this name
+      needed two lines" — same baseline scale, no visual outlier, and the
+      natural break (especially at a comma) preserves the name's reading
+      structure.
+
+    Note: ``raw_name`` is expected to already be UPPER-cased by the caller.
+    """
+    title = raw_name
+
+    # Pass 1: canonical 17 pt single line (the "fits naturally" case).
+    font17 = _font(_FONT_BOLD, 17, s)
+    if draw.textbbox((0, 0), title, font=font17)[2] <= max_w:
+        return [title], font17
+
+    # Build candidate two-line splits, in order of preference.
+    splits: list[tuple[str, str]] = []
+    if "," in title:
+        i = title.index(",")
+        l1, l2 = title[:i + 1].rstrip(), title[i + 1:].strip()
+        if l1 and l2:
+            splits.append((l1, l2))
+    space_idxs = [i for i, c in enumerate(title) if c == " "]
+    if space_idxs:
+        mid = len(title) // 2
+        best = min(space_idxs, key=lambda i: abs(i - mid))
+        l1, l2 = title[:best].strip(), title[best:].strip()
+        if l1 and l2 and (l1, l2) not in splits:
+            splits.append((l1, l2))
+    if not splits:
+        # Single mega-word — hard split at the char midpoint.
+        mid = len(title) // 2
+        splits.append((title[:mid], title[mid:]))
+
+    # Pass 2: PREFERRED — two lines at decreasing sizes.
+    for size in (17, 16, 15, 14, 13, 12, 11):
+        font = _font(_FONT_BOLD, size, s)
+        for (l1, l2) in splits:
+            w1 = draw.textbbox((0, 0), l1, font=font)[2]
+            w2 = draw.textbbox((0, 0), l2, font=font)[2]
+            if w1 <= max_w and w2 <= max_w:
+                return [l1, l2], font
+
+    # Pass 3: last-resort rescue — single-line shrink (only used when 2-line
+    # wrap is impossible, e.g. a 30-char single token in a too-narrow card).
+    for size in (16, 15, 14, 13, 12, 11):
+        font = _font(_FONT_BOLD, size, s)
+        if draw.textbbox((0, 0), title, font=font)[2] <= max_w:
+            return [title], font
+
+    # Hard fallback: smallest viable size + first split. Even if the absolute
+    # extreme overflows by a hair, that is strictly better than truncation.
+    return [splits[0][0], splits[0][1]], _font(_FONT_BOLD, 11, s)
 
 
 # ---------------------------------------------------------------------------
@@ -770,25 +846,34 @@ def _draw_top_overlay(card_img: Image.Image, card: Card, info: "CardRenderInfo",
 
     # Title — sits on the second row of the band, centered. Badge + chip
     # share the row above, so the title gets the full card width here.
-    title_font = _font(_FONT_BOLD, 17, s)
-    title = (info.name or card.card_id).upper()
-    # Truncate gracefully if too long for the available width
+    #
+    # Auto-fit: NEVER truncate with ellipsis (Santiago locked this 2026-04-26
+    # — cropping a card name is "incredibly bad looking"). Strategy:
+    #   1) Try a single line at decreasing sizes 17 -> 12 pt.
+    #   2) If still too wide at 12 pt, split into two lines (prefer comma,
+    #      then nearest-to-middle space, last-resort char midpoint) and try
+    #      sizes 17 -> 11 pt.
+    #   3) Hard fallback: 11 pt + first split. Even ~22-char halves at 11 pt
+    #      fit comfortably in the 560-px native card.
+    raw_name = (info.name or card.card_id).upper()
     max_title_w = W - 14 * s
-    while title:
-        tb = draw.textbbox((0, 0), title, font=title_font)
-        if tb[2] - tb[0] <= max_title_w:
-            break
-        title = title[:-1]
-    if title != (info.name or card.card_id).upper():
-        title = title.rstrip() + "…"
-    tb_final = draw.textbbox((0, 0), title, font=title_font)
-    title_w = tb_final[2] - tb_final[0]
-    title_x = (W - title_w) // 2
+    title_lines, title_font = _fit_title(draw, raw_name, max_title_w, s)
     title_y = badge_box[3] + 4 * s
-    # Subtle title shadow for legibility on bright art
-    draw.text((title_x + max(1, s // 2), title_y + max(1, s // 2)),
-              title, font=title_font, fill=(0, 0, 0))
-    draw.text((title_x, title_y), title, font=title_font, fill=pal.accent_light)
+    # Per-line metrics — use font-relative ascent for line height so the
+    # gap stays proportional whether we land at 11 pt or 17 pt.
+    line_h = (title_font.getbbox("Ag")[3] - title_font.getbbox("Ag")[1])
+    line_gap = max(1, s // 2)
+    shadow_off = max(1, s // 2)
+    for i, line in enumerate(title_lines):
+        lb = draw.textbbox((0, 0), line, font=title_font)
+        line_w = lb[2] - lb[0]
+        line_x = (W - line_w) // 2
+        line_y = title_y + i * (line_h + line_gap)
+        # Subtle shadow for legibility on bright art
+        draw.text((line_x + shadow_off, line_y + shadow_off),
+                  line, font=title_font, fill=(0, 0, 0))
+        draw.text((line_x, line_y), line,
+                  font=title_font, fill=pal.accent_light)
 
     # Element chip — top-right of the band
     chip_text = card.element.name
@@ -899,11 +984,16 @@ def _draw_bottom_overlay(card_img: Image.Image, card: Card, info: "CardRenderInf
     # rule-changers (card.rule_change != None) render an extra "RULE:" line
     # describing the global mutation. We cap at 2 trigger lines + 1 rule
     # line; surplus triggers are dropped (Phase 5 cards never exceed this).
+    # Visual hierarchy locked 2026-04-26 per Santiago: EFFECTS are the
+    # gameplay-critical content, FLAVOR is decorative. Effects render at
+    # display sizes (13pt name + 11pt desc) so the player can read the
+    # ability at a glance without leaning in. Flavor (below) drops to 10pt
+    # and 2-line cap so it stays decorative without competing with effects.
     trigger_top = stats_bottom_y + 6 * s
-    trigger_name_font = _font(_FONT_BOLD, 10, s)
-    trigger_desc_font = _font(_FONT_REGULAR, 9, s)
-    trigger_line_h = 13 * s          # single-line height
-    trigger_wrap_line_h = 12 * s     # per-line height in two-line wrap mode
+    trigger_name_font = _font(_FONT_BOLD, 13, s)
+    trigger_desc_font = _font(_FONT_REGULAR, 11, s)
+    trigger_line_h = 17 * s          # single-line height (room for 13pt + descenders)
+    trigger_wrap_line_h = 15 * s     # per-line height in two-line wrap mode
     # The trigger zone has horizontal padding so we don't render up to the
     # frame border. Anything that exceeds (W - 2 * trigger_pad_x) wraps to
     # two centered lines (move name on top, desc below).
@@ -1013,27 +1103,32 @@ def _draw_bottom_overlay(card_img: Image.Image, card: Card, info: "CardRenderInf
         )
 
     # ----- Flavor block ---------------------------------------------------
-    # Italic serif, centered, capped at 3 lines. Curly quotes (U+201C / U+201D)
-    # open on the FIRST rendered line and close on the LAST rendered line so
-    # multi-line flavor reads as one continuous quote — the previous code
-    # wrapped both quotes around line 0, leaving lines 1+ unquoted and
-    # giving an open-then-close-and-open pattern that looked wrong.
+    # Italic serif, centered, capped at 2 lines (was 3 before the hierarchy
+    # flip). Curly quotes (U+201C / U+201D) open on the FIRST rendered line
+    # and close on the LAST rendered line so multi-line flavor reads as one
+    # continuous quote — the previous code wrapped both quotes around line 0,
+    # leaving lines 1+ unquoted and giving an open-then-close-and-open
+    # pattern that looked wrong.
+    #
+    # Flavor is intentionally decorative — it's the SHORT story-snippet that
+    # complements the effect, not the headline. The 10pt size + 2-line cap
+    # subordinates it to the effects block above.
     if info.flavor:
-        flavor_font = _font(_FONT_ITALIC, 13, s)
+        flavor_font = _font(_FONT_ITALIC, 10, s)
         flavor_top = triggers_bottom_y + (10 * s if triggers_drawn > 0 else 8 * s)
         words = info.flavor.split()
         lines: list[str] = []
         current = ""
-        # Slightly tighter wrap target since glyphs are bigger now
+        # Smaller font fits more chars per line — wrap at 36 instead of 26
         for w in words:
-            if len(current) + len(w) + 1 > 26:
+            if len(current) + len(w) + 1 > 36:
                 lines.append(current); current = w
             else:
                 current = (current + " " + w).strip()
         if current:
             lines.append(current)
-        line_h = 17 * s
-        rendered = lines[:3]
+        line_h = 13 * s
+        rendered = lines[:2]
         last_idx = len(rendered) - 1
         for i, line in enumerate(rendered):
             prefix = "\u201c" if i == 0 else ""

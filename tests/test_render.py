@@ -340,6 +340,130 @@ def test_compose_card_all_tiers_produce_distinct_frame0(sample_card, tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Title auto-fit — never truncate a card name
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "X",                                    # 1 char
+        "Sobek-Hatchling",                      # short single token
+        "Chalchiuhtlicue, Jade-Skirt",          # comma-split natural break
+        "Prometheus, Fire-Thief",               # comma-split, two short halves
+        "Worldroot Sentinel of Endless Spring", # multi-word, no comma
+        "Antidisestablishmentarianisticism",    # single mega-word, no spaces
+    ],
+)
+def test_title_never_truncated_with_ellipsis(sample_card, name, tmp_path):
+    """Card names must NEVER be truncated with '…' or '...'.
+
+    Locked 2026-04-26 by Santiago: cropping a card name is "incredibly bad
+    looking" — the renderer must auto-shrink and/or wrap to two lines instead.
+
+    We can't easily inspect the rendered pixels for ellipsis text, but we can
+    inspect the auto-fit helper directly: the returned line list must
+    reconstruct the original (uppercased) name losslessly when joined back
+    together (modulo whitespace from split-points), and no line may end with
+    an ellipsis character.
+    """
+    from PIL import Image, ImageDraw
+    from daimon.render.compose import _fit_title
+
+    img = Image.new("RGB", (1680, 2352))
+    draw = ImageDraw.Draw(img)
+    raw = name.upper()
+    # Use the same max_w formula as _draw_top_overlay: W - 14*s with s=3.
+    max_w = 560 * 3 - 14 * 3
+    lines, font = _fit_title(draw, raw, max_w, s=3)
+
+    assert lines, "_fit_title returned zero lines"
+    assert len(lines) <= 2, f"_fit_title returned {len(lines)} lines; max is 2"
+    for line in lines:
+        assert "…" not in line, f"line truncated with ellipsis: {line!r}"
+        assert "..." not in line, f"line truncated with ASCII ellipsis: {line!r}"
+
+    # Reconstruct: every non-whitespace char of the original must be present
+    # in the rendered lines (split-points may eat a comma's surrounding space).
+    rendered_chars = "".join(lines).replace(" ", "").replace(",", "")
+    original_chars = raw.replace(" ", "").replace(",", "")
+    assert rendered_chars == original_chars, (
+        f"title chars lost during fit: {original_chars!r} -> {rendered_chars!r}"
+    )
+
+
+def test_title_overflow_comma_name_splits_at_comma(sample_card):
+    """Comma-bearing names that overflow at 17pt should split at the comma
+    to preserve the natural 'Title, Subtitle' read.
+
+    Uses an artificially long name that can't possibly fit at 17pt single-line,
+    forcing the auto-fit into Pass 2 (two-line wrap with comma split). Real
+    catalog names that DO fit at 17pt single-line correctly bypass this path.
+    """
+    from PIL import Image, ImageDraw
+    from daimon.render.compose import _fit_title
+
+    img = Image.new("RGB", (1680, 2352))
+    draw = ImageDraw.Draw(img)
+    max_w = 560 * 3 - 14 * 3
+    lines, _ = _fit_title(
+        draw, "QUETZALCOATL, FEATHERED-SERPENT-OF-DAWN-AND-WIND", max_w, s=3
+    )
+
+    assert len(lines) == 2, f"expected 2 lines for overflow comma name, got {lines}"
+    assert lines[0].endswith(","), f"first line should end at comma, got {lines[0]!r}"
+    assert lines[1] == "FEATHERED-SERPENT-OF-DAWN-AND-WIND", (
+        f"second line should be subtitle, got {lines[1]!r}"
+    )
+
+
+def test_title_overflow_no_comma_splits_at_middle_space(sample_card):
+    """Names without a comma that overflow at 17pt should split at the
+    space nearest the character midpoint."""
+    from PIL import Image, ImageDraw
+    from daimon.render.compose import _fit_title
+
+    img = Image.new("RGB", (1680, 2352))
+    draw = ImageDraw.Draw(img)
+    max_w = 560 * 3 - 14 * 3
+    lines, _ = _fit_title(
+        draw, "WORLDROOT SENTINEL OF ENDLESS SPRING OF LIFE-AND-DEATH", max_w, s=3
+    )
+    assert len(lines) == 2, f"expected 2 lines for overflow space name, got {lines}"
+
+
+def test_title_short_name_stays_one_line(sample_card):
+    """Short names should render as a single line at the natural 17pt size."""
+    from PIL import Image, ImageDraw
+    from daimon.render.compose import _fit_title
+
+    img = Image.new("RGB", (1680, 2352))
+    draw = ImageDraw.Draw(img)
+    max_w = 560 * 3 - 14 * 3
+    lines, font = _fit_title(draw, "RAIJU-TAISHO", max_w, s=3)
+    assert len(lines) == 1, f"short name should be one line, got {lines}"
+    # Should be at the canonical 17pt
+    assert font.size == 17 * 3, f"short name should use 17pt, got {font.size//3}pt"
+
+
+def test_title_real_catalog_comma_name_fits_at_17pt(sample_card):
+    """Real catalog name 'CHALCHIUHTLICUE, JADE-SKIRT' actually fits at
+    17pt single-line in the production card width. Pin this so a future
+    geometry change that quietly forces it to wrap is caught.
+    """
+    from PIL import Image, ImageDraw
+    from daimon.render.compose import _fit_title
+
+    img = Image.new("RGB", (1680, 2352))
+    draw = ImageDraw.Draw(img)
+    max_w = 560 * 3 - 14 * 3
+    lines, font = _fit_title(draw, "CHALCHIUHTLICUE, JADE-SKIRT", max_w, s=3)
+    assert len(lines) == 1, (
+        f"real catalog name should fit one line at 17pt — geometry regressed? got {lines}"
+    )
+    assert font.size == 17 * 3, f"should use 17pt, got {font.size//3}pt"
+
+
+# ---------------------------------------------------------------------------
 # Engine isolation regression test
 # ---------------------------------------------------------------------------
 
