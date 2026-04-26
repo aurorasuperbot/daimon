@@ -22,16 +22,18 @@ Two output paths share this module:
      PIL bitmaps directly into the canvas at the right cell coordinates.
      Pixel-perfect for design review.
 
-Both paths share one resolver: :func:`resolve_card_art`, which wraps the
-engine's :func:`daimon.render.art.art_path_for` and adds a small
-in-memory thumbnail cache + missing-art placeholder. The module never
-reads card metadata or makes decisions about which art belongs to which
-card — callers pass in card_id + optional skin_slug; we return pixels.
+Both paths share one resolver: :func:`resolve_card_art`. It first asks
+the lazy fetcher to ensure the card's art directory is on disk (a no-op
+hit when the card is already cached, a per-card download on first
+render), then defers to the engine's pure :func:`art_path_for` for the
+final equipped-skin-aware PNG path. Callers pass in card_id + optional
+skin_slug; we return pixels (or ``None`` when the network is gone and
+nothing is cached, in which case the renderer falls back to a
+placeholder tile).
 """
 
 from __future__ import annotations
 
-import functools
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -42,23 +44,46 @@ from typing import List, Optional
 # ---------------------------------------------------------------------------
 
 
-@functools.lru_cache(maxsize=1024)
 def resolve_card_art(card_id: str, *,
                      skin_slug: Optional[str] = None) -> Optional[Path]:
     """Find the PNG for a card (optionally for a specific skin variant).
+
+    Lazy-fetches the per-card tarball from the active manifest if the
+    card's art directory isn't on disk yet — first render of a brand-new
+    card pulls ~50-500 KB once and never again. Subsequent renders are
+    pure stat calls. A network failure on the lazy fetch falls through
+    silently to the cache (which may yield ``None`` if there's nothing
+    on disk), and the caller renders a placeholder tile.
 
     When ``skin_slug`` is given, look it up in the card's manifest first;
     fall through to the canonical art if the slug isn't installed. When
     ``skin_slug`` is None we honor the player's equipped skin via
     ``art_path_for`` so the same card looks the same across all surfaces.
 
-    Returns the absolute path or None if no art exists for this card.
+    Returns the absolute path or None if no art is on disk for this card.
+
+    Note: the legacy ``@functools.lru_cache`` on this resolver was
+    dropped with the lazy-fetch migration. ``lru_cache`` caches ``None``
+    indefinitely, so once a card resolved before its tarball was
+    downloaded it would stay broken for the session even after the
+    fetch completed. The underlying lookups are stat() calls (sub-μs on
+    modern filesystems), so dropping the cache costs negligible CPU.
     """
-    from daimon.render.art import _read_manifest, _variant_id_for_slug, _variant_png
+    from daimon.render.art import (
+        _read_manifest,
+        _variant_id_for_slug,
+        _variant_png,
+        art_path_for,
+    )
+    from daimon.update.lazy import ensure_art_for
     from daimon.update.paths import art_pack_dir
 
-    art_root = art_pack_dir()
-    card_dir = art_root / card_id
+    # JIT-fetch the card's tarball if it isn't cached yet. Soft-fail on
+    # network errors — placeholder rendering is the right fallback when
+    # we can't reach the registry.
+    ensure_art_for(card_id)
+
+    card_dir = art_pack_dir() / card_id
 
     if skin_slug:
         manifest = _read_manifest(card_dir)
@@ -71,7 +96,6 @@ def resolve_card_art(card_id: str, *,
         # Fall through if the requested skin isn't on disk.
 
     # No specific slug requested → defer to the equipped-aware resolver.
-    from daimon.render.art import art_path_for
     return art_path_for(card_id)
 
 
