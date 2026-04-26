@@ -23,7 +23,7 @@ from daimon.play.hud.playback import (
     flatten_match,
     hp_at,
 )
-from daimon.play.hud.render import render_frame, render_idle
+from daimon.play.hud.render import render_frame, render_idle, render_mining_strip
 
 __all__ = [
     "HudApp",
@@ -37,4 +37,5 @@ __all__ = [
     "hp_at",
     "render_frame",
     "render_idle",
+    "render_mining_strip",
 ]

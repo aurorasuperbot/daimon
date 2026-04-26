@@ -24,6 +24,8 @@ from typing import Any, Dict, Optional
 from daimon.cards import extract_display_fields
 from daimon.engine import Loadout
 from daimon.engine.combat import MatchResult
+from daimon.mining import buffer as _mine_buffer
+from daimon.mining.ledger import get_balance
 from daimon.play.adapter import (
     CardDisplay,
     ParticipantInfo,
@@ -32,6 +34,32 @@ from daimon.play.adapter import (
 from daimon.play.state import new_id, write_state
 
 logger = logging.getLogger(__name__)
+
+
+def _balance_or_zero() -> int:
+    """Best-effort balance read for ticker payloads. Never raises."""
+    try:
+        return get_balance()
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _ticker(kind: str, *, note: str = "", extra: Optional[Dict[str, Any]] = None) -> None:
+    """Mirror a match/pull event into the mine buffer for the HUD ticker.
+
+    Best-effort. The state.json write is the contract; the ticker line
+    here is chrome and must NEVER block the publisher.
+    """
+    try:
+        _mine_buffer.append(
+            kind,
+            amount=0,
+            balance_after=_balance_or_zero(),
+            note=note,
+            extra=extra,
+        )
+    except Exception:  # noqa: BLE001
+        logger.debug("mine_buffer ticker append failed (non-fatal)", exc_info=True)
 
 
 def _display_override_from_fields(df) -> Optional[CardDisplay]:
@@ -95,10 +123,25 @@ def publish_match_state(
         )
         state_payload: Dict[str, Any] = json.loads(match_payload.model_dump_json())
         write_state("match", state_payload, id=state_id)
-        return state_id
     except Exception:  # noqa: BLE001 — state-write is best-effort
         logger.exception("publish_match_state failed (non-fatal)")
         return None
+    # Mirror to the ticker so even users not actively watching the HUD
+    # see the match land in their scroll-back when they tab over.
+    # ``MatchResult.winner`` is 0 (player), 1 (opponent), or None (draw).
+    if result.winner is None:
+        outcome = "draw"
+    elif result.winner == 0:
+        outcome = "win"
+    else:
+        outcome = "loss"
+    _ticker(
+        "match",
+        note=f"vs {opponent_name} ({outcome})",
+        extra={"state_id": state_id, "opponent": opponent_name,
+               "outcome": outcome},
+    )
+    return state_id
 
 
 def publish_pull_state(*, receipt_dict: Dict[str, Any]) -> Optional[str]:
@@ -109,7 +152,14 @@ def publish_pull_state(*, receipt_dict: Dict[str, Any]) -> Optional[str]:
     state_id = new_id("pull")
     try:
         write_state("pull", dict(receipt_dict), id=state_id)
-        return state_id
     except Exception:  # noqa: BLE001
         logger.exception("publish_pull_state failed (non-fatal)")
         return None
+    rarity = receipt_dict.get("rarity", "?")
+    card_id = receipt_dict.get("card_id", "?")
+    _ticker(
+        "pull",
+        note=f"{card_id} [{rarity}]",
+        extra={"state_id": state_id, "card_id": card_id, "rarity": rarity},
+    )
+    return state_id

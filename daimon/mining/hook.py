@@ -50,6 +50,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from daimon.mining import buffer as _buffer
 from daimon.mining.formula import (
     MiningInput,
     compute_reward,
@@ -58,8 +59,13 @@ from daimon.mining.formula import (
 from daimon.mining import ledger as _ledger_mod
 from daimon.mining.ledger import (
     append_mine_entry,
+    get_balance,
     get_recent_entries,
 )
+
+# Milestones — emit a louder buffer event when the running balance crosses
+# one of these multiples. 100¤ matches the gacha cost (one full pull).
+MILESTONE_STEP = 100
 
 # Resolve at call time so tests can monkeypatch the module-level path.
 def _default_ledger() -> Path:
@@ -285,6 +291,43 @@ def process_event(event: Dict[str, Any],
     if entry is None:
         return {"action": "deduped", "reward": 0, "tool_name": tool_name,
                 "reason": "idempotency_key already in ledger"}
+
+    # ------------------------------------------------------------------
+    # Mirror the mint into the HUD ticker buffer (best-effort).
+    # ------------------------------------------------------------------
+    # Two events may land here:
+    #   1) the mint itself — kind="mine", appears in the rolling ticker
+    #   2) a milestone if balance crossed a MILESTONE_STEP boundary
+    #
+    # We compute the new balance from the ledger so the buffer's
+    # ``balance_after`` matches the source of truth. Any failure is
+    # swallowed by ``buffer.append`` itself — the mint is the contract,
+    # the ticker is chrome.
+    try:
+        new_balance = get_balance(path=ledger_path)
+        prev_balance = new_balance - out.reward
+        _buffer.append(
+            "mine",
+            amount=out.reward,
+            balance_after=new_balance,
+            tool=tool_name,
+        )
+        # Milestone fires when we cross a MILESTONE_STEP multiple. e.g.
+        # prev=98, new=103 → crossed 100, fire one milestone for "100".
+        prev_step = prev_balance // MILESTONE_STEP
+        new_step = new_balance // MILESTONE_STEP
+        if new_step > prev_step and new_balance > 0:
+            crossed = int(new_step * MILESTONE_STEP)
+            _buffer.append(
+                "milestone",
+                amount=0,
+                balance_after=new_balance,
+                tool=tool_name,
+                note=f"{crossed}¤ — pull unlocked!" if crossed % 100 == 0
+                     else f"{crossed}¤",
+            )
+    except Exception as e:  # noqa: BLE001 — never break the mint contract
+        print(f"daimon mine receipt: buffer emit failed: {e}", file=sys.stderr)
 
     return {
         "action": "minted",

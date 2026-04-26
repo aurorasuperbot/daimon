@@ -19,6 +19,7 @@ import pytest
 
 from daimon.identity import generate_identity
 from daimon.identity import keys as identity_keys
+from daimon.mining import buffer as buffer_mod
 from daimon.mining import formula as formula_mod
 from daimon.mining import ledger as ledger_mod
 from daimon.mining import hook as hook_mod
@@ -34,6 +35,9 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(identity_keys, "PUBLIC_KEY_PATH", cfg / "identity.pub")
     monkeypatch.setattr(identity_keys, "METADATA_PATH", cfg / "identity.json")
     monkeypatch.setattr(ledger_mod, "LEDGER_PATH", cfg / "ledger.jsonl")
+    # Mining buffer must also be redirected so tests don't write to the real
+    # ~/.config/daimon/mine_buffer.jsonl on the dev box.
+    monkeypatch.setattr(buffer_mod, "BUFFER_PATH", cfg / "mine_buffer.jsonl")
     # Reset the in-process novelty memory so tests are independent.
     monkeypatch.setattr(formula_mod, "_NOVELTY_MEMORY", {})
     generate_identity(force=True)
@@ -121,3 +125,75 @@ def test_main_processes_real_event(monkeypatch, isolated):
     lines = isolated.read_text().splitlines()
     kinds = [json.loads(l)["kind"] for l in lines]
     assert "mine" in kinds
+
+
+# ---------------------------------------------------------------------------
+# Mine-buffer (HUD ticker) integration
+# ---------------------------------------------------------------------------
+
+def test_mint_emits_to_mine_buffer(isolated):
+    """Each successful mint mirrors into the HUD ticker buffer."""
+    status = process_event(_event("Edit"))
+    assert status["action"] == "minted"
+
+    events = buffer_mod.tail(10, path=buffer_mod.BUFFER_PATH)
+    assert len(events) >= 1
+    last = events[-1]
+    assert last["kind"] == "mine"
+    assert last["tool"] == "Edit"
+    assert last["amount"] == status["reward"]
+    # balance_after must equal post-mint ledger balance
+    assert last["balance_after"] == ledger_mod.get_balance(path=isolated)
+
+
+def test_skipped_tool_does_not_write_buffer(isolated):
+    process_event(_event("TodoWrite"))
+    assert buffer_mod.tail(10, path=buffer_mod.BUFFER_PATH) == []
+
+
+def test_dedup_does_not_write_buffer(isolated):
+    e = _event("Edit")
+    process_event(e)
+    process_event(e)   # dedup
+    events = buffer_mod.tail(10, path=buffer_mod.BUFFER_PATH)
+    # Only the first mint should have produced a buffer entry.
+    mines = [x for x in events if x["kind"] == "mine"]
+    assert len(mines) == 1
+
+
+def test_milestone_fires_on_threshold_cross(isolated, monkeypatch):
+    """When a mint crosses a MILESTONE_STEP boundary, an extra event lands."""
+    # Force the milestone step low + force every mint to award exactly enough
+    # to cross it on the first event. Patch compute_reward to a fixed return.
+    from daimon.mining import formula as formula_mod_local
+    from daimon.mining import hook as hook_mod_local
+
+    monkeypatch.setattr(hook_mod_local, "MILESTONE_STEP", 5)
+
+    fixed = formula_mod_local.MiningOutput(
+        reward=7, factors={"forced": True},
+    )
+    monkeypatch.setattr(hook_mod_local, "compute_reward", lambda inp: fixed)
+
+    process_event(_event("Edit"))
+    events = buffer_mod.tail(10, path=buffer_mod.BUFFER_PATH)
+    kinds = [e["kind"] for e in events]
+    assert "mine" in kinds
+    assert "milestone" in kinds
+    milestone = [e for e in events if e["kind"] == "milestone"][0]
+    assert milestone["balance_after"] == 7
+    # 5¤ was the crossed threshold; note carries the boundary number.
+    assert "5" in milestone.get("note", "")
+
+
+def test_buffer_emit_failure_does_not_break_mint(isolated, monkeypatch):
+    """If buffer.append raises, the mint must still succeed."""
+    def _boom(*a, **kw):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr("daimon.mining.hook._buffer.append", _boom)
+
+    status = process_event(_event("Edit"))
+    # Mint contract is preserved even though buffer emission failed.
+    assert status["action"] == "minted"
+    assert status["reward"] > 0

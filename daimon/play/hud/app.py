@@ -37,13 +37,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional, TextIO
 
+from daimon.mining import buffer as _mine_buffer
 from daimon.play.hud.keyboard import Key, keyboard_reader_or_dummy
 from daimon.play.hud.playback import (
     END_COOLDOWN_MS,
     MatchPlayback,
     PlaybackStatus,
 )
-from daimon.play.hud.render import render_frame, render_idle
+from daimon.play.hud.render import render_frame, render_idle, render_mining_strip
 from daimon.play.schema import Match
 from daimon.play.state import GameState, read_state, resolve_state_path
 
@@ -66,6 +67,9 @@ RESET_ATTRS = "\x1b[0m"
 # ---------------------------------------------------------------------------
 
 RECENT_LOG_SIZE = 5
+
+# How many mine_buffer entries to surface in the idle pane / strip.
+MINE_TICKS_SIZE = 8
 
 
 @dataclass
@@ -92,6 +96,10 @@ class HudApp:
     autoplay: bool = True
     poll_only: bool = False
     max_ticks: int = 0
+    # Optional override for the mining-buffer path. Defaults to the buffer
+    # module's ``BUFFER_PATH`` (resolved at every poll so tests can
+    # monkeypatch the module-level path mid-test).
+    buffer_path: Optional[Path | str] = None
     # Test seam — return current monotonic ms so tests can advance time.
     clock_ms: Callable[[], int] = field(
         default_factory=lambda: (lambda: int(time.monotonic() * 1000))
@@ -102,6 +110,9 @@ class HudApp:
     _playback: Optional[MatchPlayback] = field(default=None, init=False)
     _last_state_id: Optional[str] = field(default=None, init=False)
     _recent: deque = field(default_factory=lambda: deque(maxlen=RECENT_LOG_SIZE), init=False)
+    # Last N mine_buffer entries — refreshed lazily on mtime change.
+    _mine_ticks: list = field(default_factory=list, init=False)
+    _last_buffer_mtime_ns: int = field(default=0, init=False)
     _stop_event: threading.Event = field(default_factory=threading.Event, init=False)
     _last_tick_ms: int = field(default=0, init=False)
     _observer: object = field(default=None, init=False)
@@ -109,6 +120,40 @@ class HudApp:
 
     def __post_init__(self) -> None:
         self._resolved_state_path = resolve_state_path(self.state_path)
+        # Re-seed _recent from prior match/pull events in the mine buffer so
+        # restarting the HUD doesn't blank the "recent activity" pane. The
+        # buffer is the authoritative cross-session store for these events
+        # (publish.py mirrors every match/pull there).
+        self._reseed_recent_from_buffer()
+
+    def _reseed_recent_from_buffer(self) -> None:
+        """Populate ``_recent`` from the last match/pull entries in mine_buffer.
+
+        Best-effort: any read failure leaves ``_recent`` empty (default for
+        a fresh install). Scans further back than ``RECENT_LOG_SIZE`` so we
+        don't miss matches behind a flurry of mining ticks.
+        """
+        path = self._resolved_buffer_path()
+        try:
+            # Scan ~10x further back than the recent-pane size — match/pull
+            # events are sparse compared to mine ticks, so a window of e.g.
+            # 80 buffer entries typically yields 5+ matches.
+            tail = _mine_buffer.tail(RECENT_LOG_SIZE * 16, path=path)
+        except Exception:  # noqa: BLE001
+            return
+        for entry in tail:
+            kind = entry.get("kind")
+            if kind == "match":
+                # publish.py format: note="vs <opp> (<outcome>)", extra={"opponent","outcome","state_id"}
+                opp = entry.get("opponent") or "?"
+                outcome = entry.get("outcome") or "?"
+                state_id = entry.get("state_id") or ""
+                short = state_id.split("_")[-1][:6] if state_id else "?"
+                self._recent.appendleft(f"{short}  vs {opp}  ({outcome})")
+            elif kind == "pull":
+                card_id = entry.get("card_id") or "?"
+                rarity = entry.get("rarity") or "?"
+                self._recent.appendleft(f"PULL  {card_id}  [{rarity}]")
 
     # ----- lifecycle -----
 
@@ -154,9 +199,12 @@ class HudApp:
     # ----- single tick (also the test entry point) -----
 
     def _tick_once(self, kb) -> None:
-        """One pass: drain new state, advance playback, handle keys, render."""
+        """One pass: drain new state + mining buffer, advance playback, handle keys, render."""
         # 1) Pick up any new state.json content.
         self._poll_state()
+
+        # 1b) Refresh mining-buffer tail when the file changed.
+        self._poll_mining_buffer()
 
         # 2) Drain keyboard (process all pending keys this tick).
         if kb is not None:
@@ -237,6 +285,40 @@ class HudApp:
             self._log_misc(state)
         self._last_state_id = state.id
 
+    # ----- mining-buffer polling -----
+
+    def _resolved_buffer_path(self) -> Path:
+        """Resolve the mine_buffer.jsonl path on every call.
+
+        Reads ``_mine_buffer.BUFFER_PATH`` lazily so tests that monkeypatch
+        the module-level path mid-test pick up the change without having
+        to reconstruct the HudApp.
+        """
+        if self.buffer_path is not None:
+            return Path(self.buffer_path).expanduser()
+        return _mine_buffer.BUFFER_PATH
+
+    def _poll_mining_buffer(self) -> None:
+        """Refresh ``_mine_ticks`` if the buffer file has changed since last tick.
+
+        Cheap: one stat() per HUD tick (50ms). Only re-tails on mtime change,
+        so a 1000-entry buffer only ever costs O(MINE_TICKS_SIZE) on update.
+        """
+        path = self._resolved_buffer_path()
+        cur_mtime = _mine_buffer.mtime_ns(path=path)
+        if cur_mtime == 0:
+            # No file yet — nothing to do. Don't reset _mine_ticks; if the
+            # buffer file is later created, the next tick will see the new
+            # mtime and refresh.
+            return
+        if cur_mtime == self._last_buffer_mtime_ns:
+            return
+        self._last_buffer_mtime_ns = cur_mtime
+        try:
+            self._mine_ticks = _mine_buffer.tail(MINE_TICKS_SIZE, path=path)
+        except Exception as e:  # noqa: BLE001 — never let HUD die on a chrome read
+            logger.warning("mine_buffer tail failed: %s", e)
+
     def _log_pull(self, state: GameState) -> None:
         """Surface a pull event in the recent-activity log."""
         d = state.data or {}
@@ -286,29 +368,53 @@ class HudApp:
         target = self._resolved_state_path
         target.parent.mkdir(parents=True, exist_ok=True)
 
+        # Mining buffer lives in CONFIG_DIR — usually the same parent dir
+        # as state.json. We watch the same dir and dispatch on which file
+        # was hit. If they live in different dirs (test override), we add
+        # a second schedule below.
+        buffer_target = self._resolved_buffer_path()
+        buffer_target.parent.mkdir(parents=True, exist_ok=True)
+
         outer = self
 
         class _Handler(FileSystemEventHandler):
-            def _hit(self, path: str) -> bool:
+            def _is_state(self, path: str) -> bool:
                 try:
                     return Path(path) == target
                 except (ValueError, OSError):
                     return False
 
-            def on_created(self, event) -> None:
-                if not event.is_directory and self._hit(event.src_path):
+            def _is_buffer(self, path: str) -> bool:
+                try:
+                    return Path(path) == buffer_target
+                except (ValueError, OSError):
+                    return False
+
+            def _dispatch(self, path: str) -> None:
+                if self._is_state(path):
                     outer._poll_state()
+                elif self._is_buffer(path):
+                    outer._poll_mining_buffer()
+
+            def on_created(self, event) -> None:
+                if not event.is_directory:
+                    self._dispatch(event.src_path)
 
             def on_modified(self, event) -> None:
-                if not event.is_directory and self._hit(event.src_path):
-                    outer._poll_state()
+                if not event.is_directory:
+                    self._dispatch(event.src_path)
 
             def on_moved(self, event) -> None:
-                if not event.is_directory and self._hit(getattr(event, "dest_path", "")):
-                    outer._poll_state()
+                if not event.is_directory:
+                    self._dispatch(getattr(event, "dest_path", ""))
 
         obs = Observer()
-        obs.schedule(_Handler(), str(target.parent), recursive=False)
+        handler = _Handler()
+        obs.schedule(handler, str(target.parent), recursive=False)
+        # If the buffer lives in a different dir (test override), schedule
+        # the same handler against that dir too so both files surface events.
+        if buffer_target.parent != target.parent:
+            obs.schedule(handler, str(buffer_target.parent), recursive=False)
         obs.start()
         self._observer = obs
 
@@ -345,18 +451,39 @@ class HudApp:
             return False
 
     def _render(self) -> None:
+        # Stable signature for cheap dedupe — last mine tick id is enough,
+        # since ticks always grow monotonically.
+        ticks = list(self._mine_ticks)
+        last_tick_sig = (
+            (ticks[-1].get("ts"), ticks[-1].get("kind"), ticks[-1].get("amount"))
+            if ticks else None
+        )
+
         if self._playback is None:
-            screen = render_idle(recent=list(self._recent), color=self.color)
-            sig = ("idle", tuple(self._recent))
+            screen = render_idle(
+                recent=list(self._recent),
+                mine_ticks=ticks,
+                color=self.color,
+            )
+            sig = ("idle", tuple(self._recent), last_tick_sig)
         else:
             frame = self._playback.snapshot()
-            screen = render_frame(frame, color=self.color)
+            frame_screen = render_frame(frame, color=self.color)
+            # Bottom-of-screen mining ticker — one extra row under the box.
+            # Always painted (even with no ticks yet) so the terminal layout
+            # height stays constant whether mining is active or quiet.
+            strip = render_mining_strip(
+                ticks[-1] if ticks else None,
+                color=self.color,
+            )
+            screen = frame_screen + "\n" + strip
             sig = (
                 "match",
                 self._playback.state_id,
                 frame.cursor,
                 frame.status.value,
                 round(frame.speed, 3),
+                last_tick_sig,
             )
         # Skip painting if nothing visible has changed since last paint.
         if sig == self._last_rendered_signature:

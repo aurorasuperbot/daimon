@@ -981,3 +981,234 @@ def test_no_pause_for_small_damage_step(sample_match):
     base_tick = int(BASE_TICK_MS / pb.speed)
     advanced = pb.step(elapsed_ms=base_tick)
     assert advanced == 1
+
+
+# ---------------------------------------------------------------------------
+# Mining ticker — render + HudApp integration
+# ---------------------------------------------------------------------------
+
+from daimon.mining import buffer as _mine_buffer
+from daimon.play.hud.render import render_mining_strip
+
+
+def _mk_tick(kind="mine", amount=3, balance_after=42, tool="Edit", note=""):
+    e = {
+        "ts": "2026-04-26T12:00:00+00:00",
+        "kind": kind,
+        "amount": amount,
+        "balance_after": balance_after,
+    }
+    if tool:
+        e["tool"] = tool
+    if note:
+        e["note"] = note
+    return e
+
+
+def test_render_idle_shows_mining_ticks_when_present():
+    out = render_idle(
+        recent=[],
+        mine_ticks=[_mk_tick(amount=3, balance_after=42, tool="Edit"),
+                    _mk_tick(amount=2, balance_after=44, tool="Read")],
+        color=False,
+    )
+    assert "MINING" in out
+    assert "+3" in out
+    assert "Edit" in out
+    assert "balance: 44" in out
+
+
+def test_render_idle_no_ticks_shows_waiting_label():
+    out = render_idle(recent=[], mine_ticks=[], color=False)
+    assert "MINING" in out
+    assert "waiting for first tool call" in out
+
+
+def test_render_idle_milestone_carries_note():
+    out = render_idle(
+        recent=[],
+        mine_ticks=[_mk_tick(kind="milestone", amount=0, balance_after=100,
+                             tool="Edit", note="100¤ — pull unlocked!")],
+        color=False,
+    )
+    assert "100¤ — pull unlocked!" in out
+
+
+def test_render_mining_strip_idle():
+    out = render_mining_strip(None, color=False)
+    assert "idle" in out
+    # Width-aligned to box width.
+    assert len(out) >= 80
+
+
+def test_render_mining_strip_with_tick():
+    out = render_mining_strip(
+        _mk_tick(amount=5, balance_after=247, tool="Bash"),
+        color=False,
+    )
+    assert "+5" in out
+    assert "Bash" in out
+    assert "247" in out
+
+
+def test_hudapp_polls_mining_buffer_and_renders(tmp_path, monkeypatch):
+    """HudApp picks up new mine_buffer entries between ticks."""
+    state_path = tmp_path / "state.json"
+    buffer_path = tmp_path / "mine_buffer.jsonl"
+    monkeypatch.setattr(_mine_buffer, "BUFFER_PATH", buffer_path)
+
+    sink = io.StringIO()
+    app = HudApp(
+        state_path=state_path, sink=sink, color=False,
+        keyboard_enabled=False, poll_only=True,
+        clock_ms=lambda: 0, tick_ms=10,
+        buffer_path=buffer_path,
+    )
+
+    # First tick — no buffer yet, idle screen with "waiting" label.
+    app._tick_once(kb=None)
+    output_1 = sink.getvalue()
+    assert "waiting for first tool call" in output_1
+
+    # Agent earns currency.
+    _mine_buffer.append("mine", amount=3, balance_after=42, tool="Edit",
+                        path=buffer_path)
+    sink.seek(0); sink.truncate(0)
+
+    # Next tick must pick the new entry up + render it.
+    app._tick_once(kb=None)
+    output_2 = sink.getvalue()
+    assert "+3" in output_2
+    assert "Edit" in output_2
+    assert "42" in output_2
+
+
+def test_hudapp_mtime_dedupe_does_not_retail(tmp_path, monkeypatch):
+    """Ticks with no buffer change must not re-tail the file."""
+    state_path = tmp_path / "state.json"
+    buffer_path = tmp_path / "mine_buffer.jsonl"
+    monkeypatch.setattr(_mine_buffer, "BUFFER_PATH", buffer_path)
+
+    _mine_buffer.append("mine", amount=1, balance_after=1, tool="Edit",
+                        path=buffer_path)
+
+    app = HudApp(
+        state_path=state_path, sink=io.StringIO(), color=False,
+        keyboard_enabled=False, poll_only=True,
+        clock_ms=lambda: 0, tick_ms=10,
+        buffer_path=buffer_path,
+    )
+    app._tick_once(kb=None)
+    first_ticks = list(app._mine_ticks)
+    assert len(first_ticks) == 1
+    last_mtime = app._last_buffer_mtime_ns
+
+    # Tick again with no buffer change. Mtime should be the same → no re-tail.
+    counter = [0]
+    real_tail = _mine_buffer.tail
+
+    def counting_tail(*a, **kw):
+        counter[0] += 1
+        return real_tail(*a, **kw)
+
+    monkeypatch.setattr(_mine_buffer, "tail", counting_tail)
+    app._tick_once(kb=None)
+    assert counter[0] == 0   # no re-tail
+    assert app._last_buffer_mtime_ns == last_mtime
+
+
+def test_hudapp_match_view_appends_mining_strip(sample_match, tmp_path,
+                                                  monkeypatch):
+    """When a match is loaded the bottom strip carries the latest tick."""
+    state_path = tmp_path / "state.json"
+    buffer_path = tmp_path / "mine_buffer.jsonl"
+    monkeypatch.setattr(_mine_buffer, "BUFFER_PATH", buffer_path)
+    _mine_buffer.append("mine", amount=7, balance_after=999, tool="Bash",
+                        path=buffer_path)
+
+    sink = io.StringIO()
+    app = HudApp(
+        state_path=state_path, sink=sink, color=False,
+        keyboard_enabled=False, poll_only=True,
+        clock_ms=lambda: 0, tick_ms=10,
+        buffer_path=buffer_path,
+    )
+    app.force_load_match(sample_match, state_id="ticker-test")
+    app._tick_once(kb=None)
+    out = sink.getvalue()
+    # Match frame is rendered (lineups), AND the mining strip beneath it.
+    assert "OPPONENT" in out
+    assert "+7" in out
+    assert "Bash" in out
+    assert "999" in out
+
+
+def test_hudapp_buffer_path_falls_back_to_module_default(tmp_path, monkeypatch):
+    """If buffer_path arg is None, app reads from module-level BUFFER_PATH."""
+    state_path = tmp_path / "state.json"
+    buffer_path = tmp_path / "elsewhere" / "mine_buffer.jsonl"
+    monkeypatch.setattr(_mine_buffer, "BUFFER_PATH", buffer_path)
+
+    app = HudApp(
+        state_path=state_path, sink=io.StringIO(), color=False,
+        keyboard_enabled=False, poll_only=True,
+        clock_ms=lambda: 0, tick_ms=10,
+        # buffer_path intentionally NOT passed — should resolve from module.
+    )
+    assert app._resolved_buffer_path() == buffer_path
+
+
+def test_hudapp_reseeds_recent_from_buffer_on_startup(tmp_path, monkeypatch):
+    """Restarting the HUD picks up prior match/pull events from the buffer."""
+    state_path = tmp_path / "state.json"
+    buffer_path = tmp_path / "mine_buffer.jsonl"
+    monkeypatch.setattr(_mine_buffer, "BUFFER_PATH", buffer_path)
+
+    # Simulate a prior session's worth of events.
+    _mine_buffer.append("match", balance_after=200,
+                        note="vs Sparring Sam (win)",
+                        path=buffer_path,
+                        extra={"opponent": "Sparring Sam", "outcome": "win",
+                               "state_id": "match_aaaaaa"})
+    _mine_buffer.append("mine", amount=2, balance_after=202, tool="Edit",
+                        path=buffer_path)
+    _mine_buffer.append("pull", balance_after=102,
+                        note="voltcat-apex [legendary]",
+                        path=buffer_path,
+                        extra={"card_id": "voltcat-apex",
+                               "rarity": "legendary"})
+    _mine_buffer.append("match", balance_after=102,
+                        note="vs Doom-paw Doppia (loss)",
+                        path=buffer_path,
+                        extra={"opponent": "Doom-paw Doppia",
+                               "outcome": "loss",
+                               "state_id": "match_bbbbbb"})
+
+    app = HudApp(
+        state_path=state_path, sink=io.StringIO(), color=False,
+        keyboard_enabled=False, poll_only=True,
+        clock_ms=lambda: 0, tick_ms=10,
+        buffer_path=buffer_path,
+    )
+
+    # _recent should now contain BOTH match entries + the pull, ordered most-recent-first.
+    assert len(app._recent) == 3
+    # Newest entry on top.
+    assert "Doom-paw Doppia" in app._recent[0]
+    # Pull entry made it through too.
+    assert any("voltcat-apex" in r for r in app._recent)
+
+
+def test_hudapp_reseed_no_buffer_yields_empty_recent(tmp_path, monkeypatch):
+    """Fresh install (no buffer file) leaves _recent empty without raising."""
+    state_path = tmp_path / "state.json"
+    buffer_path = tmp_path / "no_such_file.jsonl"
+    monkeypatch.setattr(_mine_buffer, "BUFFER_PATH", buffer_path)
+
+    app = HudApp(
+        state_path=state_path, sink=io.StringIO(), color=False,
+        keyboard_enabled=False, poll_only=True,
+        clock_ms=lambda: 0, tick_ms=10,
+        buffer_path=buffer_path,
+    )
+    assert len(app._recent) == 0

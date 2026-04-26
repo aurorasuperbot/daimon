@@ -210,31 +210,118 @@ def _divider_with_arrows(arrows: list[tuple[int, str, str]]) -> str:
     return "".join(out)
 
 
-def render_idle(*, recent: Iterable[str] = (), color: bool = True) -> str:
-    """Screen shown when no match is loaded. Lists last-rendered match ids.
+def render_idle(
+    *,
+    recent: Iterable[str] = (),
+    mine_ticks: Iterable[dict] = (),
+    color: bool = True,
+) -> str:
+    """Screen shown when no match is loaded. Lists last-rendered match ids
+    and the most recent mining ticks (from ``mine_buffer.jsonl``).
 
-    Renderer doesn't fetch them — the app passes them in.
+    Renderer doesn't fetch anything — the app passes both feeds in. Caller
+    decides truncation; this layer just paints what it's given (capped per
+    section so the box layout stays predictable).
     """
     lines: list[str] = []
     lines.append(_box_top())
     lines.append(_centered("DAIMON — spectator HUD", color=color, bold=True))
     lines.append(_divider())
     lines.append(_centered("waiting for match…", color=color, dim=True))
-    lines.append(_blank())
     lines.append(_centered("(claude can run a match via dm_match_npc, dm_match)",
                            color=color, dim=True))
     lines.append(_divider())
-    recent_l = list(recent)[:5]
+    recent_l = list(recent)[:4]
     if recent_l:
-        lines.append(_left("recent activity:", color=color, bold=True))
+        lines.append(_left("  recent activity:", color=color, bold=True))
         for r in recent_l:
-            lines.append(_left(f"  · {r}", color=color, dim=True))
+            lines.append(_left(f"    · {r}", color=color, dim=True))
     else:
-        lines.append(_left("  (none yet)", color=color, dim=True))
+        lines.append(_left("  recent activity: (none yet)", color=color, dim=True))
+    lines.append(_divider())
+    # Mining pane — chrome the agent's productive work even while no match
+    # is loaded. Shows the last few ticks with running balance so Santiago
+    # can tell at a glance "how much currency landed since I last looked."
+    ticks_l = list(mine_ticks)[-6:]
+    if ticks_l:
+        lines.append(_left("  ⛏ MINING (live):", color=color, bold=True))
+        for t in ticks_l:
+            lines.append(_left("    " + _format_mine_tick(t, color=color),
+                               color=False))
+    else:
+        lines.append(_left("  ⛏ MINING (live): waiting for first tool call…",
+                           color=color, dim=True))
     lines.append(_divider())
     lines.append(_status_line_idle(color=color))
     lines.append(_box_bottom())
     return "\n".join(lines)
+
+
+def render_mining_strip(
+    tick: Optional[dict] = None,
+    *,
+    color: bool = True,
+) -> str:
+    """Compact 1-line mining ticker for the bottom of the match frame.
+
+    Returns a single line (no trailing newline) shaped to the same WIDTH
+    as the box so it slots cleanly under the match frame. ``tick=None``
+    renders an empty placeholder of the same width — keeps the terminal
+    layout stable between mining states.
+    """
+    if tick is None:
+        body = " ⛏ idle …"
+    else:
+        body = " " + _format_mine_tick(tick, color=color)
+    visible = _strip_ansi(body)
+    pad = max(0, WIDTH - len(visible))
+    if color:
+        return DIM + body + RESET + " " * pad
+    return body + " " * pad
+
+
+def _format_mine_tick(tick: dict, *, color: bool) -> str:
+    """One-liner for a single mine_buffer entry. Used in idle pane + strip.
+
+    Layout:  '⛏  +3¤  Edit                                  balance: 247'
+    Milestones get a star and the note instead of tool/amount.
+    """
+    kind = tick.get("kind", "?")
+    amount = tick.get("amount", 0)
+    bal = tick.get("balance_after", 0)
+    tool = tick.get("tool", "")
+    note = tick.get("note", "")
+
+    if kind == "milestone":
+        glyph = "★"
+        body = f"{glyph}  {note or 'milestone'}"
+    elif kind == "match":
+        glyph = "⚔"
+        body = f"{glyph}  match: {note or 'resolved'}"
+    elif kind == "pull":
+        glyph = "✦"
+        body = f"{glyph}  pull: {note or 'received'}"
+    else:   # mine (default)
+        glyph = "⛏"
+        sign = "+" if amount >= 0 else ""
+        body = f"{glyph}  {sign}{amount}¤  {tool}"
+
+    # Pad body to the left half so balance lines up on the right.
+    visible = body
+    target_left = 48
+    pad_inner = max(1, target_left - len(visible))
+    line = body + " " * pad_inner + f"balance: {bal}¤"
+
+    if not color:
+        return line
+
+    if kind == "milestone":
+        return BOLD + YELLOW + line + RESET
+    if kind == "match":
+        return CYAN + line + RESET
+    if kind == "pull":
+        return MAGENTA + line + RESET
+    return GREEN + line + RESET
 
 
 # ---------------------------------------------------------------------------
