@@ -30,6 +30,7 @@ from daimon.mcp.server import (
     dm_collection,
     dm_dispute_open,
     dm_expansions,
+    dm_home,
     dm_init,
     dm_leaderboard,
     dm_loadout_list,
@@ -566,6 +567,7 @@ def _isolate_paths(monkeypatch, tmp_path):
     tests don't touch the user's real ~/.config/daimon."""
     from daimon.identity import keys as identity_keys
     from daimon.mining import ledger as ledger_mod
+    from daimon.mining import buffer as buffer_mod
     from daimon import collection as collection_mod
 
     cfg = tmp_path / "config"
@@ -580,6 +582,16 @@ def _isolate_paths(monkeypatch, tmp_path):
     monkeypatch.setattr(mcp_server, "LEDGER_PATH", cfg / "mining_ledger.jsonl")
     monkeypatch.setattr(mcp_server, "COLLECTION_PATH",
                         cfg / "collection.json")
+    # Redirect LOADOUTS_DIR — dm_loadout_save / dm_loadout_list / dm_home
+    # all read from this path. Without redirection, tests that save
+    # loadouts have been polluting the user's real
+    # ~/.config/daimon/loadouts/ on every run (latent bug, fixed here).
+    monkeypatch.setattr(mcp_server, "LOADOUTS_DIR", cfg / "loadouts")
+    # Redirect mine_buffer too — publish.py mirrors match/pull events there
+    # via _ticker(), and dm_match / dm_pull (and dm_home) all consume it.
+    # Without this, MCP tests would write to the real
+    # ~/.config/daimon/mine_buffer.jsonl on every match.
+    monkeypatch.setattr(buffer_mod, "BUFFER_PATH", cfg / "mine_buffer.jsonl")
     # Route state.json writes from MCP side-effects into the tmp dir too —
     # otherwise dm_match / dm_pull would clobber a real game terminal's state.
     monkeypatch.setenv("DAIMON_STATE", str(cfg / "state.json"))
@@ -1816,3 +1828,317 @@ def test_match_npc_writes_state_file_with_npc_name_as_opponent(
         f"Opponent loadout {actual_species!r} should match the on-disk "
         f"roster loadout {expected_species!r} for mythbreaker_marn"
     )
+
+
+# ---------------------------------------------------------------------------
+# dm_home — single-call snapshot for the chat home card
+# ---------------------------------------------------------------------------
+
+def _seed_buffer_match(*, opponent: str, outcome: str,
+                       state_id: str = "match_xxx", note: str = "",
+                       buffer_path=None):
+    """Helper: write one match-shaped row to the (isolated) mine_buffer."""
+    from daimon.mining import buffer as _buffer
+    _buffer.append(
+        "match",
+        amount=0,
+        balance_after=0,
+        note=note or f"vs {opponent} ({outcome})",
+        extra={"state_id": state_id, "opponent": opponent,
+               "outcome": outcome},
+        path=buffer_path,
+    )
+
+
+def _seed_buffer_pull(*, card_id: str, rarity: str, state_id: str = "pull_xxx",
+                      buffer_path=None):
+    from daimon.mining import buffer as _buffer
+    _buffer.append(
+        "pull",
+        amount=0,
+        balance_after=0,
+        note=f"{card_id} [{rarity}]",
+        extra={"state_id": state_id, "card_id": card_id, "rarity": rarity},
+        path=buffer_path,
+    )
+
+
+def test_home_no_identity(monkeypatch, tmp_path):
+    _isolate_paths(monkeypatch, tmp_path)
+    result = _call(dm_home)
+    assert result["error"] == "no_identity"
+    assert "status" not in result
+    assert "hint" in result
+
+
+def test_home_fresh_identity_envelope_shape(monkeypatch, tmp_path):
+    """Fresh identity, no ledger, no buffer. The envelope must still render —
+    every field present with safe defaults so the chat card never errors out
+    on first run."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+
+    result = _call(dm_home)
+    assert result["status"] == "ok"
+
+    # Identity block
+    assert "identity" in result
+    ident = result["identity"]
+    assert isinstance(ident["pubkey_hex"], str) and len(ident["pubkey_hex"]) > 0
+    assert ident["registered"] is False
+    assert ident["handle"] is None
+    assert "version" in ident
+
+    # Currency block — fresh ledger == zero balance
+    assert result["balance"] == 0
+    assert result["pull"]["cost"] == 100
+    assert result["pull"]["pulls_available"] == 0
+    assert result["pull"]["balance_to_next_pull"] == 100
+
+    # Stats — all zeros, verified True (empty chain is trivially valid)
+    s = result["stats"]
+    for k in ("total_mined", "total_pulled", "mine_count", "pull_count",
+              "ledger_entries"):
+        assert s[k] == 0, f"{k} should be 0 on fresh install, got {s[k]!r}"
+    assert s["verified"] is True
+
+    # Rank — leaderboard unreachable in tests; should fall back gracefully
+    assert "rank" in result
+    assert result["rank"]["wins"] == 0
+    assert result["rank"]["losses"] == 0
+    assert result["rank"]["draws"] == 0
+    # tier defaults to Rookie when no record
+    assert result["rank"]["tier"] in ("Rookie", "rookie")
+
+    # History — empty lists, never None
+    assert result["recent_matches"] == []
+    assert result["recent_pulls"] == []
+
+    # Recommendation — fresh player should get a Rookie tier NPC
+    rec = result["recommended_npc"]
+    assert rec is not None, "fresh player must get a starter NPC suggestion"
+    assert rec["tier"] == "rookie"
+    assert "name" in rec and "npc_id" in rec
+    assert rec["reason"] == "next in your tier"
+
+    # Saved loadouts — empty
+    assert result["saved_loadouts"] == []
+
+
+def test_home_balance_and_pull_readiness(monkeypatch, tmp_path):
+    """Funded ledger should report correct pull readiness."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    from daimon.mining import append_mine_entry
+    generate_identity(force=True)
+
+    # Mint 250¤ → 2 pulls available, next pull at 50¤ more.
+    append_mine_entry(
+        tool_name="Edit", amount=250,
+        factors={"base": 4}, novelty_key="seed1",
+    )
+    result = _call(dm_home)
+    assert result["status"] == "ok"
+    assert result["balance"] == 250
+    assert result["pull"]["pulls_available"] == 2
+    assert result["pull"]["balance_to_next_pull"] == 50
+    assert result["stats"]["total_mined"] == 250
+    assert result["stats"]["mine_count"] == 1
+
+
+def test_home_balance_at_threshold(monkeypatch, tmp_path):
+    """Balance == exact pull cost: 1 pull available, next pull still 100 away."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    from daimon.mining import append_mine_entry
+    generate_identity(force=True)
+
+    append_mine_entry(
+        tool_name="Edit", amount=100,
+        factors={"base": 4}, novelty_key="exact",
+    )
+    result = _call(dm_home)
+    assert result["balance"] == 100
+    assert result["pull"]["pulls_available"] == 1
+    # balance_to_next_pull is the deposit needed to unlock the NEXT pull,
+    # not the current one. At exactly 100 the user has 1 pull but needs 100
+    # more to earn a second.
+    assert result["pull"]["balance_to_next_pull"] == 100
+
+
+def test_home_recent_matches_newest_first_with_lifted_extras(
+    monkeypatch, tmp_path
+):
+    """Buffer match entries should appear in recent_matches newest-first
+    with state_id/opponent/outcome lifted to top level for the chat card."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+
+    _seed_buffer_match(opponent="Sparring Sam", outcome="win",
+                       state_id="match_aaa")
+    _seed_buffer_match(opponent="Doom Paw Doppia", outcome="loss",
+                       state_id="match_bbb")
+    _seed_buffer_match(opponent="Sparring Sam", outcome="draw",
+                       state_id="match_ccc")
+
+    result = _call(dm_home)
+    matches = result["recent_matches"]
+    assert len(matches) == 3
+    # Newest-first: ccc, bbb, aaa
+    assert [m["state_id"] for m in matches] == ["match_ccc", "match_bbb",
+                                                "match_aaa"]
+    # Extras must be lifted to top level
+    assert matches[0]["opponent"] == "Sparring Sam"
+    assert matches[0]["outcome"] == "draw"
+    # ts is the buffer's _now_iso() — ISO-8601 string, not numeric.
+    assert isinstance(matches[0]["ts"], str)
+    assert "T" in matches[0]["ts"]
+
+
+def test_home_recent_pulls_newest_first_with_lifted_extras(
+    monkeypatch, tmp_path
+):
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+
+    _seed_buffer_pull(card_id="ember_imp", rarity="common",
+                      state_id="pull_111")
+    _seed_buffer_pull(card_id="prometheus_fire_thief", rarity="legendary",
+                      state_id="pull_222")
+
+    result = _call(dm_home)
+    pulls = result["recent_pulls"]
+    assert len(pulls) == 2
+    assert pulls[0]["state_id"] == "pull_222"
+    assert pulls[0]["card_id"] == "prometheus_fire_thief"
+    assert pulls[0]["rarity"] == "legendary"
+    assert pulls[1]["state_id"] == "pull_111"
+
+
+def test_home_recommendation_skips_beaten_npcs(monkeypatch, tmp_path):
+    """If the player has beaten the rank-1 Rookie NPC, the recommendation
+    should advance to the next un-beaten Rookie."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    from daimon.npcs import list_npcs
+    generate_identity(force=True)
+
+    rookies = list_npcs("rookie")
+    assert len(rookies) >= 2, "need at least 2 rookies for this test"
+    first_rookie = rookies[0]
+    second_rookie = rookies[1]
+
+    # Mark the first rookie as beaten.
+    _seed_buffer_match(opponent=first_rookie.name, outcome="win",
+                       state_id="match_first")
+
+    result = _call(dm_home)
+    rec = result["recommended_npc"]
+    assert rec is not None
+    assert rec["npc_id"] == second_rookie.npc_id, (
+        f"expected to skip beaten {first_rookie.name!r} and recommend "
+        f"{second_rookie.name!r}, got {rec['name']!r}"
+    )
+    assert rec["reason"] == "next in your tier"
+
+
+def test_home_recommendation_advances_to_next_tier(monkeypatch, tmp_path):
+    """Beat every rookie and the recommendation should jump to the first
+    novice with the 'ready to climb' reason string."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    from daimon.npcs import list_npcs, list_tiers
+    generate_identity(force=True)
+
+    rookies = list_npcs("rookie")
+    for npc in rookies:
+        _seed_buffer_match(opponent=npc.name, outcome="win",
+                           state_id=f"match_{npc.npc_id}")
+
+    result = _call(dm_home)
+    rec = result["recommended_npc"]
+    assert rec is not None
+    # Walk forward from rookie to find the next non-rookie tier.
+    tiers = list_tiers()
+    next_tier = tiers[tiers.index("rookie") + 1]
+    assert rec["tier"] == next_tier
+    assert rec["reason"] == "ready to climb — current tier cleared"
+
+
+def test_home_losses_do_not_count_as_beaten(monkeypatch, tmp_path):
+    """Losing to an NPC must NOT mark them as beaten — the recommendation
+    should still suggest fighting them."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    from daimon.npcs import list_npcs
+    generate_identity(force=True)
+
+    first_rookie = list_npcs("rookie")[0]
+    _seed_buffer_match(opponent=first_rookie.name, outcome="loss",
+                       state_id="match_loss")
+    _seed_buffer_match(opponent=first_rookie.name, outcome="draw",
+                       state_id="match_draw")
+
+    result = _call(dm_home)
+    rec = result["recommended_npc"]
+    assert rec["npc_id"] == first_rookie.npc_id, (
+        "loss + draw should not mark NPC as beaten — should still recommend"
+    )
+
+
+def test_home_robust_when_buffer_missing(monkeypatch, tmp_path):
+    """Buffer file doesn't exist (fresh install): empty histories, no crash."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+
+    # Confirm precondition: buffer path doesn't exist yet.
+    from daimon.mining import buffer as _buffer
+    assert not _buffer.BUFFER_PATH.exists()
+
+    result = _call(dm_home)
+    assert result["status"] == "ok"
+    assert result["recent_matches"] == []
+    assert result["recent_pulls"] == []
+
+
+def test_home_includes_saved_loadouts(monkeypatch, tmp_path):
+    """Saved loadouts should be enumerated by name + card_count."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+
+    # Use dm_loadout_save so we exercise the same code path the user does.
+    full = _full_loadout_dict()
+    save_result = _call(dm_loadout_save, name="aggro_volt",
+                        loadout=full)
+    assert save_result["status"] == "ok"
+
+    result = _call(dm_home)
+    names = [lo["name"] for lo in result["saved_loadouts"]]
+    assert "aggro_volt" in names
+    entry = next(lo for lo in result["saved_loadouts"]
+                 if lo["name"] == "aggro_volt")
+    assert entry["card_count"] == 6
+
+
+def test_home_recent_matches_capped_at_5(monkeypatch, tmp_path):
+    """Only the last 5 matches surface in recent_matches even if many exist
+    (full history is still walked for the recommendation logic)."""
+    _isolate_paths(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+
+    for i in range(8):
+        _seed_buffer_match(opponent=f"npc_{i}", outcome="loss",
+                           state_id=f"match_{i:02d}")
+
+    result = _call(dm_home)
+    assert len(result["recent_matches"]) == 5
+    # Newest-first: should be 07, 06, 05, 04, 03
+    assert [m["state_id"] for m in result["recent_matches"]] == [
+        "match_07", "match_06", "match_05", "match_04", "match_03",
+    ]

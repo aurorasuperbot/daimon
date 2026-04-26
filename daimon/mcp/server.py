@@ -14,6 +14,10 @@ arena wiring landed + 5 shop tools shipped 2026-04-24 alongside the
 Identity + currency:
   dm_init              → bootstrap identity + BIP39 mnemonic (one-time)
   dm_whoami            → pubkey + handle + balance + totals (absorbed mine_status)
+  dm_home              → one-call snapshot for the chat home card (identity +
+                         balance + recent matches/pulls + recommended NPC +
+                         saved loadouts) — sources: ledger + mine_buffer +
+                         arena.my_rank + npcs roster, no new persistence
   dm_register          → open identity registration Issue in arena
   dm_mine_status       → DEPRECATED alias for dm_whoami; kept for back-compat
 
@@ -446,6 +450,296 @@ def dm_whoami() -> Dict[str, Any]:
     }
     out.update(_mining_stats_or_empty())
     return out
+
+
+# ---------------------------------------------------------------------------
+# dm_home — single-call snapshot for the chat home card
+# ---------------------------------------------------------------------------
+
+# Pull cost lives in mining/ledger.py as PULL_COST; mirror the constant here
+# so dm_home can compute "pulls available / balance to next pull" without
+# importing the full ledger module unconditionally (the no-identity branch
+# below skips that import).
+_PULL_COST = 100
+
+
+def _recent_from_buffer(kind: str, limit: int) -> List[Dict[str, Any]]:
+    """Return last `limit` entries of a given kind from mine_buffer.
+
+    Buffer is the canonical history surface (see daimon/play/publish.py
+    docstring). Returns newest-first. Best-effort: empty list on any
+    read failure so dm_home stays robust on fresh installs.
+
+    The buffer's ``append()`` *flattens* extras onto the entry dict (it
+    does NOT nest them under a ``"extra"`` key — see buffer.py:183-187),
+    so we read well-known fields straight off the entry.
+    """
+    try:
+        from daimon.mining import buffer as _buffer
+        # Pull a generous window then filter — buffer.by_kind preserves order.
+        window = _buffer.tail(limit * 16)
+        rows = _buffer.by_kind(window, kind)
+    except Exception:
+        return []
+    out: List[Dict[str, Any]] = []
+    # Newest-first
+    for entry in reversed(rows[-limit:]):
+        row: Dict[str, Any] = {
+            "ts": entry.get("ts"),
+            "note": entry.get("note", ""),
+        }
+        # Lift the fields the chat home card actually uses, when present.
+        # Anything else on the entry stays where it is (callers that need
+        # the raw row can re-tail the buffer directly).
+        for k in ("state_id", "opponent", "outcome",
+                  "card_id", "rarity", "pack", "serial"):
+            if k in entry:
+                row[k] = entry[k]
+        out.append(row)
+    return out
+
+
+def _recommended_npc(
+    *,
+    current_tier: str,
+    recent_matches: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Pick the next NPC the player should fight.
+
+    Strategy (simple but useful):
+      1. Build the set of NPC names beaten (outcome == "win") in recent
+         match history. The buffer caps at 250-500 entries so this is a
+         "recent campaign" view, not a permanent record — re-fighting after
+         a long gap is fine.
+      2. List NPCs in the player's current tier sorted by rank (easiest
+         first). Recommend the first un-beaten one.
+      3. If every NPC in the current tier is beaten, advance to the next
+         tier and recommend its rank-1 NPC ("ready to climb").
+      4. If the player has beaten every NPC in the Champion tier, return
+         None — the PvE ladder is exhausted.
+
+    Falls back to None silently on any error (best-effort, never raises).
+    """
+    try:
+        from daimon.npcs import list_npcs, list_tiers
+    except Exception:
+        return None
+
+    beaten = {
+        m.get("opponent")
+        for m in recent_matches
+        if m.get("outcome") == "win" and m.get("opponent")
+    }
+
+    tier_id = (current_tier or "rookie").lower()
+    try:
+        all_tiers = list_tiers()
+    except Exception:
+        return None
+    if tier_id not in all_tiers:
+        tier_id = all_tiers[0] if all_tiers else "rookie"
+
+    # Walk current tier → next tier → ... → Champion until we find an
+    # un-beaten NPC. NPC names in the buffer come from the engine adapter
+    # (npc.name), and that's the same field we use as `name` here, so the
+    # set comparison is direct.
+    try:
+        idx = all_tiers.index(tier_id)
+    except ValueError:
+        idx = 0
+
+    for ti in range(idx, len(all_tiers)):
+        scan_tier = all_tiers[ti]
+        try:
+            roster = list_npcs(scan_tier)
+        except Exception:
+            continue
+        # list_npcs already sorts by (rank, npc_id) so iteration is stable
+        # and "easiest first" within a tier.
+        for npc in roster:
+            if npc.name in beaten:
+                continue
+            reason = (
+                "next in your tier"
+                if ti == idx
+                else "ready to climb — current tier cleared"
+            )
+            return {
+                "npc_id": npc.npc_id,
+                "name": npc.name,
+                "tier": npc.tier,
+                "rank": npc.rank,
+                "flavor": npc.flavor,
+                "reason": reason,
+            }
+    return None
+
+
+def _saved_loadouts_summary() -> List[Dict[str, Any]]:
+    """List saved loadouts (name + card_count). Mirrors dm_loadout_list
+    but trimmed for the home payload — no paths, no mtimes, no corrupt
+    entries (those just get skipped). Returns [] when no loadouts dir."""
+    if not LOADOUTS_DIR.exists():
+        return []
+    out: List[Dict[str, Any]] = []
+    for entry in sorted(LOADOUTS_DIR.iterdir()):
+        if not entry.is_file() or entry.suffix != ".json":
+            continue
+        try:
+            doc = json.loads(entry.read_text(encoding="utf-8"))
+            cards = doc.get("cards", [])
+            if not isinstance(cards, list):
+                continue
+            out.append({"name": entry.stem, "card_count": len(cards)})
+        except Exception:
+            # Skip malformed files; dm_loadout_list reports them properly.
+            continue
+    return out
+
+
+@mcp.tool()
+def dm_home() -> Dict[str, Any]:
+    """One-call snapshot of the agent's current standing — the chat home card.
+
+    Aggregates identity, balance, recent matches, pull readiness, recommended
+    next opponent, and saved loadouts into a single payload so the spectator
+    HUD / Coda's home-card embed don't have to fan out across five tools.
+
+    All sources are existing surfaces — no new persistence:
+      * identity   → daimon.identity.load_identity + identity.json metadata
+      * balance    → daimon.mining.ledger.get_stats (via _mining_stats_or_empty)
+      * history    → daimon.mining.buffer (kind=match / kind=pull)
+      * rank/tier  → daimon.arena.ops.my_rank
+      * NPC ladder → daimon.npcs.list_tiers / list_npcs
+      * loadouts   → ~/.config/daimon/loadouts/*.json
+
+    Returns:
+      {"status": "ok",
+       "identity": {"pubkey_hex", "handle", "registered", "version"},
+       "balance": int,
+       "pull": {"cost": int, "pulls_available": int,
+                "balance_to_next_pull": int},
+       "stats": {"total_mined", "total_pulled", "mine_count",
+                 "pull_count", "ledger_entries", "verified"},
+       "rank": {"rank": int|null, "tier": str, "wins", "losses",
+                "draws", "total_players", "note"?: str},
+       "recent_matches": [{"ts", "state_id", "opponent",
+                           "outcome", "note"}, ...] (newest-first, ≤5),
+       "recent_pulls":   [{"ts", "state_id", "card_id",
+                           "rarity", "note"}, ...] (newest-first, ≤5),
+       "recommended_npc": {"npc_id", "name", "tier", "rank",
+                           "flavor", "reason"} | null,
+       "saved_loadouts": [{"name", "card_count"}, ...]}
+
+    Returns {"error": "no_identity", ...} if `daimon init` has never run.
+    Never raises — every sub-source is wrapped in best-effort fallback so the
+    home card always renders SOMETHING even on a half-broken install.
+    """
+    # Identity is mandatory — no point computing the rest without one.
+    try:
+        from daimon.identity import load_identity
+        identity = load_identity()
+    except FileNotFoundError:
+        return {
+            "error": "no_identity",
+            "hint": "Call `dm_init` (MCP) or run `daimon init` (CLI) "
+                    "to bootstrap an identity.",
+        }
+
+    # Identity metadata (handle, registration). Best-effort.
+    handle = None
+    registered = False
+    metadata_path = CONFIG_DIR / "identity.json"
+    if metadata_path.exists():
+        try:
+            metadata = json.loads(metadata_path.read_text())
+            handle = metadata.get("handle")
+            registered = bool(metadata.get("registered"))
+        except Exception:
+            pass
+
+    # Mining stats — already best-effort (returns empty-shape on no ledger).
+    mining = _mining_stats_or_empty()
+    balance = int(mining.get("balance", 0))
+    pulls_available = balance // _PULL_COST
+    # Always report progress toward the NEXT pull, even when one is already
+    # available. This matches Marvel-Snap-style "next reward in N coins" UX.
+    balance_to_next_pull = _PULL_COST - (balance % _PULL_COST)
+
+    stats = {
+        "total_mined": mining.get("total_mined", 0),
+        "total_pulled": mining.get("total_pulled", 0),
+        "total_purchased": mining.get("total_purchased", 0),
+        "mine_count": mining.get("mine_count", 0),
+        "pull_count": mining.get("pull_count", 0),
+        "purchase_count": mining.get("purchase_count", 0),
+        "ledger_entries": mining.get("ledger_entries", 0),
+        "verified": mining.get("verified", True),
+    }
+
+    # Arena rank — best-effort. If GitHub is unreachable or the leaderboard
+    # is missing, fall back to a safe Rookie-zero default so the home card
+    # still shows the player's standing as "fresh start".
+    try:
+        rank_payload = arena_ops.my_rank()
+    except Exception:
+        rank_payload = {}
+    if rank_payload.get("status") != "ok":
+        rank = {
+            "rank": None,
+            "tier": "Rookie",
+            "wins": 0,
+            "losses": 0,
+            "draws": 0,
+            "total_players": 0,
+            "note": "rank unavailable (no leaderboard reachable yet)",
+        }
+    else:
+        rank = {
+            "rank": rank_payload.get("rank"),
+            "tier": rank_payload.get("tier", "Rookie"),
+            "wins": rank_payload.get("wins", 0),
+            "losses": rank_payload.get("losses", 0),
+            "draws": rank_payload.get("draws", 0),
+            "total_players": rank_payload.get("total_players", 0),
+        }
+        if "note" in rank_payload:
+            rank["note"] = rank_payload["note"]
+
+    # History pulled from the buffer — newest-first, capped at 5 each.
+    recent_matches = _recent_from_buffer("match", 5)
+    recent_pulls = _recent_from_buffer("pull", 5)
+
+    # Recommendation walks the ladder using the FULL recent-match window
+    # so we don't accidentally recommend an NPC the player just beat in
+    # match #6 (which a 5-row recent_matches window would miss).
+    full_match_window = _recent_from_buffer("match", 100)
+    recommended = _recommended_npc(
+        current_tier=rank["tier"],
+        recent_matches=full_match_window,
+    )
+
+    return {
+        "status": "ok",
+        "identity": {
+            "pubkey_hex": identity.pubkey_hex,
+            "handle": handle,
+            "registered": registered,
+            "version": __version__,
+        },
+        "balance": balance,
+        "pull": {
+            "cost": _PULL_COST,
+            "pulls_available": pulls_available,
+            "balance_to_next_pull": balance_to_next_pull,
+        },
+        "stats": stats,
+        "rank": rank,
+        "recent_matches": recent_matches,
+        "recent_pulls": recent_pulls,
+        "recommended_npc": recommended,
+        "saved_loadouts": _saved_loadouts_summary(),
+    }
 
 
 @mcp.tool()

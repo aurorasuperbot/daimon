@@ -44,6 +44,25 @@ def sample_match() -> Match:
     return Match.model_validate(data)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_mine_buffer(tmp_path, monkeypatch):
+    """Redirect mine_buffer.BUFFER_PATH so HUD tests never touch the user's
+    real ~/.config/daimon/mine_buffer.jsonl. Each test gets its own empty
+    buffer in tmp_path; tests that actually exercise the buffer can still
+    monkeypatch BUFFER_PATH a second time or pass an explicit ``buffer_path``
+    to HudApp — the second monkeypatch wins (pytest applies them stack-wise).
+
+    Without this fixture, HudApp tests that don't pass ``buffer_path``
+    fall back to the module-level BUFFER_PATH and reseed _recent from
+    whatever match/pull entries the real user buffer happens to contain
+    (or was polluted with by a sibling test). That cross-contamination
+    surfaced when dm_home tests started writing to the real buffer.
+    """
+    from daimon.mining import buffer as _buf
+    monkeypatch.setattr(_buf, "BUFFER_PATH",
+                        tmp_path / "_default_mine_buffer.jsonl")
+
+
 # ---------------------------------------------------------------------------
 # flatten_match
 # ---------------------------------------------------------------------------
