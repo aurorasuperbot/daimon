@@ -4,11 +4,15 @@ Used by ``checker.spawn_background_check`` as the detached subprocess
 target. Also runnable interactively for debugging.
 
 Flags:
-  --check    Rate-limited check + update if newer (default).
-  --force    Always re-download + re-install, even if up-to-date.
+  --check    Rate-limited check + manifest refresh if newer (default).
+  --force    Re-fetch the manifest unconditionally, even if up-to-date.
   --version <tag>
              Install this exact tag (e.g. ``--version art-v1.0``). Honors
              ``DAIMON_PIN_ART`` if not given.
+
+Per-card art is fetched lazily by the runtime; this command only
+refreshes the pack manifest. To populate the cache aggressively, see
+``daimon prefetch`` (the explicit prefetch command).
 
 Output goes to stderr (caller may have redirected to update.log). Exit
 codes:
@@ -27,14 +31,15 @@ from daimon.update.checker import (
     is_check_due,
     update_last_check,
 )
-from daimon.update.fetcher import ArtUpdateError, do_update
+from daimon.update.fetcher import ArtUpdateError
+from daimon.update.manifest import fetch_manifest
 from daimon.update.paths import auto_update_enabled, current_version
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m daimon.update",
-        description="Check for and install daimon art-pack updates.",
+        description="Check for and install daimon manifest updates.",
     )
     parser.add_argument("--check", action="store_true",
                         help="Honor 24h rate-limit (default).")
@@ -56,18 +61,21 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         before = current_version()
-        rel = do_update(
+        manifest = fetch_manifest(
             target_version=args.version,
             force=args.force,
             show_progress=not args.no_progress,
         )
-        if before == rel.tag:
-            update_last_check(latest_seen=rel.tag, action="up_to_date")
-            sys.stderr.write(f"daimon-update: already up to date ({rel.tag}).\n")
-        else:
-            update_last_check(latest_seen=rel.tag, action="installed")
+        if before == manifest.pack_version:
+            update_last_check(latest_seen=manifest.pack_version, action="up_to_date")
             sys.stderr.write(
-                f"daimon-update: installed {rel.tag} (was: {before or 'none'}).\n"
+                f"daimon-update: already up to date ({manifest.pack_version}).\n"
+            )
+        else:
+            update_last_check(latest_seen=manifest.pack_version, action="installed")
+            sys.stderr.write(
+                f"daimon-update: installed manifest for {manifest.pack_version} "
+                f"({manifest.card_count} cards, was: {before or 'none'}).\n"
             )
         return 0
     except ArtUpdateError as e:

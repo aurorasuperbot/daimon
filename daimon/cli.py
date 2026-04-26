@@ -912,9 +912,10 @@ def update(check: bool, force: bool, version_tag: str | None) -> None:
         ArtUpdateError,
         art_pack_dir,
         current_version,
-        do_update,
+        fetch_manifest,
     )
     from daimon.update.api import gh_latest_release, gh_release_by_tag
+    from daimon.update.manifest import MANIFEST_ASSET_NAME
     from daimon.update.paths import art_repo, pinned_version
 
     before = current_version()
@@ -924,8 +925,9 @@ def update(check: bool, force: bool, version_tag: str | None) -> None:
         repo = art_repo()
         target = version_tag or pinned_version()
         try:
-            rel = (gh_release_by_tag(repo, target) if target
-                   else gh_latest_release(repo))
+            rel = (gh_release_by_tag(repo, target, asset_name=MANIFEST_ASSET_NAME)
+                   if target
+                   else gh_latest_release(repo, asset_name=MANIFEST_ASSET_NAME))
         except Exception as e:
             click.echo(f"error: GitHub API failed: {e}", err=True)
             sys.exit(1)
@@ -938,17 +940,22 @@ def update(check: bool, force: bool, version_tag: str | None) -> None:
         return
 
     try:
-        rel = do_update(target_version=version_tag, force=force,
-                        show_progress=True)
+        manifest = fetch_manifest(target_version=version_tag, force=force,
+                                  show_progress=True)
     except ArtUpdateError as e:
         click.echo(f"error: {e}", err=True)
         sys.exit(1)
 
-    if before == rel.tag and not force:
-        click.echo(f"already up to date: {rel.tag}")
+    if before == manifest.pack_version and not force:
+        click.echo(f"already up to date: {manifest.pack_version}")
     else:
-        click.echo(f"installed {rel.tag} (was: {before or 'none'})")
+        click.echo(
+            f"installed manifest for {manifest.pack_version} "
+            f"({manifest.card_count} cards, was: {before or 'none'})"
+        )
         click.echo(f"  pack dir: {art_pack_dir()}")
+        click.echo("  per-card art will be fetched on demand the first "
+                   "time each card renders.")
 
 
 # ---------------------------------------------------------------------------

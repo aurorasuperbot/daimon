@@ -377,110 +377,10 @@ class TestFetcher:
         assert not (art / "v1_alpha.trash.456").exists()
         assert (art / "v1_alpha").exists()
 
-    def test_do_update_full_flow(
-        self, art_dir: Path, monkeypatch, fake_pack_tarball
-    ):
-        raw, digest = fake_pack_tarball
-
-        # Mock the GH API: one release, with sidecar + tarball.
-        rel_json = [_release_json("art-v1.0", asset_size=len(raw))]
-        monkeypatch.setattr(
-            api, "urlopen",
-            lambda req, timeout=None: FakeHTTPResponse(json.dumps(rel_json).encode()),
-        )
-
-        # Mock the asset/sidecar downloads (used by fetcher._http_open).
-        def fake_http_open(url: str, *, octet_stream: bool = False):
-            if url.endswith(".sha256"):
-                return FakeHTTPResponse(
-                    f"{digest}  v1_alpha.tar.gz\n".encode(),
-                    headers={"Content-Length": str(82)},
-                )
-            return FakeHTTPResponse(
-                raw, headers={"Content-Length": str(len(raw))}
-            )
-
-        monkeypatch.setattr(fetcher, "_http_open", fake_http_open)
-
-        rel = fetcher.do_update(show_progress=False)
-        assert rel.tag == "art-v1.0"
-
-        # Live pack present + populated.
-        live = paths.art_pack_dir()
-        assert (live / "alpha_card" / "base.png").is_file()
-        assert (live / "beta_card" / "manifest.json").is_file()
-
-        # Version + checksum sidecars written.
-        assert paths.current_version() == "art-v1.0"
-        assert paths.expected_checksum() == digest
-
-        # Staging cleaned up.
-        staging = paths.staging_dir()
-        leftovers = list(staging.iterdir()) if staging.exists() else []
-        assert leftovers == [], f"unexpected leftover: {leftovers}"
-
-    def test_do_update_rejects_sha_mismatch(
-        self, art_dir: Path, monkeypatch, fake_pack_tarball
-    ):
-        raw, _real_digest = fake_pack_tarball
-        wrong_digest = "f" * 64
-
-        rel_json = [_release_json("art-v1.0", asset_size=len(raw))]
-        monkeypatch.setattr(
-            api, "urlopen",
-            lambda req, timeout=None: FakeHTTPResponse(json.dumps(rel_json).encode()),
-        )
-
-        def fake_http_open(url: str, *, octet_stream: bool = False):
-            if url.endswith(".sha256"):
-                return FakeHTTPResponse(f"{wrong_digest}  v1_alpha.tar.gz\n".encode())
-            return FakeHTTPResponse(raw, headers={"Content-Length": str(len(raw))})
-
-        monkeypatch.setattr(fetcher, "_http_open", fake_http_open)
-
-        with pytest.raises(fetcher.ArtUpdateError, match="sha256 mismatch"):
-            fetcher.do_update(show_progress=False)
-
-        # No live pack should have been installed.
-        assert paths.current_version() is None
-
-    def test_do_update_idempotent_when_up_to_date(
-        self, art_dir: Path, monkeypatch, fake_pack_tarball
-    ):
-        # Pre-install a v1.0 pack.
-        live = paths.art_pack_dir()
-        live.mkdir(parents=True)
-        (live / "stub_card").mkdir()
-        paths.version_file().write_text("art-v1.0\n")
-
-        raw, digest = fake_pack_tarball
-        rel_json = [_release_json("art-v1.0", asset_size=len(raw))]
-        monkeypatch.setattr(
-            api, "urlopen",
-            lambda req, timeout=None: FakeHTTPResponse(json.dumps(rel_json).encode()),
-        )
-        download_called = {"n": 0}
-
-        def fake_http_open(url: str, *, octet_stream: bool = False):
-            download_called["n"] += 1
-            return FakeHTTPResponse(raw)
-
-        monkeypatch.setattr(fetcher, "_http_open", fake_http_open)
-        rel = fetcher.do_update(show_progress=False)
-        assert rel.tag == "art-v1.0"
-        # Already up to date → NO download.
-        assert download_called["n"] == 0
-
-    def test_do_update_refuses_cross_major(self, art_dir: Path, monkeypatch):
-        # Simulate engine on v1, release on v2.
-        rel_json = [_release_json("art-v2.0")]
-        monkeypatch.setattr(
-            api, "urlopen",
-            lambda req, timeout=None: FakeHTTPResponse(json.dumps(rel_json).encode()),
-        )
-        with pytest.raises(fetcher.ArtUpdateError, match="cross-major|major"):
-            fetcher.do_update(show_progress=False)
-
+    # The legacy ``do_update`` end-to-end tests (full flow / sha mismatch /
+    # idempotent / cross-major refusal) moved to ``tests/test_lazy_art.py``
+    # under ``TestFetchManifest`` and ``TestFetchCard`` when the monolithic
+    # tarball flow was removed in the lazy-art rewrite.
 
 # ---------------------------------------------------------------------------
 # checker.py — rate-limit + ensure_art_available
@@ -531,11 +431,54 @@ class TestChecker:
         (pack / "alpha_card").mkdir()
         assert checker.is_pack_installed()
 
+    def test_is_manifest_installed_false_when_missing(self, art_dir: Path):
+        assert not checker.is_manifest_installed()
+
+    def test_is_manifest_installed_true_when_present(self, art_dir: Path):
+        from daimon.update.manifest import (
+            CardEntry,
+            Manifest,
+            SCHEMA_VERSION,
+            write_manifest,
+        )
+        write_manifest(Manifest(
+            schema_version=SCHEMA_VERSION,
+            pack_version="art-v1.0",
+            pack_name="v1_alpha",
+            asset_base_url="https://example.invalid/dl/",
+            starter_card_ids=("alpha_card",),
+            cards={"alpha_card": CardEntry("card_alpha_card.tar.gz", "a" * 64, 1)},
+        ))
+        assert checker.is_manifest_installed()
+
     def test_ensure_art_available_first_run_blocking(
-        self, art_dir: Path, monkeypatch, fake_pack_tarball
+        self, art_dir: Path, monkeypatch
     ):
-        raw, digest = fake_pack_tarball
-        rel_json = [_release_json("art-v1.0", asset_size=len(raw))]
+        """First-run with no manifest → synchronous manifest fetch.
+
+        Manifest-first onboard is small (~50-100 KB), so blocking the
+        CLI on it is fine — unlike the legacy 1.6 GB tarball path.
+        """
+        from daimon.update.manifest import (
+            CardEntry,
+            Manifest,
+            SCHEMA_VERSION,
+            MANIFEST_ASSET_NAME,
+        )
+        manifest = Manifest(
+            schema_version=SCHEMA_VERSION,
+            pack_version="art-v1.0",
+            pack_name="v1_alpha",
+            asset_base_url="https://example.invalid/dl/",
+            starter_card_ids=("alpha_card",),
+            cards={"alpha_card": CardEntry("card_alpha_card.tar.gz", "a" * 64, 1)},
+        )
+        manifest_bytes = manifest.to_json().encode()
+        digest = hashlib.sha256(manifest_bytes).hexdigest()
+
+        rel_json = [_release_json(
+            "art-v1.0", asset_name=MANIFEST_ASSET_NAME, asset_size=len(manifest_bytes)
+        )]
         monkeypatch.setattr(
             api, "urlopen",
             lambda req, timeout=None: FakeHTTPResponse(json.dumps(rel_json).encode()),
@@ -543,27 +486,39 @@ class TestChecker:
 
         def fake_http_open(url: str, *, octet_stream: bool = False):
             if url.endswith(".sha256"):
-                return FakeHTTPResponse(f"{digest}  v1_alpha.tar.gz\n".encode())
-            return FakeHTTPResponse(raw)
+                return FakeHTTPResponse(
+                    f"{digest}  {MANIFEST_ASSET_NAME}\n".encode()
+                )
+            return FakeHTTPResponse(manifest_bytes)
 
         monkeypatch.setattr(fetcher, "_http_open", fake_http_open)
-        # Block the spawn path — first-run must NOT spawn.
+        # First-run must NOT spawn — it does the fetch synchronously.
         monkeypatch.setattr(
             checker, "spawn_background_check",
             lambda: pytest.fail("spawn called on first-run"),
         )
 
         checker.ensure_art_available()
-        assert checker.is_pack_installed()
+        assert checker.is_manifest_installed()
 
     def test_ensure_art_available_skips_when_opted_out(
         self, art_dir: Path, monkeypatch
     ):
-        # Pretend a pack is installed.
-        pack = paths.art_pack_dir()
-        pack.mkdir(parents=True)
-        (pack / ".version").write_text("art-v1.0\n")
-        (pack / "alpha_card").mkdir()
+        # Pretend a manifest is installed.
+        from daimon.update.manifest import (
+            CardEntry,
+            Manifest,
+            SCHEMA_VERSION,
+            write_manifest,
+        )
+        write_manifest(Manifest(
+            schema_version=SCHEMA_VERSION,
+            pack_version="art-v1.0",
+            pack_name="v1_alpha",
+            asset_base_url="https://example.invalid/dl/",
+            starter_card_ids=("alpha_card",),
+            cards={"alpha_card": CardEntry("card_alpha_card.tar.gz", "a" * 64, 1)},
+        ))
 
         monkeypatch.setenv("DAIMON_NO_AUTO_UPDATE", "1")
         monkeypatch.setattr(
@@ -572,18 +527,17 @@ class TestChecker:
         )
         checker.ensure_art_available()  # must not raise
 
-    def test_ensure_art_available_skips_when_opted_out_and_no_pack(
+    def test_ensure_art_available_skips_when_opted_out_and_no_manifest(
         self, art_dir: Path, monkeypatch, capsys
     ):
         """DAIMON_NO_AUTO_UPDATE=1 is an UNCONDITIONAL opt-out.
 
-        Even with no pack installed, the env var must suppress the
+        Even with no manifest installed, the env var must suppress the
         synchronous first-run fetch. The function emits a one-line
         stderr warning and returns — it must NOT raise, and downstream
-        ``art_path_for`` will soft-fail to None.
+        ``ensure_art_for`` will soft-fail to None.
         """
-        # No pack installed — confirm starting state.
-        assert not checker.is_pack_installed()
+        assert not checker.is_manifest_installed()
 
         monkeypatch.setenv("DAIMON_NO_AUTO_UPDATE", "1")
         # Both network paths must NOT be called.
@@ -600,22 +554,31 @@ class TestChecker:
 
         checker.ensure_art_available()  # must not raise
 
-        # Pack should still be missing — opt-out means no install.
-        assert not checker.is_pack_installed()
+        # Manifest should still be missing — opt-out means no install.
+        assert not checker.is_manifest_installed()
 
-        # Warning should mention the env var + the missing-pack situation.
+        # Warning should mention the env var + the missing-manifest state.
         captured = capsys.readouterr()
         assert "DAIMON_NO_AUTO_UPDATE" in captured.err
-        assert "no art pack" in captured.err.lower()
+        assert "no manifest" in captured.err.lower()
 
     def test_ensure_art_available_spawns_when_due(
         self, art_dir: Path, monkeypatch
     ):
-        # Installed pack + check is due.
-        pack = paths.art_pack_dir()
-        pack.mkdir(parents=True)
-        (pack / ".version").write_text("art-v1.0\n")
-        (pack / "alpha_card").mkdir()
+        from daimon.update.manifest import (
+            CardEntry,
+            Manifest,
+            SCHEMA_VERSION,
+            write_manifest,
+        )
+        write_manifest(Manifest(
+            schema_version=SCHEMA_VERSION,
+            pack_version="art-v1.0",
+            pack_name="v1_alpha",
+            asset_base_url="https://example.invalid/dl/",
+            starter_card_ids=("alpha_card",),
+            cards={"alpha_card": CardEntry("card_alpha_card.tar.gz", "a" * 64, 1)},
+        ))
 
         spawned = {"n": 0}
         monkeypatch.setattr(
@@ -628,10 +591,20 @@ class TestChecker:
     def test_ensure_art_available_no_spawn_when_not_due(
         self, art_dir: Path, monkeypatch
     ):
-        pack = paths.art_pack_dir()
-        pack.mkdir(parents=True)
-        (pack / ".version").write_text("art-v1.0\n")
-        (pack / "alpha_card").mkdir()
+        from daimon.update.manifest import (
+            CardEntry,
+            Manifest,
+            SCHEMA_VERSION,
+            write_manifest,
+        )
+        write_manifest(Manifest(
+            schema_version=SCHEMA_VERSION,
+            pack_version="art-v1.0",
+            pack_name="v1_alpha",
+            asset_base_url="https://example.invalid/dl/",
+            starter_card_ids=("alpha_card",),
+            cards={"alpha_card": CardEntry("card_alpha_card.tar.gz", "a" * 64, 1)},
+        ))
 
         # Mark a recent check.
         checker.write_last_check({"ts": int(time.time())})
@@ -651,8 +624,9 @@ class TestCliUpdate:
         self, art_dir: Path, monkeypatch
     ):
         from daimon.cli import main as cli_main
+        from daimon.update.manifest import MANIFEST_ASSET_NAME
 
-        rel_json = [_release_json("art-v1.0")]
+        rel_json = [_release_json("art-v1.0", asset_name=MANIFEST_ASSET_NAME)]
         monkeypatch.setattr(
             api, "urlopen",
             lambda req, timeout=None: FakeHTTPResponse(json.dumps(rel_json).encode()),
@@ -665,12 +639,32 @@ class TestCliUpdate:
         assert "installed:" in result.output
 
     def test_update_install_runs_full_flow(
-        self, art_dir: Path, monkeypatch, fake_pack_tarball
+        self, art_dir: Path, monkeypatch
     ):
         from daimon.cli import main as cli_main
+        from daimon.update.manifest import (
+            CardEntry,
+            Manifest,
+            SCHEMA_VERSION,
+            MANIFEST_ASSET_NAME,
+        )
 
-        raw, digest = fake_pack_tarball
-        rel_json = [_release_json("art-v1.0", asset_size=len(raw))]
+        manifest = Manifest(
+            schema_version=SCHEMA_VERSION,
+            pack_version="art-v1.0",
+            pack_name="v1_alpha",
+            asset_base_url="https://example.invalid/dl/",
+            starter_card_ids=("alpha_card",),
+            cards={"alpha_card": CardEntry("card_alpha_card.tar.gz", "a" * 64, 1)},
+        )
+        manifest_bytes = manifest.to_json().encode()
+        digest = hashlib.sha256(manifest_bytes).hexdigest()
+
+        rel_json = [_release_json(
+            "art-v1.0",
+            asset_name=MANIFEST_ASSET_NAME,
+            asset_size=len(manifest_bytes),
+        )]
         monkeypatch.setattr(
             api, "urlopen",
             lambda req, timeout=None: FakeHTTPResponse(json.dumps(rel_json).encode()),
@@ -678,15 +672,17 @@ class TestCliUpdate:
 
         def fake_http_open(url: str, *, octet_stream: bool = False):
             if url.endswith(".sha256"):
-                return FakeHTTPResponse(f"{digest}  v1_alpha.tar.gz\n".encode())
-            return FakeHTTPResponse(raw)
+                return FakeHTTPResponse(
+                    f"{digest}  {MANIFEST_ASSET_NAME}\n".encode()
+                )
+            return FakeHTTPResponse(manifest_bytes)
 
         monkeypatch.setattr(fetcher, "_http_open", fake_http_open)
 
         runner = CliRunner()
         result = runner.invoke(cli_main, ["update"])
         assert result.exit_code == 0, result.output
-        assert "installed art-v1.0" in result.output
+        assert "installed manifest for art-v1.0" in result.output
         assert paths.current_version() == "art-v1.0"
 
     def test_update_handles_network_failure(self, art_dir: Path, monkeypatch):
