@@ -33,10 +33,11 @@ For Claude Code, add to `~/.config/claude/mcp_servers.json`:
 
 ## Tools
 
-All 32 tools are prefixed `dm_` to make them unambiguous in tool listings.
+All 37 tools are prefixed `dm_` to make them unambiguous in tool listings.
 Status legend: **live** = local, no network; **live (arena)** = shells out
 to `gh` to write to `aurorasuperbot/daimon-arena` (or `daimon-cards` for
-card proposals).
+card proposals); **live (webapp)** = long-polls the LivingAgent webapp
+chat SSE stream (requires `DAIMON_WEBAPP_TOKEN`).
 
 ### Identity + currency (3)
 
@@ -157,6 +158,63 @@ because the `dm_skins_owned` view collapses with `dm_skin_equip` /
 | `dm_dispute_open(match_id, reason, evidence?)` | Appeal a resolved match (50-currency bond). | live (arena) |
 | `dm_card_propose(card_def, rationale?)` | Propose a new card for the cards repo. | live (arena) |
 
+### Chat home card (2) — local, render-only
+
+| Tool | Purpose | Status |
+|---|---|---|
+| `dm_home()` | JSON snapshot of identity + balance + tier + last 5 pulls + saved loadouts. Pure read. | live |
+| `dm_home_card()` | Same payload + a ready-to-post `:::html` Marvel-Snap-style chat card (`{message, html, payload}`). | live |
+
+`dm_home_card` is the canonical way to surface DAIMON state in the
+LivingAgent webapp chat — pass `result["message"]` verbatim to
+`mcp__webapp-channel__reply` (it already wraps the HTML in a `:::html`
+fenced block). The buttons inside the card use `window.agentAction(
+'send_message', {text: '@daimon ...'})` so a click dispatches a chat
+message back to whoever is running the watcher loop.
+
+When no identity exists, both tools return a minimal "init me" payload
+instead of an error — the home card is the new-user landing page, so
+it has to render even before `dm_init` has been called.
+
+### Chat inbox (3) — webapp long-poll
+
+| Tool | Purpose | Status |
+|---|---|---|
+| `dm_inbox_wait(timeout_s?, max_messages?, cursor?)` | Block up to `timeout_s` (default 60s) on the webapp SSE stream; return new `@daimon` mentions in the `group` channel. | live (webapp) |
+| `dm_inbox_ack(message_id)` | Persist `message_id` as the last-acked cursor so the next `wait` skips it. Monotonic. | live (webapp) |
+| `dm_inbox_status()` | Configuration snapshot — webapp URL, channel, whether a token resolved (token redacted to first 6 chars). | live (webapp) |
+
+Together these three tools power the chat-mention watcher loop
+documented in [`chat-watcher.md`](chat-watcher.md). The flow is:
+
+```
+dm_inbox_wait → for each msg: parse + dispatch + reply → dm_inbox_ack
+```
+
+`dm_inbox_wait` already filters out non-`user` senders (so the agent's
+own replies don't re-trigger it), non-`group` channels, and any id
+≤ the persisted cursor — the dispatcher doesn't need to re-check.
+
+Configuration (env vars, all optional except the token):
+
+  - `DAIMON_WEBAPP_URL` — base URL (default `https://santiagodcalvo.org`).
+  - `DAIMON_WEBAPP_TOKEN` — Bearer token from a webapp session, OR…
+  - `DAIMON_WEBAPP_TOKEN_FILE` — path to a file containing the token.
+  - `DAIMON_WEBAPP_CHANNEL` — channel to subscribe to (default `group`).
+
+If no token is configured, `dm_inbox_wait` falls back to the local
+internal API key at `/opt/agents/secrets/internal_api.key` (Santiago's
+VPS); on machines without that file, it returns
+`{"error": "config_missing", ...}` and the loop should stop and prompt
+the user. Auth failures (`401/403` from the webapp) return
+`{"error": "auth_failed", ...}` — the user must rotate the token.
+Transport blips (network / read timeout) return success with
+`note: "transport: ..."` and an empty `messages` list, so the loop
+just retries without surfacing noise.
+
+The cursor lives at `~/.config/daimon/inbox-cursor.json` and is
+monotonic (a backwards `dm_inbox_ack(0)` is silently dropped).
+
 **Arena-bound tools** shell out to the `gh` CLI to publish to the
 daimon-arena (or daimon-cards) GitHub repo via the commit-reveal protocol
 documented in `daimon/arena/encoding.py`. They require `gh auth login` to be
@@ -206,6 +264,8 @@ the old robot-parts model was retired 2026-04.
   - `internal_error` — unexpected exception; includes `message` with type + str
 
 - **Arena-bound failures** add a few extra error codes from the `gh` CLI layer: `gh_missing` (CLI not installed), `gh_auth` (auth expired / missing), `gh_timeout` (slow network), `gh_failed` (generic non-zero exit), `gh_parse` (couldn't parse gh output), `not_found` (raw repo file missing), and PvP-specific: `no_local_state`, `identity_mismatch`, `invalid_card`. All carry the same `error` + `message` shape — no special-casing required.
+
+- **Webapp-bound failures** (inbox tools): `config_missing` (no `DAIMON_WEBAPP_TOKEN` resolved; loop should stop), `auth_failed` (401/403 from webapp; token rotated/expired). Transient transport errors return `status: ok` with a `note: "transport: …"` field instead of an `error` — the watcher loop just retries.
 
 Rule of thumb for callers: `if "error" in response: handle failure` before anything else.
 

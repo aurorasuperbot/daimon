@@ -79,11 +79,14 @@ Design rules:
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
+
+logger = logging.getLogger(__name__)
 
 from daimon import __version__
 from daimon.arena import ops as arena_ops
@@ -794,6 +797,208 @@ def dm_home_card() -> Dict[str, Any]:
         "html": html,
         "payload": payload,
     }
+
+
+# ---------------------------------------------------------------------------
+# Inbox — long-poll bridge from the LivingAgent webapp chat (Pattern A)
+# ---------------------------------------------------------------------------
+#
+# These three tools let the user's local Claude Code session enter a
+# "watcher loop": call dm_inbox_wait → dispatch → reply → ack → repeat.
+# See `daimon/inbox/__init__.py` for the architecture rationale.
+#
+# Imported lazily inside each tool so a missing/broken inbox config
+# never breaks the rest of the MCP server at import time.
+
+
+@mcp.tool()
+def dm_inbox_wait(
+    timeout_s: float = 60.0,
+    max_messages: int = 10,
+    cursor: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Block up to ``timeout_s`` for ``@daimon`` chat mentions, return matches.
+
+    The watcher-loop primitive — the local Claude Code session calls this,
+    receives a (possibly empty) batch of mentions, dispatches them via the
+    appropriate ``dm_*`` tools, posts replies via ``mcp__webapp-channel__
+    reply``, then calls ``dm_inbox_ack`` with the message ids and loops.
+
+    Args:
+      timeout_s: Wall-clock upper bound on time spent waiting. Returns an
+        empty ``messages`` list if nothing matches before the deadline.
+        Defaults to 60s — long enough that an idle loop only wakes once
+        per minute, short enough that ctrl-C cancels promptly.
+      max_messages: Cap on returned mentions per call (default 10) so a
+        chatty burst doesn't blow up the agent's context.
+      cursor: Optional override of the persisted last-acked message id.
+        Pass an integer to skip messages with id ≤ cursor for THIS call
+        only (the file-backed cursor is unchanged). Defaults to whatever
+        ``dm_inbox_ack`` last persisted.
+
+    Returns (success):
+      {"status": "ok",
+       "messages": [{"id": 42, "sender": "user",
+                     "sender_name": "Santiago",
+                     "text": "@daimon home", "channel": "group"}, ...],
+       "cursor_after": 42}     ← max id seen this call (or unchanged)
+
+    Returns (auth failure):
+      {"error": "auth_failed", "hint": "rotate DAIMON_WEBAPP_TOKEN"}
+
+    Returns (config missing):
+      {"error": "config_missing", "hint": "set DAIMON_WEBAPP_TOKEN"}
+
+    Returns (transport error / timeout / etc.):
+      {"status": "ok", "messages": [], "cursor_after": <unchanged>,
+       "note": "transport: <reason>"}    ← treat as "no messages, retry"
+
+    Never raises — every failure mode lands in a structured envelope so
+    the watcher loop's ``except`` handling stays simple.
+    """
+    try:
+        from daimon.inbox import (
+            ConfigError,
+            SSEClosed,
+            get_last_acked,
+            load_config,
+            wait_for_mentions,
+        )
+    except ImportError as e:
+        return {
+            "error": "import_failed",
+            "hint": (
+                "daimon.inbox module unavailable. This is a packaging bug — "
+                "please file an issue."
+            ),
+            "detail": str(e),
+        }
+
+    try:
+        config = load_config()
+    except ConfigError as e:
+        return {
+            "error": "config_missing",
+            "hint": (
+                "Set DAIMON_WEBAPP_TOKEN (bearer token from your webapp "
+                "session) so the inbox can subscribe to chat events."
+            ),
+            "detail": str(e),
+        }
+
+    cursor_in = cursor if isinstance(cursor, int) else get_last_acked()
+
+    try:
+        matches = wait_for_mentions(
+            timeout_s=float(timeout_s),
+            config=config,
+            cursor=cursor_in,
+            max_messages=int(max_messages),
+        )
+    except SSEClosed as e:
+        if e.reason == "auth_failed":
+            return {
+                "error": "auth_failed",
+                "hint": (
+                    "DAIMON_WEBAPP_TOKEN was rejected by the webapp. "
+                    "Rotate / refresh and retry."
+                ),
+                "detail": e.detail,
+            }
+        # Transport errors are expected (network blips, redeploys) — return
+        # empty so the watcher loop just retries. Note in the envelope so
+        # the agent can log it if useful.
+        return {
+            "status": "ok",
+            "messages": [],
+            "cursor_after": cursor_in,
+            "note": f"transport: {e.reason}",
+        }
+
+    cursor_after = max((m.id for m in matches), default=cursor_in)
+    return {
+        "status": "ok",
+        "messages": [m.to_dict() for m in matches],
+        "cursor_after": cursor_after,
+    }
+
+
+@mcp.tool()
+def dm_inbox_ack(message_id: int) -> Dict[str, Any]:
+    """Persist ``message_id`` as the inbox high-water mark.
+
+    Call this AFTER successfully dispatching + replying to each message
+    returned by ``dm_inbox_wait``. The cursor is monotonic — passing a
+    value ``<=`` the current cursor is a no-op (so re-acking is safe).
+
+    Returns:
+      {"status": "ok", "cursor_after": <int>, "advanced": <bool>}
+
+    The cursor lives at ``~/.config/daimon/inbox-cursor.json`` and
+    survives restarts of both Claude Code and the MCP server.
+    """
+    try:
+        from daimon.inbox import get_last_acked, set_last_acked
+    except ImportError as e:
+        return {"error": "import_failed", "detail": str(e)}
+
+    if not isinstance(message_id, int):
+        return {
+            "error": "invalid_input",
+            "message": f"message_id must be int, got {type(message_id).__name__}",
+        }
+
+    before = get_last_acked()
+    set_last_acked(message_id)
+    after = get_last_acked()
+    return {
+        "status": "ok",
+        "cursor_after": after,
+        "advanced": after > before,
+    }
+
+
+@mcp.tool()
+def dm_inbox_status() -> Dict[str, Any]:
+    """Report current inbox configuration + cursor — diagnostic tool.
+
+    Useful when debugging "why isn't my watcher loop seeing mentions?"
+    Returns the resolved webapp URL + channel + a redacted hint of which
+    auth method resolved (env var vs. file fallback vs. nothing) plus
+    the current cursor value.
+
+    Never returns the token itself — a redacted prefix only.
+    """
+    out: Dict[str, Any] = {"status": "ok"}
+
+    try:
+        from daimon.inbox import get_last_acked, load_config, CURSOR_PATH
+        from daimon.inbox.config import (
+            DEFAULT_CHANNEL,
+            DEFAULT_WEBAPP_URL,
+        )
+    except ImportError as e:
+        return {"error": "import_failed", "detail": str(e)}
+
+    out["cursor_path"] = str(CURSOR_PATH)
+    out["cursor"] = get_last_acked()
+
+    # Resolve config but NEVER leak the token. Show only first 6 chars.
+    try:
+        config = load_config()
+        out["webapp_url"] = config.webapp_url
+        out["channel"] = config.channel
+        out["token_resolved"] = True
+        out["token_prefix"] = config.token[:6] + "…"
+    except Exception as e:
+        out["webapp_url"] = os.environ.get("DAIMON_WEBAPP_URL",
+                                           DEFAULT_WEBAPP_URL)
+        out["channel"] = os.environ.get("DAIMON_WEBAPP_CHANNEL",
+                                        DEFAULT_CHANNEL)
+        out["token_resolved"] = False
+        out["token_hint"] = str(e)
+
+    return out
 
 
 @mcp.tool()
