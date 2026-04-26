@@ -62,6 +62,10 @@ daimon = [
     "npcs/manifest.json",
     "npcs/*/*.json",
     "render/wezterm.lua",        # locked WezTerm config (see daimon.render.wezterm_bundle)
+    "render/fonts/*.ttf",        # bundled DejaVu typefaces (compose.py hard-fails
+                                 # if these are missing — Ubuntu's fonts-dejavu-core
+                                 # ships Sans+Serif but NOT italic, so we ship our own
+                                 # to make render environment-portable).
 ]
 
 [tool.pytest.ini_options]

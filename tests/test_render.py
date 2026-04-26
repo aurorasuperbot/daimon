@@ -87,11 +87,17 @@ def test_compose_card_produces_png(sample_card, sample_info, tmp_path):
 
 
 def test_compose_card_default_size(sample_card, sample_info, tmp_path):
+    """Default card render is 560×784 (5:7 portrait, 2× the legacy 280×392
+    so flavor text stays legible at the canonical render resolution).
+
+    Pinned to a literal here rather than `DEFAULT_W/DEFAULT_H` because the
+    intent of this test is to catch unintentional default-size drift.
+    """
     from PIL import Image
     out = tmp_path / "card.png"
     compose_card(sample_card, sample_info, out)
     img = Image.open(out)
-    assert img.size == (280, 392)
+    assert img.size == (560, 784)
 
 
 def test_compose_card_custom_size(sample_card, sample_info, tmp_path):

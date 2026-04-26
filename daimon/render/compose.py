@@ -11,9 +11,16 @@ Design pivot 2026-04-25: the earlier panel layout (header strip / 40 % art
 panel / stats strip / flavor strip) wasted ~60 % of the NovelAI character
 art via center-crop because the art is portrait (832×1216 ≈ 0.684) and the
 panel was landscape (280×157 ≈ 1.78). Solution: **full-art cards**. The art
-fills the entire 280×392 card surface (aspect 0.714, near-identical to the
+fills the entire 560×784 card surface (aspect 0.714, near-identical to the
 art aspect), and chrome (title, element chip, rarity badge, stats, flavor,
 border) overlays on top inside translucent gradient bands.
+
+The canonical render resolution is 560×784 (5:7 portrait). We render at this
+size — not the legacy 280×392 — because flavor text (italic serif, the
+hardest glyph class to keep crisp through downsampling) becomes unreadable
+at 280-wide. Callers that want a smaller tile pass explicit
+``width=``/``height=`` and the LANCZOS downsample produces a sharp result
+from the higher-resolution source.
 
 Each rarity has a distinct visual treatment that escalates with scarcity:
 
@@ -72,7 +79,7 @@ Engineering notes
   * Animation is implemented in the OVERLAY layer only. The character art
     is composited UNDER the animated overlays — no per-frame art rendering
     cost. A 12-frame legendary takes ~12× the static-frame draw time but
-    still completes in <100 ms on the VPS for the default 280×392 size.
+    still completes well under a second on the VPS at 560×784.
   * APNG output uses Pillow's ``save_all=True, append_images=...,
     duration=..., loop=0``. We pick durations so that a full loop is
     1.2 s for epic (200 ms × 6) and 2 s for legendary (~167 ms × 12) —
@@ -98,7 +105,7 @@ from daimon.engine.types import Card, Element
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_W, DEFAULT_H = 280, 392
+DEFAULT_W, DEFAULT_H = 560, 784
 SUPERSAMPLE = 3   # render at 3× then LANCZOS downsample for crisp gradients
 
 # Frame counts per rarity. Static tiers (common/uncommon/rare) emit 1 frame;
@@ -125,19 +132,66 @@ APNG_FRAME_DURATION_MS = {
 TOP_BAND_FRAC = 0.18        # top fade band height (holds badge + chip + title)
 BOTTOM_BAND_FRAC = 0.42     # bottom fade band height (holds stats strip + flavor)
 
-# Fallback font search paths (DejaVu first, Liberation second, default last)
+# Font fallback search paths.
+#
+# IMPORTANT — bundled fonts come FIRST. The engine ships its own copy of every
+# typeface it draws because the previous "system fonts only" approach silently
+# fell through to PIL's `load_default()` 10-px bitmap on any host that didn't
+# have the exact serif italic installed (Ubuntu's `fonts-dejavu-core` ships
+# Sans + Serif regular/bold but NOT italic — italic lives in the optional
+# `fonts-dejavu-extra` package). When that fall-through happened the renderer
+# kept producing cards but the flavor text rendered as illegible 10-px
+# bitmap glyphs instead of the requested 13-pt italic. We bundle the actual
+# TTF files in `daimon/render/fonts/` so render is environment-portable.
+#
+# System paths stay in the chain as a fallback for development environments
+# that haven't pulled the bundled assets, but we hard-fail at import time
+# if NONE of the paths resolve — see `_resolve_font_paths` below.
+_BUNDLED_FONTS_DIR = Path(__file__).parent / "fonts"
+
 _FONT_BOLD = [
+    str(_BUNDLED_FONTS_DIR / "DejaVuSans-Bold.ttf"),
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
 ]
 _FONT_REGULAR = [
+    str(_BUNDLED_FONTS_DIR / "DejaVuSans.ttf"),
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
 ]
 _FONT_ITALIC = [
+    str(_BUNDLED_FONTS_DIR / "DejaVuSerif-Italic.ttf"),
     "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf",
 ]
+
+
+def _resolve_font_paths() -> None:
+    """Verify every required font has at least one resolvable path.
+
+    Failing fast at module import is much friendlier than silently rendering
+    cards with a 10-px bitmap fallback (see `_FONT_BOLD` block comment for the
+    war story). If a bundled font is missing entirely we raise rather than
+    soldier on — the engine wheel must ship its own typefaces.
+    """
+    missing: list[tuple[str, list[str]]] = []
+    for name, paths in (("BOLD", _FONT_BOLD),
+                        ("REGULAR", _FONT_REGULAR),
+                        ("ITALIC", _FONT_ITALIC)):
+        if not any(Path(p).exists() for p in paths):
+            missing.append((name, paths))
+    if missing:
+        details = "\n".join(f"  {n}: tried {ps}" for n, ps in missing)
+        raise RuntimeError(
+            "daimon.render.compose: required font(s) not found on disk. "
+            "The engine ships bundled TTFs in daimon/render/fonts/ — verify "
+            "they survived the install/wheel build. Missing:\n" + details
+        )
+
+
+_resolve_font_paths()
 
 
 # ---------------------------------------------------------------------------
@@ -193,13 +247,29 @@ def _normalize_rarity(rarity: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _font(paths: list[str], size_pt: int, supersample: int) -> ImageFont.ImageFont:
+    """Load the first TTF in `paths` that PIL can open, at the requested size.
+
+    Raises RuntimeError if NO path in the chain works. We deliberately do NOT
+    fall through to `ImageFont.load_default()` — that returns a fixed ~10-px
+    bitmap font that produces unreadable microtext at the renderer's
+    intended sizes. A render that would silently degrade like that is worse
+    than a render that fails loud, because the bitmap fallback looks like a
+    rendering bug ("flavor is tiny") instead of a font-resolution bug, and
+    debugging takes hours (ask me how I know — burned this one 2026-04-26).
+    """
     px = size_pt * supersample
+    last_err: Optional[OSError] = None
     for p in paths:
         try:
             return ImageFont.truetype(p, px)
-        except OSError:
+        except OSError as e:
+            last_err = e
             continue
-    return ImageFont.load_default()
+    raise RuntimeError(
+        f"daimon.render.compose._font: no usable TTF in {paths} at size {px}px "
+        f"(last error: {last_err}). Bundled fonts live in "
+        f"daimon/render/fonts/ — verify they ship with the wheel."
+    )
 
 
 def _vertical_gradient(w: int, h: int, top: tuple, bottom: tuple) -> Image.Image:
@@ -935,8 +1005,17 @@ def compose_card_frames(
     rarity = _normalize_rarity(info.rarity)
     pal = palette_for(rarity)
     composer = _COMPOSERS[rarity]
-    s = supersample
-    W, H = width * s, height * s
+    # Layout scale: `s` plays double duty as the supersample factor (for crisp
+    # font/line downsampling) AND the per-pixel coordinate multiplier used
+    # throughout the per-tier composers (`5 * s`, `13 * s`, `_font(..., 17, s)`,
+    # etc.). When the caller requests a canvas larger than the legacy 280-wide
+    # tile, we proportionally bump `s` so font sizes and layout offsets keep
+    # the same RELATIVE proportion of the card. Effect: a 2× canvas produces
+    # 2× sharper output at the same visual layout, instead of the chrome
+    # shrinking to half its proportional size.
+    canvas_scale = max(1.0, width / 280.0)
+    s = max(1, int(round(supersample * canvas_scale)))
+    W, H = width * supersample, height * supersample
 
     if n_frames is None:
         n_frames = FRAMES_PER_RARITY[rarity]
