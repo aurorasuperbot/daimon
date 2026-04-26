@@ -327,6 +327,27 @@ def _catalog_summary(catalog_id: str) -> Dict[str, Any]:
 # `status == "not_yet_implemented"` were updated in the same commit.
 
 
+def _maybe_spawn_play_hud() -> Optional[int]:
+    """Best-effort: pop the spectator HUD if it isn't already running.
+
+    Called after every state-mutating tool that writes a ``match`` or
+    ``pull`` to ``state.json`` so the user sees the animation without
+    having to run ``daimon play`` themselves. Honors
+    ``DAIMON_NO_AUTO_HUD=1`` and the inside-terminal sentinel; returns
+    ``None`` on opt-out, no-TTY, or when an existing HUD is already up.
+
+    Failure is silent — the agent's response must not depend on whether
+    a window popped. The PID (when one is returned) is added to the
+    response envelope as ``hud_pid`` so the agent can surface a
+    "watching now" hint to the player.
+    """
+    try:
+        from daimon.play.spawn import spawn_play_hud
+        return spawn_play_hud()
+    except Exception:  # noqa: BLE001 — best-effort
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -522,6 +543,8 @@ def dm_match(
     except Exception:  # noqa: BLE001 — state-write is best-effort
         pass
 
+    hud_pid = _maybe_spawn_play_hud()
+
     out: Dict[str, Any] = {
         "winner": result.winner,
         "reason": result.reason,
@@ -530,6 +553,7 @@ def dm_match(
         "round_count": len(result.rounds),
         "seed": seed_bytes.hex(),
         "state_id": state_id,
+        "hud_pid": hud_pid,
     }
     if include_round_log:
         out["rounds"] = full_rounds
@@ -754,6 +778,8 @@ def dm_match_npc(
     except Exception:  # noqa: BLE001 — best-effort
         pass
 
+    hud_pid = _maybe_spawn_play_hud()
+
     out: Dict[str, Any] = {
         "status": "ok",
         "winner": result.winner,
@@ -763,6 +789,7 @@ def dm_match_npc(
         "round_count": len(result.rounds),
         "seed": seed_bytes.hex(),
         "state_id": state_id,
+        "hud_pid": hud_pid,
         "npc": {
             "npc_id": npc.npc_id,
             "name": npc.name,
@@ -986,7 +1013,10 @@ def dm_pull(seed: Optional[str] = None,
     except Exception:  # noqa: BLE001 — state-write is best-effort
         pass
 
-    return {"status": "ok", "state_id": state_id, **receipt_dict}
+    hud_pid = _maybe_spawn_play_hud()
+
+    return {"status": "ok", "state_id": state_id, "hud_pid": hud_pid,
+            **receipt_dict}
 
 
 # ---------------------------------------------------------------------------
