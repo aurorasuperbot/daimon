@@ -99,7 +99,7 @@ except ImportError as e:
     raise ImportError("daimon.render.compose requires Pillow >= 10. "
                       "Install with: pip install daimon-engine") from e
 
-from daimon.engine.types import Card, Element
+from daimon.engine.types import Card, EffectOp, Element, TargetFilter, TriggerWhen
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -130,7 +130,12 @@ APNG_FRAME_DURATION_MS = {
 
 # Overlay band proportions (fraction of card height)
 TOP_BAND_FRAC = 0.18        # top fade band height (holds badge + chip + title)
-BOTTOM_BAND_FRAC = 0.42     # bottom fade band height (holds stats strip + flavor)
+# 0.56 budgets enough vertical room for worst-case bottom content:
+#   stats strip (42 design-px) + 2 wrapped trigger lines (48 design-px) +
+#   3-line flavor (51 design-px) + gaps. Gives ~922 supersampled-px in the
+#   solid (post-fade) sub-zone at s=6, which fits the worst-case 200-card
+#   catalog without overflow.
+BOTTOM_BAND_FRAC = 0.56     # bottom fade band height (holds stats strip + triggers + flavor)
 
 # Font fallback search paths.
 #
@@ -270,6 +275,117 @@ def _font(paths: list[str], size_pt: int, supersample: int) -> ImageFont.ImageFo
         f"(last error: {last_err}). Bundled fonts live in "
         f"daimon/render/fonts/ — verify they ship with the wheel."
     )
+
+
+# ---------------------------------------------------------------------------
+# Trigger humanization — render the engine's enum-coded triggers as short
+# scannable English phrases for the bottom-panel effects block.
+#
+# These tables are renderer-LOCAL (not in engine/types.py) on purpose: changing
+# a phrase is purely cosmetic and must never require an engine change. New ops
+# / triggers added to engine/types.py without an entry here render via the
+# fallback paths below — never crashes, just shows the raw enum name.
+# ---------------------------------------------------------------------------
+
+_WHEN_LABEL = {
+    TriggerWhen.ON_BATTLE_START:        "Battle start",
+    TriggerWhen.ON_ROUND_START:         "Round start",
+    TriggerWhen.ON_ATTACK:              "On attack",
+    TriggerWhen.ON_TAKE_DAMAGE:         "When hit",
+    TriggerWhen.ON_DEATH:               "On KO",
+    TriggerWhen.ON_ALLY_DEATH:          "Ally KO",
+    TriggerWhen.ON_TURN_END:            "Turn end",
+    TriggerWhen.ON_KILL:                "On kill",
+    TriggerWhen.ON_LOW_HP:              "Low HP",
+    TriggerWhen.ON_OPENING_ATTACK:      "First attack",
+    TriggerWhen.ON_HEAL_RECEIVED:       "When healed",
+    TriggerWhen.ON_DAMAGE_TAKEN:        "Damaged",
+    TriggerWhen.ON_EXTRA_ACTION_GRANTED: "Extra action",
+}
+
+_TARGET_LABEL = {
+    TargetFilter.SELF:               "self",
+    TargetFilter.ALL_ALLIES:         "allies",
+    TargetFilter.ALL_ENEMIES:        "enemies",
+    TargetFilter.LOWEST_HP_ENEMY:    "lowest-HP",
+    TargetFilter.HIGHEST_HP_ENEMY:   "highest-HP",
+    TargetFilter.RANDOM_ENEMY:       "random foe",
+    TargetFilter.RANDOM_ALLY:        "random ally",
+}
+
+# Legendary rule-change descriptions. Source-of-truth lives in
+# daimon/engine/combat.py (the _MUT_L1..L6 constants). These are the
+# render-side English versions; keep them in sync if the mechanics change.
+# Kept SHORT so the trigger line fits the card width without wrapping;
+# the renderer falls through to wrap-to-two-lines if overflow happens
+# anyway, but short labels avoid that path for the common case.
+_RULE_CHANGE_LABEL = {
+    "L1": "Damage adds +1 burn stack",
+    "L2": "All allies +2 thorns",
+    "L3": "Heals trickle +1 to allies",
+    "L4": "Extra-action cap +1",
+    "L5": "Ally-KO triggers fire ×2",
+    "L6": "Syncretic team +2 elements",
+}
+
+
+def _humanize_op(op: int, target: int, value: int) -> str:
+    """Render an effect op as a short English phrase like '+3 ATK to allies'.
+
+    Unknown ops fall through to a generic '<OP_NAME> {value} -> {target}' so
+    we never crash — a new op added to the engine without a label here will
+    still render as legible-if-ugly fallback text.
+    """
+    tgt = _TARGET_LABEL.get(target, "target")
+    if op == EffectOp.BUFF_ATK:           return f"+{value} ATK to {tgt}"
+    if op == EffectOp.DEBUFF_ATK:         return f"\u2212{value} ATK to {tgt}"
+    if op == EffectOp.BUFF_DEF:           return f"+{value} DEF to {tgt}"
+    if op == EffectOp.DEBUFF_DEF:         return f"\u2212{value} DEF to {tgt}"
+    if op == EffectOp.BUFF_SPD:           return f"+{value} SPD to {tgt}"
+    if op == EffectOp.HEAL:               return f"heal {tgt} +{value}"
+    if op == EffectOp.DAMAGE:             return f"deal {value} dmg to {tgt}"
+    if op == EffectOp.ADD_SHIELD:         return f"shield {tgt} +{value}"
+    if op == EffectOp.LIFESTEAL:          return f"lifesteal {value} vs {tgt}"
+    if op == EffectOp.APPLY_BURN:         return f"burn {tgt} {value}R"
+    if op == EffectOp.APPLY_STUN:         return f"stun {tgt} {value}R"
+    if op == EffectOp.APPLY_SILENCE:      return f"silence {tgt} {value}R"
+    if op == EffectOp.APPLY_TAUNT:        return f"taunt {tgt} {value}R"
+    if op == EffectOp.APPLY_POISON:       return f"poison {tgt} {value}R"
+    if op == EffectOp.APPLY_BURN_STACK:   return f"+{value} burn stacks on {tgt}"
+    if op == EffectOp.THORNS:             return f"thorns {value} on {tgt}"
+    if op == EffectOp.GRANT_EXTRA_ACTION: return f"extra action to {tgt}"
+    if op == EffectOp.SACRIFICE_SELF:     return "sacrifice self"
+    # Fallback: enum name + raw target
+    op_name = EffectOp(op).name if op in (e.value for e in EffectOp) else str(op)
+    return f"{op_name.lower()} {value} -> {tgt}"
+
+
+def _humanize_trigger(when: int, op: int, target: int, value: int) -> str:
+    """Render a Trigger as 'When-clause: effect-clause'.
+
+    Example: ON_KILL/HEAL/ALL_ALLIES/3 -> 'On kill: heal allies +3'.
+    """
+    when_label = _WHEN_LABEL.get(when,
+                 TriggerWhen(when).name.title() if when in (w.value for w in TriggerWhen) else "Trigger")
+    return f"{when_label}: {_humanize_op(op, target, value)}"
+
+
+def _move_name_for_when(moves: tuple, when_token: str) -> str:
+    """Look up the author-chosen move name for a given when-token.
+
+    `moves` is the CardRenderInfo.moves tuple of (name, when_token) pairs.
+    Returns "" if no matching move — caller renders the trigger description
+    line without a name header.
+    """
+    for entry in moves:
+        if isinstance(entry, dict):
+            n = entry.get("name", "")
+            w = entry.get("when", "")
+        else:
+            n, w = entry[0], entry[1]
+        if w == when_token:
+            return n
+    return ""
 
 
 def _vertical_gradient(w: int, h: int, top: tuple, bottom: tuple) -> Image.Image:
@@ -770,14 +886,141 @@ def _draw_bottom_overlay(card_img: Image.Image, card: Card, info: "CardRenderInf
 
     stats_bottom_y = val_y + 22 * s
 
-    # Divider between stats and flavor
+    # Divider between stats and triggers
     draw.line([(10 * s, stats_bottom_y), (W - 10 * s, stats_bottom_y)],
               fill=pal.accent_dark, width=max(1, s))
 
-    # Flavor — italic, wraps to up to 3 lines, centered for the empty space
+    # ----- Triggers / rule-change block -----------------------------------
+    # The actual gameplay text — what the card DOES — lives here, between
+    # stats and flavor. Each trigger renders as a single line:
+    #   "MOVE NAME — humanized effect"
+    # If the card pack didn't author a move name for this trigger's `when`,
+    # we drop the dash and just render the humanized effect. Legendary
+    # rule-changers (card.rule_change != None) render an extra "RULE:" line
+    # describing the global mutation. We cap at 2 trigger lines + 1 rule
+    # line; surplus triggers are dropped (Phase 5 cards never exceed this).
+    trigger_top = stats_bottom_y + 6 * s
+    trigger_name_font = _font(_FONT_BOLD, 10, s)
+    trigger_desc_font = _font(_FONT_REGULAR, 9, s)
+    trigger_line_h = 13 * s          # single-line height
+    trigger_wrap_line_h = 12 * s     # per-line height in two-line wrap mode
+    # The trigger zone has horizontal padding so we don't render up to the
+    # frame border. Anything that exceeds (W - 2 * trigger_pad_x) wraps to
+    # two centered lines (move name on top, desc below).
+    trigger_pad_x = 8 * s
+    trigger_max_w = W - 2 * trigger_pad_x
+
+    triggers_drawn = 0
+    cursor_y = trigger_top
+
+    def _draw_centered(text: str, font: ImageFont.ImageFont, fill: tuple,
+                       y: int, *, shadow: bool = False) -> int:
+        """Draw `text` horizontally-centered in the card. Returns text width."""
+        tb = draw.textbbox((0, 0), text, font=font)
+        tw = tb[2] - tb[0]
+        x = (W - tw) // 2
+        if shadow:
+            draw.text((x + max(1, s // 2), y + max(1, s // 2)),
+                      text, font=font, fill=(0, 0, 0))
+        draw.text((x, y), text, font=font, fill=fill)
+        return tw
+
+    def _draw_trigger_line(name: str, desc: str, y: int) -> int:
+        """One trigger entry — bold accent name + dim regular description.
+
+        Renders single-line ("NAME  —  desc") when it fits within
+        ``trigger_max_w``; otherwise falls through to two centered lines
+        (name above, description below). Returns the y-height consumed so
+        the caller can advance ``cursor_y`` correctly without overlap.
+
+        The single-vs-two-line decision is made PER TRIGGER, not per card —
+        so a card can have one short trigger inline AND one long trigger
+        wrapped without all triggers paying the wrap cost.
+        """
+        sep = "  \u2014  " if name else ""
+        name_w = (draw.textbbox((0, 0), name, font=trigger_name_font)[2]
+                  if name else 0)
+        sep_w = (draw.textbbox((0, 0), sep, font=trigger_desc_font)[2]
+                 if sep else 0)
+        desc_w = draw.textbbox((0, 0), desc, font=trigger_desc_font)[2]
+        total_w = name_w + sep_w + desc_w
+
+        # Single-line path — fits comfortably; preserve compact look
+        if total_w <= trigger_max_w:
+            x = (W - total_w) // 2
+            if name:
+                draw.text((x + max(1, s // 2), y + max(1, s // 2)),
+                          name, font=trigger_name_font, fill=(0, 0, 0))
+                draw.text((x, y), name, font=trigger_name_font, fill=pal.accent)
+                x += name_w
+                draw.text((x, y), sep, font=trigger_desc_font,
+                          fill=pal.accent_dark)
+                x += sep_w
+            draw.text((x, y), desc, font=trigger_desc_font,
+                      fill=pal.accent_light)
+            return trigger_line_h
+
+        # Two-line wrap path — name centered above desc. Used for long rule
+        # descriptions (e.g. "Rule: Damage adds +1 burn stack" + a name)
+        # and any future long-tail authoring.
+        if name:
+            _draw_centered(name, trigger_name_font, pal.accent, y, shadow=True)
+            _draw_centered(desc, trigger_desc_font, pal.accent_light,
+                           y + trigger_wrap_line_h)
+            return 2 * trigger_wrap_line_h
+        # No name — just center the description on a single line
+        _draw_centered(desc, trigger_desc_font, pal.accent_light, y)
+        return trigger_line_h
+
+    moves = info.moves or ()
+    for trig in card.triggers[:2]:
+        # Trigger.when is a TriggerWhen IntEnum; its .name matches the JSON
+        # token used in the moves array (e.g. "ON_BATTLE_START").
+        try:
+            when_token = TriggerWhen(int(trig.when)).name
+        except ValueError:
+            when_token = ""
+        move_name = _move_name_for_when(moves, when_token) if when_token else ""
+        desc = _humanize_trigger(int(trig.when), int(trig.op),
+                                 int(trig.target), int(trig.value))
+        consumed = _draw_trigger_line(move_name, desc, cursor_y)
+        cursor_y += consumed
+        triggers_drawn += 1
+
+    # Legendary rule-change block — one extra line below the triggers (or
+    # above flavor if there are no triggers, which is the magma_tyrant case).
+    if card.rule_change:
+        token = f"RULE_CHANGE_{card.rule_change}"
+        rule_move_name = _move_name_for_when(moves, token)
+        rule_desc_label = _RULE_CHANGE_LABEL.get(
+            card.rule_change, f"Mutation {card.rule_change}"
+        )
+        # Prefix with "Rule:" so the player can tell this is a global
+        # mutation and not a per-trigger ability.
+        consumed = _draw_trigger_line(rule_move_name,
+                                      f"Rule: {rule_desc_label}", cursor_y)
+        cursor_y += consumed
+        triggers_drawn += 1
+
+    triggers_bottom_y = (cursor_y if triggers_drawn > 0 else stats_bottom_y)
+
+    # Divider between triggers and flavor (only if we drew anything)
+    if triggers_drawn > 0:
+        draw.line(
+            [(10 * s, triggers_bottom_y + 2 * s),
+             (W - 10 * s, triggers_bottom_y + 2 * s)],
+            fill=pal.accent_dark, width=max(1, s),
+        )
+
+    # ----- Flavor block ---------------------------------------------------
+    # Italic serif, centered, capped at 3 lines. Curly quotes (U+201C / U+201D)
+    # open on the FIRST rendered line and close on the LAST rendered line so
+    # multi-line flavor reads as one continuous quote — the previous code
+    # wrapped both quotes around line 0, leaving lines 1+ unquoted and
+    # giving an open-then-close-and-open pattern that looked wrong.
     if info.flavor:
         flavor_font = _font(_FONT_ITALIC, 13, s)
-        flavor_top = stats_bottom_y + 8 * s
+        flavor_top = triggers_bottom_y + (10 * s if triggers_drawn > 0 else 8 * s)
         words = info.flavor.split()
         lines: list[str] = []
         current = ""
@@ -790,8 +1033,12 @@ def _draw_bottom_overlay(card_img: Image.Image, card: Card, info: "CardRenderInf
         if current:
             lines.append(current)
         line_h = 17 * s
-        for i, line in enumerate(lines[:3]):
-            text = f'"{line}"' if i == 0 else line
+        rendered = lines[:3]
+        last_idx = len(rendered) - 1
+        for i, line in enumerate(rendered):
+            prefix = "\u201c" if i == 0 else ""
+            suffix = "\u201d" if i == last_idx else ""
+            text = f"{prefix}{line}{suffix}"
             tb = draw.textbbox((0, 0), text, font=flavor_font)
             tw = tb[2] - tb[0]
             tx = (W - tw) // 2
@@ -817,11 +1064,20 @@ class CardRenderInfo:
     layer accepts these as a SEPARATE input loaded from the card pack — so an
     adversarial card author who ships a hostile `flavor` can affect what a
     human sees on screen but cannot affect combat math.
+
+    `moves` is a list of (display_name, when_token) pairs from the card pack
+    JSON `moves` array. The renderer matches each Trigger's `when` against
+    these tokens to label the trigger with the author-chosen ability name
+    (e.g. "Jade-Skirt's Quiet" for an ON_BATTLE_START trigger). For legendary
+    rule-changers the token is the synthetic string `"RULE_CHANGE_<id>"`
+    (e.g. `"RULE_CHANGE_L1"`) so the move name labels the mutation block.
+    Moves are PURELY cosmetic — engine ignores them entirely.
     """
     name: str = ""
     flavor: str = ""
     rarity: str = "common"
     art_path: Optional[Path] = None
+    moves: tuple = ()                  # tuple[tuple[str, str], ...] — (display_name, when_token)
 
 
 # ---------------------------------------------------------------------------
@@ -1089,11 +1345,24 @@ def render_info_from_pack_dict(pack_card: dict, art_root: Path) -> CardRenderInf
 
     art_rel = _pick("art", None)
     art_path = (art_root / art_rel) if art_rel else None
+
+    # `moves` is the author-chosen ability-name layer. Each entry pairs a
+    # display name with the trigger `when` token it labels (or the synthetic
+    # "RULE_CHANGE_<id>" for legendary mutations). The renderer matches by
+    # `when` token; the engine never reads this list.
+    moves_raw = _pick("moves", []) or []
+    moves: tuple = tuple(
+        (str(m.get("name", "")), str(m.get("when", "")))
+        for m in moves_raw
+        if isinstance(m, dict)
+    )
+
     return CardRenderInfo(
         name=_pick("name", ""),
         flavor=_pick("flavor", ""),
         rarity=_pick("rarity", "common"),
         art_path=art_path if art_path and Path(art_path).exists() else None,
+        moves=moves,
     )
 
 
