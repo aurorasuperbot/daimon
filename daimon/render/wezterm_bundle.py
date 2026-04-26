@@ -20,9 +20,21 @@ WEZTERM"). This module owns:
       3. ``--always-new-process`` — fresh process, doesn't attach to a
          stale wezterm-mux instance.
 
-The actual binary tarball is downloaded by ``daimon/install/installer.py``
-(the ``daimon install`` CLI command). This module is path/launch-only and
-makes no network calls.
+Two distribution paths share this module:
+
+  * **Source install** (``pip install daimon-engine``). The user runs
+    ``daimon install`` post-install, which downloads a WezTerm tarball
+    into ``~/.daimon/bin/`` (the legacy bundle location).
+
+  * **Binary distribution** (Nuitka/PyInstaller, shipped via winget /
+    Scoop / Brew / AppImage). WezTerm is packed into the binary at build
+    time and lives alongside ``sys.executable`` (or under
+    ``sys._MEIPASS`` for PyInstaller). No network call required;
+    ``daimon install`` is a no-op.
+
+:func:`wezterm_bin` is the layered resolver: embedded location first,
+legacy ``~/.daimon/bin/`` second. Other resolvers (``wezterm_gui_bin``,
+``installed_version``) follow the same precedence.
 """
 
 from __future__ import annotations
@@ -31,11 +43,19 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 from importlib import resources
 from pathlib import Path
 from typing import List, Optional
 
 from daimon.update.paths import art_root
+
+
+# Name of the data directory that the binary build pipeline embeds
+# alongside the daimon binary (or under sys._MEIPASS for PyInstaller).
+# The build script (release-binaries.yml + scripts/build_nuitka.py)
+# stages the WezTerm binaries here; this module resolves them.
+_BUNDLED_WEZTERM_DIRNAME = "daimon-bundled-wezterm"
 
 
 # ---------------------------------------------------------------------------
@@ -79,14 +99,69 @@ def etc_dir() -> Path:
     return runtime_root() / "etc"
 
 
+def _exe_suffix() -> str:
+    return ".exe" if platform.system() == "Windows" else ""
+
+
+def bundled_wezterm_dir() -> Optional[Path]:
+    """Resolve the embedded WezTerm directory packed at build time.
+
+    Returns the absolute path containing ``wezterm{,-gui,...}`` when
+    running from a binary distribution (Nuitka standalone / onefile or
+    PyInstaller), or ``None`` when running from a source install.
+
+    Detection signals:
+      * ``sys.frozen`` set by both Nuitka (``"nuitka"`` or ``True``) and
+        PyInstaller (``True``).
+      * ``sys._MEIPASS`` set only by PyInstaller — points at the temp
+        directory where data files are extracted.
+      * Otherwise the data dir lives next to ``sys.executable`` (Nuitka
+        standalone), so we resolve relative to that.
+
+    Returns ``None`` if the directory isn't present even in a frozen
+    build — the runtime falls back to the legacy ``~/.daimon/bin/``
+    path so a user can still bootstrap via ``daimon install``.
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        cand = Path(meipass) / _BUNDLED_WEZTERM_DIRNAME
+        if cand.is_dir():
+            return cand
+    exe = Path(sys.executable).resolve()
+    cand = exe.parent / _BUNDLED_WEZTERM_DIRNAME
+    if cand.is_dir():
+        return cand
+    return None
+
+
+def _legacy_wezterm_bin() -> Path:
+    """``~/.daimon/bin/wezterm`` — populated by ``daimon install`` for source installs."""
+    return bin_dir() / f"wezterm{_exe_suffix()}"
+
+
+def _legacy_wezterm_gui_bin() -> Path:
+    return bin_dir() / f"wezterm-gui{_exe_suffix()}"
+
+
 def wezterm_bin() -> Path:
     """Absolute path to the bundled WezTerm binary.
 
-    Adds ``.exe`` on Windows. The file may not exist yet — call
-    :func:`is_installed` to check.
+    Layered lookup:
+      1. Embedded directory (binary distribution, packed at build time).
+      2. ``~/.daimon/bin/wezterm`` — legacy source-install location
+         populated by ``daimon install``.
+
+    Adds ``.exe`` on Windows. The file may not exist at the legacy path
+    yet — call :func:`is_installed` to check.
     """
-    suffix = ".exe" if platform.system() == "Windows" else ""
-    return bin_dir() / f"wezterm{suffix}"
+    embedded = bundled_wezterm_dir()
+    if embedded is not None:
+        cand = embedded / f"wezterm{_exe_suffix()}"
+        if cand.is_file():
+            return cand
+    return _legacy_wezterm_bin()
 
 
 def wezterm_gui_bin() -> Path:
@@ -95,10 +170,15 @@ def wezterm_gui_bin() -> Path:
     Some WezTerm distributions split the CLI (``wezterm``) and GUI process
     (``wezterm-gui``) into two binaries. Both ship in the bundle. We launch
     via ``wezterm start --`` which dispatches to the GUI binary; this
-    helper is exposed mostly for diagnostics.
+    helper is exposed mostly for diagnostics. Same layered resolution as
+    :func:`wezterm_bin`.
     """
-    suffix = ".exe" if platform.system() == "Windows" else ""
-    return bin_dir() / f"wezterm-gui{suffix}"
+    embedded = bundled_wezterm_dir()
+    if embedded is not None:
+        cand = embedded / f"wezterm-gui{_exe_suffix()}"
+        if cand.is_file():
+            return cand
+    return _legacy_wezterm_gui_bin()
 
 
 def wezterm_config_path() -> Path:
@@ -107,11 +187,17 @@ def wezterm_config_path() -> Path:
 
 
 def version_marker_path() -> Path:
-    """``~/.daimon/bin/.wezterm-version`` — installed bundle version marker.
+    """Path to the installed bundle's version marker, layered.
 
-    Written by the installer with the bundle version (e.g. ``"20240203-110809"``)
-    so we can compare against latest without execing the binary.
+    Embedded distributions ship a ``.wezterm-version`` file next to the
+    binaries inside the bundled data dir. Source installs land it in
+    ``~/.daimon/bin/.wezterm-version`` via the installer.
     """
+    embedded = bundled_wezterm_dir()
+    if embedded is not None:
+        cand = embedded / ".wezterm-version"
+        if cand.is_file():
+            return cand
     return bin_dir() / ".wezterm-version"
 
 
@@ -401,13 +487,27 @@ def install_from_tarball(tarball: Path, *,
 
 
 def status_summary() -> dict:
-    """Returns a dict summarising the bundle install state for `daimon doctor`."""
+    """Returns a dict summarising the bundle install state for `daimon doctor`.
+
+    ``source`` is "embedded" when the binary distribution shipped a
+    pre-packed WezTerm, "legacy" when ``daimon install`` populated
+    ``~/.daimon/bin/``, and "missing" when neither is present.
+    """
+    embedded = bundled_wezterm_dir()
+    if embedded is not None and (embedded / f"wezterm{_exe_suffix()}").is_file():
+        source = "embedded"
+    elif _legacy_wezterm_bin().is_file():
+        source = "legacy"
+    else:
+        source = "missing"
     return {
         "runtime_root": str(runtime_root()),
         "bin_dir": str(bin_dir()),
         "etc_dir": str(etc_dir()),
         "wezterm_bin": str(wezterm_bin()),
         "wezterm_config": str(wezterm_config_path()),
+        "embedded_dir": str(embedded) if embedded is not None else None,
+        "source": source,
         "is_installed": is_installed(),
         "installed_version": installed_version(),
         "config_present": wezterm_config_path().is_file(),
@@ -415,10 +515,14 @@ def status_summary() -> dict:
 
 
 def remove_bundle() -> List[Path]:
-    """Delete the bundled binaries + locked config; return list of paths removed.
+    """Delete the legacy ``~/.daimon/bin/`` + ``etc/`` and return removed paths.
 
-    Used by ``daimon install --reinstall`` and tests. Does NOT touch the
-    art pack, identity, or inbox.
+    Used by ``daimon install --reinstall`` and tests. Only ever touches
+    the source-install legacy location (``bin_dir`` + ``etc_dir``); the
+    embedded location packed into a binary distribution is read-only
+    and managed by the package manager that installed the binary
+    (winget / Scoop / Brew / AppImage / .deb / .rpm). Does NOT touch
+    the art pack, identity, or inbox.
     """
     removed: List[Path] = []
     for p in (bin_dir(), etc_dir()):
