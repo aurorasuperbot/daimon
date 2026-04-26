@@ -323,6 +323,88 @@ def whoami() -> None:
 
 
 @main.command()
+@click.option("--message", "as_message", is_flag=True,
+              help="Print only the :::html fenced block (for piping into a "
+                   "chat-reply tool). Mutually exclusive with --html / --json.")
+@click.option("--html", "as_html", is_flag=True,
+              help="Print only the raw HTML (no fence). Mutually exclusive "
+                   "with --message / --json.")
+@click.option("--json", "as_json", is_flag=True,
+              help="Print the full dm_home payload as JSON. Mutually exclusive "
+                   "with --message / --html.")
+def home(as_message: bool, as_html: bool, as_json: bool) -> None:
+    """Render the chat home card.
+
+    Default: prints a human-readable summary AND the ready-to-post
+    ``:::html`` message — useful when you're inspecting the card from
+    a terminal.
+
+    With ``--message``: prints only the ``:::html`` block, suitable for
+    piping into the webapp-channel reply tool. With ``--html``: prints
+    only the raw HTML (no fence). With ``--json``: prints the full
+    ``dm_home`` payload as JSON for further processing.
+    """
+    flags = sum([as_message, as_html, as_json])
+    if flags > 1:
+        click.echo(
+            "error: --message, --html, --json are mutually exclusive.",
+            err=True,
+        )
+        sys.exit(2)
+
+    # We import the MCP tool's underlying function rather than dm_home_card
+    # itself so we don't pay the FastMCP wrapper overhead — the CLI shouldn't
+    # depend on the MCP framework being importable.
+    from daimon.mcp.server import dm_home as _dm_home
+    from daimon.play.home_card import (
+        render_home_card,
+        render_home_card_message,
+    )
+
+    payload = _dm_home()
+
+    if as_json:
+        import json as _json
+        click.echo(_json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    if as_message:
+        click.echo(render_home_card_message(payload))
+        return
+    if as_html:
+        click.echo(render_home_card(payload))
+        return
+
+    # Default: human-readable summary + copy-pasteable message.
+    if payload.get("error") == "no_identity":
+        click.echo("error: no identity yet. Run `daimon init` to bootstrap.",
+                   err=True)
+        sys.exit(1)
+
+    rank = payload.get("rank", {})
+    pull = payload.get("pull", {})
+    rec = payload.get("recommended_npc")
+
+    click.echo("DAIMON home card:")
+    click.echo(f"  handle:    {payload['identity'].get('handle') or '<unregistered>'}")
+    click.echo(f"  tier:      {rank.get('tier','Rookie')} "
+               f"#{rank.get('rank','?')} of {rank.get('total_players','?')}")
+    click.echo(f"  balance:   {payload.get('balance', 0)}¤")
+    if pull.get("pulls_available", 0) > 0:
+        click.echo(f"  pulls:     {pull['pulls_available']}× ready")
+    else:
+        click.echo(f"  pulls:     next in {pull.get('balance_to_next_pull', 100)}¤")
+    if rec:
+        click.echo(f"  next play: {rec.get('name')} ({rec.get('reason','')})")
+    else:
+        click.echo("  next play: all NPC tiers cleared (PvP pending V1)")
+    click.echo()
+    click.echo("To post the rich card to the webapp chat, pipe the message "
+               "below into your chat-reply tool:")
+    click.echo()
+    click.echo(render_home_card_message(payload))
+
+
+@main.command()
 @click.argument("loadout_a")
 @click.argument("loadout_b")
 @click.option("--seed", default=None, help="Hex-encoded 32-byte seed (default: random).")

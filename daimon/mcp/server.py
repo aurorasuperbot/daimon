@@ -743,6 +743,60 @@ def dm_home() -> Dict[str, Any]:
 
 
 @mcp.tool()
+def dm_home_card() -> Dict[str, Any]:
+    """Return the rendered Marvel-Snap-style home card as ready-to-post text.
+
+    The agent is expected to call this and immediately forward the
+    ``message`` field to the chat reply tool (e.g.
+    ``mcp__webapp-channel__reply``). The string already contains the
+    ``:::html`` fence — paste it as-is, the webapp renderer turns it
+    into the rich card.
+
+    Returns:
+      {"status": "ok",
+       "message": ":::html\\n<div…>…</div>\\n:::",   # ready to reply with
+       "html": "<div…>…</div>",                     # raw HTML (no fence)
+       "payload": {...}}                              # full dm_home payload
+
+    The ``payload`` field is the same shape ``dm_home`` returns, so
+    callers don't need to issue a second tool call to inspect specific
+    fields (e.g. choosing whether to also post a quest reminder).
+
+    Failure modes:
+      * Identity missing → renders the onboarding card (NOT an error).
+      * Renderer raises (shouldn't happen — pure function over plain
+        dicts) → returns ``{"status": "error", "message_text": "..."}``
+        with a fallback plain-text message so the agent still has
+        SOMETHING to post.
+    """
+    payload = dm_home()
+    try:
+        from daimon.play.home_card import (
+            render_home_card,
+            render_home_card_message,
+        )
+        html = render_home_card(payload)
+        message = render_home_card_message(payload)
+    except Exception as e:
+        logger.exception("dm_home_card render failed")
+        return {
+            "status": "error",
+            "error": f"render failed: {e!r}",
+            "message": (
+                "DAIMON home card unavailable — renderer error. "
+                "Run `dm_home` to see the raw payload."
+            ),
+            "payload": payload,
+        }
+    return {
+        "status": "ok",
+        "message": message,
+        "html": html,
+        "payload": payload,
+    }
+
+
+@mcp.tool()
 def dm_match(
     loadout_a: Any,
     loadout_b: Any,

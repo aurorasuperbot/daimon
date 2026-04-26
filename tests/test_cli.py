@@ -80,6 +80,19 @@ def isolated_home(monkeypatch, tmp_path):
     monkeypatch.setattr(state_mod, "DEFAULT_STATE_PATH", home / "state.json")
     monkeypatch.setattr(state_mod, "_CONFIG_DIR", home)
 
+    # Mine buffer (HUD ticker stream) — without redirection, tests that fire
+    # CLI commands which write to mine_buffer.jsonl (match, pull) leak rows
+    # into the user's real ~/.config/daimon/mine_buffer.jsonl. Same isolation
+    # hole that bit test_mcp.py before 2026-04-26.
+    from daimon.mining import buffer as buffer_mod
+    monkeypatch.setattr(buffer_mod, "BUFFER_PATH",
+                        home / "mine_buffer.jsonl")
+
+    # Loadouts dir — `daimon loadout-save` and dm_home's loadout-summary
+    # walk this directory. Redirected for parity with the MCP isolation.
+    from daimon.mcp import server as mcp_server
+    monkeypatch.setattr(mcp_server, "LOADOUTS_DIR", home / "loadouts")
+
     # Make sure DAIMON_STATE doesn't override our patched default.
     monkeypatch.delenv("DAIMON_STATE", raising=False)
 
@@ -294,7 +307,7 @@ def test_all_subcommands_responsd_to_help():
 
     # Locked surface — bump this list explicitly when adding commands.
     expected = [
-        "init", "whoami", "match", "match-npc", "mine",
+        "init", "whoami", "home", "match", "match-npc", "mine",
         "npcs", "play", "play-demo", "play-render", "pull", "render",
     ]
     for cmd in expected:
@@ -310,3 +323,82 @@ def test_mine_subcommands_respond_to_help():
         result = runner.invoke(main, ["mine", sub, "--help"])
         assert result.exit_code == 0, result.output
         assert "Usage:" in result.output
+
+
+# ---------------------------------------------------------------------------
+# `daimon home` — chat home card renderer
+# ---------------------------------------------------------------------------
+
+def test_home_no_identity_exits_with_hint(isolated_home):
+    """No identity → fail-fast with a clear hint pointing at `daimon init`.
+    The renderer can show an onboarding card, but the human-driven CLI
+    default surface should explicitly tell them to bootstrap first."""
+    from daimon.cli import main
+    runner = CliRunner()
+    result = runner.invoke(main, ["home"])
+    assert result.exit_code == 1
+    assert "no identity" in result.output.lower()
+    assert "daimon init" in result.output
+
+
+def test_home_default_prints_summary_and_message(isolated_home):
+    """Default output: human-readable summary + the :::html message
+    block ready to paste into the chat-reply tool."""
+    from daimon.cli import main
+    runner = CliRunner()
+    runner.invoke(main, ["init"])
+    result = runner.invoke(main, ["home"])
+    assert result.exit_code == 0, result.output
+    # Summary lines
+    assert "DAIMON home card:" in result.output
+    assert "tier:" in result.output
+    assert "balance:" in result.output
+    # The fenced message block must follow
+    assert ":::html" in result.output
+
+
+def test_home_message_flag_prints_only_fenced_block(isolated_home):
+    from daimon.cli import main
+    runner = CliRunner()
+    runner.invoke(main, ["init"])
+    result = runner.invoke(main, ["home", "--message"])
+    assert result.exit_code == 0, result.output
+    out = result.output.strip()
+    assert out.startswith(":::html")
+    assert out.endswith(":::")
+    # No human-readable summary leaks in.
+    assert "DAIMON home card:" not in out
+
+
+def test_home_html_flag_prints_raw_html(isolated_home):
+    from daimon.cli import main
+    runner = CliRunner()
+    runner.invoke(main, ["init"])
+    result = runner.invoke(main, ["home", "--html"])
+    assert result.exit_code == 0, result.output
+    out = result.output.strip()
+    # Bare HTML — no fence, no summary.
+    assert not out.startswith(":::html")
+    assert out.startswith("<div")
+    assert "DAIMON home card:" not in out
+
+
+def test_home_json_flag_prints_payload(isolated_home):
+    from daimon.cli import main
+    runner = CliRunner()
+    runner.invoke(main, ["init"])
+    result = runner.invoke(main, ["home", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert "identity" in payload
+    assert "rank" in payload
+
+
+def test_home_flags_are_mutually_exclusive(isolated_home):
+    from daimon.cli import main
+    runner = CliRunner()
+    runner.invoke(main, ["init"])
+    result = runner.invoke(main, ["home", "--message", "--json"])
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.output
