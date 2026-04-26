@@ -38,7 +38,10 @@ ART_PURE_COMMANDS = frozenset({
     # Pure-local browsers — never touch art binaries:
     "collection", "catalog", "loadout",
     # Bundle bootstrap — needs network but not the art pack itself:
-    "install", "doctor",
+    "install", "doctor", "recover",
+    # Onboarding fetches the manifest itself — don't let the legacy
+    # ensure_art_available() preempt it.
+    "onboard",
 })
 
 
@@ -116,6 +119,131 @@ def init(force: bool) -> None:
         click.echo("  " + "  ".join(f"{i+j+1:>2}. {w:<10}" for j, w in enumerate(chunk)))
     click.echo()
     click.echo("If you lose this and your identity.key, your collection is unrecoverable.")
+
+
+@main.command()
+@click.option("--force", is_flag=True,
+              help="Overwrite an existing identity (DESTRUCTIVE).")
+@click.option("--no-claude-code", is_flag=True,
+              help="Skip the Claude Code wiring step (no MCP entry, no "
+                   "PostToolUse hook).")
+@click.option("--no-prefetch", is_flag=True,
+              help="Don't spawn the background card prefetcher.")
+@click.option("--settings", "settings_path", default=None,
+              help="Override the Claude Code settings.json path.")
+@click.option("--yes", is_flag=True,
+              help="Skip the 'I have saved my recovery phrase' confirmation "
+                   "gate. Use only if you're scripting onboarding (CI, "
+                   "Dockerfiles).")
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit the result envelope as JSON instead of human text.")
+def onboard(force: bool, no_claude_code: bool, no_prefetch: bool,
+            settings_path: str | None, yes: bool, as_json: bool) -> None:
+    """One-shot first-run setup: identity + recovery + manifest + Claude Code.
+
+    Folds the previous four-step bootstrap (``daimon install`` ->
+    ``daimon init`` -> ``daimon mine install-hook`` -> MCP wiring) into
+    a single interactive flow:
+
+      1. Generate ed25519 identity + 24-word BIP39 mnemonic (skipped if
+         one already exists, unless ``--force``).
+      2. Display the mnemonic and require the user to type
+         ``I have saved my recovery phrase`` before continuing. The
+         mnemonic is also written to ``~/.config/daimon/recovery.txt``
+         (mode 0600) as a backstop. Skip the gate with ``--yes``.
+      3. Fetch the card manifest + the starter cards' art (small,
+         blocking). Spawn a detached background prefetcher for the rest.
+      4. Atomically write the daimon ``mcpServers`` entry + PostToolUse
+         hook into ``~/.claude/settings.json`` (one read, one backup,
+         one write).
+
+    Re-running is safe: existing identities and Claude Code wiring are
+    preserved, an existing manifest is refreshed, and missing cards are
+    fetched. Only ``--force`` is destructive — it overwrites the
+    identity (and any unsigned local collection along with it).
+    """
+    import json as _json
+    from pathlib import Path as _Path
+    from daimon.onboard import run_onboard
+
+    def _confirm(mnemonic: str) -> bool:
+        if yes:
+            return True
+        click.echo()
+        click.echo(
+            "RECOVERY MNEMONIC — write this down NOW. We will never show it "
+            "again:"
+        )
+        click.echo()
+        words = mnemonic.split()
+        for i in range(0, len(words), 4):
+            chunk = words[i:i + 4]
+            click.echo("  " + "  ".join(
+                f"{i+j+1:>2}. {w:<10}" for j, w in enumerate(chunk)
+            ))
+        click.echo()
+        click.echo(
+            "If you lose this mnemonic AND your identity.key file, your "
+            "collection is unrecoverable."
+        )
+        click.echo(
+            "A copy was also saved to ~/.config/daimon/recovery.txt "
+            "(mode 0600)."
+        )
+        click.echo()
+        phrase = click.prompt(
+            "Type 'I have saved my recovery phrase' to continue",
+            type=str,
+            default="",
+            show_default=False,
+        )
+        return phrase.strip().lower() == "i have saved my recovery phrase"
+
+    log_fn: "Callable[[str], None]" = (
+        (lambda _msg: None) if as_json else click.echo
+    )
+
+    settings_override = _Path(settings_path) if settings_path else None
+    result = run_onboard(
+        force_identity=force,
+        confirm_mnemonic=_confirm,
+        wire_claude_code=not no_claude_code,
+        settings_path=settings_override,
+        spawn_prefetch=not no_prefetch,
+        log=log_fn,
+    )
+
+    if as_json:
+        click.echo(_json.dumps(result.to_dict(), indent=2))
+        return
+
+    # Human summary at the end so the user has a single line to look at.
+    click.echo()
+    click.echo("--- onboard summary ---")
+    click.echo(f"identity:    {result.identity_action} "
+               f"({result.pubkey_hex[:16]}…)")
+    if result.recovery_path:
+        click.echo(f"recovery:    {result.recovery_path}")
+    click.echo(f"manifest:    {result.manifest_action}"
+               + (f" ({result.manifest_version})" if result.manifest_version
+                  else ""))
+    if result.manifest_error:
+        click.echo(f"             error: {result.manifest_error}")
+    if result.starter_fetched or result.starter_failed:
+        click.echo(f"starters:    {len(result.starter_fetched)} ok, "
+                   f"{len(result.starter_failed)} failed")
+    if result.prefetch_pid:
+        click.echo(f"prefetch:    pid {result.prefetch_pid}")
+    click.echo(f"claude-code: {result.claude_code_action}")
+    if result.claude_code_settings:
+        click.echo(f"             settings: {result.claude_code_settings}")
+    if result.claude_code_error:
+        click.echo(f"             error:    {result.claude_code_error}")
+
+    # Non-zero exit if anything critical failed so scripts notice.
+    if result.manifest_action == "failed" or \
+            result.claude_code_action == "failed":
+        sys.exit(1)
 
 
 @main.command()
