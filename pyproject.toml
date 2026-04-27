@@ -71,6 +71,12 @@ daimon = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+# Custom markers — keep alphabetical. Pytest emits a warning for any
+# unregistered marker, so anything we use in @pytest.mark.<name> must
+# live here.
+markers = [
+    "allows_hud_spawn: opt the test back into the real _maybe_spawn_play_hud path; default for tests/test_mcp.py is a no-op (autouse fixture) so dm_match / dm_pull / dm_match_npc tests don't fork real `daimon play` HUD subprocesses into the host system.",
+]
 
 [tool.ruff]
 line-length = 100

@@ -334,7 +334,17 @@ def _maybe_spawn_play_hud() -> Optional[int]:
     ``pull`` to ``state.json`` so the user sees the animation without
     having to run ``daimon play`` themselves. Honors
     ``DAIMON_NO_AUTO_HUD=1`` and the inside-terminal sentinel; returns
-    ``None`` on opt-out, no-TTY, or when an existing HUD is already up.
+    ``None`` on opt-out or when an existing HUD is already up.
+
+    NOTE on ``require_tty=False``: the MCP stdio server runs with stdout
+    piped to the parent agent process — by definition never a TTY. The
+    ``require_tty`` gate exists in ``spawn_play_hud`` to stop CI shells
+    and one-off ``daimon`` invocations from popping a window; the MCP
+    code path is the OPPOSITE situation (an interactive agent
+    explicitly asking for a match). Passing ``require_tty=False`` here
+    is what makes ``hud_pid`` actually populate on the response, instead
+    of always returning ``None``. The two opt-outs above are the
+    correct gates for the agent context.
 
     Failure is silent — the agent's response must not depend on whether
     a window popped. The PID (when one is returned) is added to the
@@ -343,7 +353,7 @@ def _maybe_spawn_play_hud() -> Optional[int]:
     """
     try:
         from daimon.play.spawn import spawn_play_hud
-        return spawn_play_hud()
+        return spawn_play_hud(require_tty=False)
     except Exception:  # noqa: BLE001 — best-effort
         return None
 

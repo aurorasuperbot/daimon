@@ -61,6 +61,41 @@ def _call(tool, **kwargs):
 
 
 # ---------------------------------------------------------------------------
+# Autouse fixture: neuter HUD subprocess auto-spawn
+#
+# Every dm_match / dm_match_npc / dm_pull invocation runs through
+# ``_maybe_spawn_play_hud`` which forks a real ``daimon play`` subprocess
+# (the spectator HUD). With ~70 tests calling those tools, the test
+# sweep was leaking ~70 zombie HUD processes per run — pinning host CPU
+# (3 separate Alert Engine pages on 2026-04-26 ~> 2026-04-27, all from
+# the same root cause) and contaminating per-test isolation because the
+# zombie HUDs kept watching ``state.json`` after their owning test
+# finished.
+#
+# The right fix is to make HUD-spawn-OFF the default in this file, and
+# require tests that *want* the spawn behaviour to opt back in via the
+# ``@pytest.mark.allows_hud_spawn`` marker. Those opt-in tests must
+# also mock ``subprocess.Popen`` themselves so they still don't fork a
+# real subprocess (the two existing opt-in tests already do this).
+#
+# Marker is registered in pyproject.toml under ``[tool.pytest.ini_options].markers``
+# so pytest doesn't emit an "unknown marker" warning.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _neuter_hud_autospawn(request, monkeypatch):
+    """Replace ``mcp_server._maybe_spawn_play_hud`` with a no-op by default.
+
+    Tests marked ``@pytest.mark.allows_hud_spawn`` retain the real
+    function — they're responsible for mocking the underlying
+    ``subprocess.Popen`` so the spawn never reaches the OS.
+    """
+    if request.node.get_closest_marker("allows_hud_spawn"):
+        return
+    monkeypatch.setattr(mcp_server, "_maybe_spawn_play_hud", lambda: None)
+
+
+# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
@@ -558,6 +593,84 @@ def test_match_propagates_real_catalog_display_metadata(monkeypatch, tmp_path):
         player_by_species["voltcat_apex"].art_path
         == "art/v1_alpha/voltcat_apex/base.png"
     )
+
+
+@pytest.mark.allows_hud_spawn
+def test_match_returns_hud_pid_in_mcp_context(monkeypatch, tmp_path):
+    """Regression: ``dm_match`` MUST populate ``hud_pid`` even though the
+    MCP stdio server has no TTY.
+
+    The MCP stdio transport runs with stdout piped to the parent agent
+    process — never a TTY. Before the fix, ``_maybe_spawn_play_hud``
+    called ``spawn_play_hud()`` with the default ``require_tty=True``,
+    which short-circuited on the no-TTY check and returned ``None`` for
+    every single agent-driven match / pull / NPC fight. The advertised
+    "first match auto-pops the HUD" feature was a no-op via MCP.
+
+    The fix is ``spawn_play_hud(require_tty=False)`` from the MCP path:
+    the agent context is exactly the situation where we WANT a window to
+    pop. The two opt-outs (``DAIMON_NO_AUTO_HUD=1`` env + the
+    inside-terminal sentinel) are still honored.
+
+    This test isolates the failure mode by forcing ``sys.stdout.isatty``
+    to False, mocking ``Popen`` to return a deterministic PID, and
+    asserting the PID lands in the dm_match envelope.
+    """
+    _isolate_paths(monkeypatch, tmp_path)
+
+    # Force the MCP-stdio reality: no TTY on stdout.
+    class _NoTty:
+        def isatty(self) -> bool:  # noqa: D401 — stdlib shape
+            return False
+    monkeypatch.setattr("sys.stdout", _NoTty())
+
+    # Make sure neither opt-out env var is set.
+    monkeypatch.delenv("DAIMON_NO_AUTO_HUD", raising=False)
+    monkeypatch.delenv("DAIMON_INSIDE_TERMINAL", raising=False)
+
+    # Mock subprocess.Popen so we don't actually fork a HUD process in CI.
+    captured: list = []
+
+    class _FakeProc:
+        def __init__(self, pid: int) -> None:
+            self.pid = pid
+
+    def fake_popen(args, **kwargs):
+        captured.append({"args": list(args), "kwargs": kwargs})
+        return _FakeProc(42424)
+
+    import subprocess as _sp
+    monkeypatch.setattr(_sp, "Popen", fake_popen)
+    # Force the "not frozen" branch in _build_spawn_command.
+    monkeypatch.delattr("sys.frozen", raising=False)
+
+    lo = _full_loadout_dict()
+    result = _call(dm_match, loadout_a=lo, loadout_b=lo)
+
+    assert "error" not in result, f"dm_match errored: {result}"
+    assert result.get("hud_pid") == 42424, (
+        f"hud_pid should be the spawned PID; got {result.get('hud_pid')!r}. "
+        "If this is None, the MCP-side _maybe_spawn_play_hud is back to "
+        "calling spawn_play_hud() without require_tty=False."
+    )
+    assert len(captured) == 1, "Popen should be called exactly once for the auto-spawn"
+
+
+@pytest.mark.allows_hud_spawn
+def test_match_hud_pid_none_when_optout_env_set(monkeypatch, tmp_path):
+    """The DAIMON_NO_AUTO_HUD opt-out continues to work from the MCP path."""
+    _isolate_paths(monkeypatch, tmp_path)
+    monkeypatch.setenv("DAIMON_NO_AUTO_HUD", "1")
+    # Popen should never be called — opt-out short-circuits before fork.
+    import subprocess as _sp
+    called: list = []
+    monkeypatch.setattr(_sp, "Popen", lambda *a, **k: called.append((a, k)) or None)
+
+    lo = _full_loadout_dict()
+    result = _call(dm_match, loadout_a=lo, loadout_b=lo)
+    assert "error" not in result
+    assert result.get("hud_pid") is None
+    assert called == [], "DAIMON_NO_AUTO_HUD=1 should have short-circuited before Popen"
 
 
 def test_match_synthetic_loadout_still_works(monkeypatch, tmp_path):

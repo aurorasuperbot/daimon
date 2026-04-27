@@ -44,11 +44,25 @@ def _make_legacy_wezterm(root: Path) -> Path:
 
 
 def _make_embedded_dir(parent: Path) -> Path:
-    """Pretend Nuitka packed wezterm into ``parent / daimon-bundled-wezterm/``."""
+    """Pretend Nuitka packed wezterm into ``parent / daimon-bundled-wezterm/``.
+
+    Mirrors the on-disk shape of a real binary distribution: both
+    ``wezterm`` and ``wezterm-gui`` are present *and* marked executable on
+    POSIX. The chmod matters because :func:`wb.is_installed` checks
+    ``os.access(..., os.X_OK)`` — without the +x bit the resolver treats
+    the binary as not-installed even though the file exists, which mimics
+    a corrupt extraction in production but is not what these fixtures are
+    trying to model.
+    """
     d = parent / wb._BUNDLED_WEZTERM_DIRNAME
     d.mkdir(parents=True, exist_ok=True)
-    (d / f"wezterm{EXE}").write_bytes(b"#!embedded-wezterm")
-    (d / f"wezterm-gui{EXE}").write_bytes(b"#!embedded-gui")
+    wezterm = d / f"wezterm{EXE}"
+    wezterm_gui = d / f"wezterm-gui{EXE}"
+    wezterm.write_bytes(b"#!embedded-wezterm")
+    wezterm_gui.write_bytes(b"#!embedded-gui")
+    if EXE == "":
+        wezterm.chmod(wezterm.stat().st_mode | 0o111)
+        wezterm_gui.chmod(wezterm_gui.stat().st_mode | 0o111)
     return d
 
 
