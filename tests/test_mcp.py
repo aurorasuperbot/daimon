@@ -16,6 +16,7 @@ Coverage:
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 
@@ -1650,25 +1651,15 @@ def test_pvp_status_resolved_fetches_match_record(monkeypatch):
         "round_count": 3,
     }
 
-    # view_issue → raw.githubusercontent fetch will go through urllib, not gh.
-    # Stub both paths: first _run for view_issue, then the urllib path for
-    # the match file. We patch urlopen too.
+    # Both calls now go through gh: view_issue (gh issue view) and the match
+    # fetch (gh api repos/.../contents/matches/42.json — base64 encoded body).
     fake = _FakeGh([
         {"ok": True, "stdout": json.dumps(issue_json), "stderr": ""},
+        {"ok": True,
+         "stdout": base64.b64encode(json.dumps(match_json).encode()).decode(),
+         "stderr": ""},
     ])
     _install_fake_gh(monkeypatch, fake)
-
-    import io
-    import urllib.request
-    def fake_urlopen(url, timeout=0):
-        # Return a context-manager-compatible file-like object.
-        class R:
-            def __enter__(self_inner):
-                return io.BytesIO(json.dumps(match_json).encode())
-            def __exit__(self_inner, *a):
-                return False
-        return R()
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
     r = _call(dm_pvp_status, challenge_id="42")
     assert r["status"] == "ok"
@@ -1731,12 +1722,11 @@ def test_pvp_my_matches_filters_by_pubkey(monkeypatch, tmp_path):
 # --- dm_leaderboard + dm_my_rank ------------------------------------------
 
 def test_leaderboard_missing_file_returns_empty(monkeypatch):
-    # raw.githubusercontent 404 then gh api 404 → not_found.
-    import urllib.error
-    import urllib.request
-    def fake_urlopen(url, timeout=0):
-        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    # gh api returns Not Found → fetch_repo_file maps to not_found, the
+    # ops layer treats that as a cold-start arena and returns empty ranks.
+    fake = _FakeGh([{"ok": False, "error": "gh_failed",
+                     "message": "Not Found", "stderr": "404"}])
+    _install_fake_gh(monkeypatch, fake)
     r = _call(dm_leaderboard, limit=25)
     assert r["status"] == "ok"
     assert r["ranks"] == []
@@ -1754,16 +1744,11 @@ def test_leaderboard_ranks_and_tiers(monkeypatch):
             "ee" * 32: {"wins": 1, "losses": 4, "draws": 0},    # Rookie
         },
     }
-    import io
-    import urllib.request
-    def fake_urlopen(url, timeout=0):
-        class R:
-            def __enter__(self_inner):
-                return io.BytesIO(json.dumps(payload).encode())
-            def __exit__(self_inner, *a):
-                return False
-        return R()
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    fake = _FakeGh([{"ok": True,
+                     "stdout": base64.b64encode(
+                         json.dumps(payload).encode()).decode(),
+                     "stderr": ""}])
+    _install_fake_gh(monkeypatch, fake)
 
     r = _call(dm_leaderboard, limit=10)
     assert r["status"] == "ok"
@@ -1787,16 +1772,11 @@ def test_my_rank_finds_local_identity(monkeypatch, tmp_path):
             "aa" * 32: {"wins": 20, "losses": 1, "draws": 0},
         },
     }
-    import io
-    import urllib.request
-    def fake_urlopen(url, timeout=0):
-        class R:
-            def __enter__(self_inner):
-                return io.BytesIO(json.dumps(payload).encode())
-            def __exit__(self_inner, *a):
-                return False
-        return R()
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    fake = _FakeGh([{"ok": True,
+                     "stdout": base64.b64encode(
+                         json.dumps(payload).encode()).decode(),
+                     "stderr": ""}])
+    _install_fake_gh(monkeypatch, fake)
 
     r = _call(dm_my_rank)
     assert r["status"] == "ok"

@@ -128,48 +128,98 @@ def test_create_issue_propagates_underlying_failure(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# fetch_repo_file — raw.githubusercontent path + 404 handling
+# fetch_repo_file — gh api contents path
+#
+# The implementation goes through `gh api repos/<repo>/contents/<path>`
+# (base64-encoded JSON response) for both public and private repos. The
+# raw.githubusercontent.com path was removed because it returns 404 on
+# private repos without auth (silently broken pre-V1) and has CDN
+# propagation delay on freshly-pushed files (the matches/N.json race
+# the live PvP smoke caught on 2026-04-27).
 # ---------------------------------------------------------------------------
 
+def _b64(payload: bytes) -> str:
+    import base64
+    return base64.b64encode(payload).decode("ascii")
+
+
 def test_fetch_repo_file_decodes_json(monkeypatch):
-    import io
-    import urllib.request
-    def fake_urlopen(url, timeout=0):
-        class R:
-            def __enter__(self_inner):
-                return io.BytesIO(b'{"x": 1}')
-            def __exit__(self_inner, *a):
-                return False
-        return R()
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    captured: list = []
+    def fake_run(argv, input_text=None, timeout=0):
+        captured.append(argv)
+        return {"ok": True, "stdout": _b64(b'{"x": 1}'), "stderr": ""}
+    monkeypatch.setattr(arena_client, "_run", fake_run)
     res = arena_client.fetch_repo_file("org/repo", "leaderboard.json")
     assert res["ok"] is True
     assert res["content"] == {"x": 1}
+    # Pin the API call shape so we'd notice if someone reverted to raw.
+    assert captured[0][:2] == ["gh", "api"]
+    assert "repos/org/repo/contents/leaderboard.json" in captured[0][2]
 
 
 def test_fetch_repo_file_404_returns_not_found(monkeypatch):
-    import urllib.error
-    import urllib.request
-    def fake_urlopen(url, timeout=0):
-        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    def fake_run(argv, input_text=None, timeout=0):
+        # gh surfaces 404 from the contents endpoint as exit !=0 with
+        # "Not Found" in stderr.
+        return {"ok": False, "error": "gh_failed",
+                "message": "gh: not found (HTTP 404)",
+                "stderr": "gh: Not Found (HTTP 404)\n"}
+    monkeypatch.setattr(arena_client, "_run", fake_run)
+    res = arena_client.fetch_repo_file("org/repo", "missing.json")
+    assert res["ok"] is False
+    assert res["error"] == "not_found"
+    assert "missing.json" in res["message"]
+
+
+def test_fetch_repo_file_404_via_message_only(monkeypatch):
+    """Some gh versions put the 404 indicator in message, not stderr."""
+    def fake_run(argv, input_text=None, timeout=0):
+        return {"ok": False, "error": "gh_failed",
+                "message": "Not Found", "stderr": ""}
+    monkeypatch.setattr(arena_client, "_run", fake_run)
     res = arena_client.fetch_repo_file("org/repo", "missing.json")
     assert res["ok"] is False
     assert res["error"] == "not_found"
 
 
 def test_fetch_repo_file_plain_text_not_parsed_as_json(monkeypatch):
-    import io
-    import urllib.request
-    def fake_urlopen(url, timeout=0):
-        class R:
-            def __enter__(self_inner):
-                return io.BytesIO(b"hello world")
-            def __exit__(self_inner, *a):
-                return False
-        return R()
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    def fake_run(argv, input_text=None, timeout=0):
+        return {"ok": True, "stdout": _b64(b"hello world"), "stderr": ""}
+    monkeypatch.setattr(arena_client, "_run", fake_run)
     res = arena_client.fetch_repo_file("org/repo", "README.md")
     assert res["ok"] is True
     assert res["content"] == "hello world"
     assert res["raw"] == "hello world"
+
+
+def test_fetch_repo_file_non_main_ref_passes_query_param(monkeypatch):
+    captured: list = []
+    def fake_run(argv, input_text=None, timeout=0):
+        captured.append(argv)
+        return {"ok": True, "stdout": _b64(b'{}'), "stderr": ""}
+    monkeypatch.setattr(arena_client, "_run", fake_run)
+    res = arena_client.fetch_repo_file("org/repo", "f.json", ref="dev")
+    assert res["ok"] is True
+    assert "?ref=dev" in captured[0][2]
+
+
+def test_fetch_repo_file_passes_through_non_404_gh_error(monkeypatch):
+    """Auth failures must surface as gh_auth, NOT silently translated to
+    not_found — the user needs to know to re-auth, not assume the file's
+    missing."""
+    def fake_run(argv, input_text=None, timeout=0):
+        return {"ok": False, "error": "gh_auth",
+                "message": "401 unauthorized", "stderr": "401"}
+    monkeypatch.setattr(arena_client, "_run", fake_run)
+    res = arena_client.fetch_repo_file("org/repo", "f.json")
+    assert res["ok"] is False
+    assert res["error"] == "gh_auth"
+
+
+def test_fetch_repo_file_empty_payload_treated_as_not_found(monkeypatch):
+    def fake_run(argv, input_text=None, timeout=0):
+        return {"ok": True, "stdout": "", "stderr": ""}
+    monkeypatch.setattr(arena_client, "_run", fake_run)
+    res = arena_client.fetch_repo_file("org/repo", "f.json")
+    assert res["ok"] is False
+    assert res["error"] == "not_found"

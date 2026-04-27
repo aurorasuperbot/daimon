@@ -21,19 +21,16 @@ is already on the wire).
 
 from __future__ import annotations
 
+import base64
 import json
 import shutil
 import subprocess
-import urllib.request
 from typing import Any, Dict, List, Optional
 
 # Default timeout per gh call. Raised slightly for `gh issue create` which
 # can be slow on first auth handshake but kept short enough that an MCP
 # tool never blocks the agent's chat indefinitely.
 DEFAULT_TIMEOUT_S = 20
-
-# Default raw.githubusercontent base — overridable for test fixtures.
-RAW_GITHUB_BASE = "https://raw.githubusercontent.com"
 
 
 # ---------------------------------------------------------------------------
@@ -248,52 +245,53 @@ def fetch_repo_file(repo: str,
                     path: str,
                     ref: str = "main",
                     timeout: int = 15) -> Dict[str, Any]:
-    """Fetch a file from a (public OR private) repo.
+    """Fetch a file from a (public OR private) repo via the GitHub API.
 
-    For public repos this hits raw.githubusercontent.com directly. For
-    private repos that fails, so we fall back to ``gh api`` which carries
-    auth. Returns parsed JSON if the path ends in ``.json``, else raw text.
+    Uses ``gh api repos/<repo>/contents/<path>`` exclusively. We deliberately
+    do NOT route through ``raw.githubusercontent.com``:
+
+      - raw.githubusercontent returns 404 for private repos without auth,
+        which is indistinguishable from "the file truly doesn't exist".
+        Pre-V1-public-launch the arena is private; that path was fundamentally
+        broken (and only worked in tests because urlopen was mocked).
+      - For freshly-pushed files (e.g. ``matches/N.json`` posted by the
+        arbiter seconds before a ``dm_pvp_status`` poll), raw.githubusercontent
+        has a CDN propagation lag of ~minutes. The API endpoint reads from
+        the canonical store directly, so a poll right after settlement
+        sees the file immediately.
+
+    Returns parsed JSON if the path ends in ``.json``, else raw text.
 
     On success:
       ``{"ok": True, "content": <parsed-or-raw>, "raw": "<bytes-as-text>"}``
-    On 404:
+    On 404 (file truly absent at ref):
       ``{"ok": False, "error": "not_found", "message": "..."}``
+    On other gh failure:
+      ``{"ok": False, "error": "<gh_*>", "message": "..."}``
     """
-    # Try raw.githubusercontent first — fastest, no auth handshake.
-    raw_url = f"{RAW_GITHUB_BASE}/{repo}/{ref}/{path}"
-    try:
-        with urllib.request.urlopen(raw_url, timeout=timeout) as resp:  # noqa: S310
-            text = resp.read().decode("utf-8")
-        return _decode_file_content(text, path)
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
+    if ref == "main":
+        endpoint = f"repos/{repo}/contents/{path}"
+    else:
+        endpoint = f"repos/{repo}/contents/{path}?ref={ref}"
+    res = _run(["gh", "api", endpoint, "--jq", ".content"], timeout=timeout)
+    if not res["ok"]:
+        # The contents endpoint returns 404 for missing files; gh surfaces
+        # that as a non-zero exit with "Not Found" in stderr. Re-categorize
+        # so callers can distinguish "missing" from "auth gone".
+        msg = (res.get("message") or "").lower()
+        stderr = (res.get("stderr") or "").lower()
+        if "not found" in msg or "not found" in stderr or "404" in stderr:
             return {"ok": False, "error": "not_found",
                     "message": f"{path} not present at {ref}"}
-        # 401/403 likely means private repo — fall through to gh api auth path.
-        if e.code not in (401, 403):
-            return {"ok": False, "error": "http_error",
-                    "message": f"HTTP {e.code} fetching {raw_url}"}
-    except urllib.error.URLError as e:
-        return {"ok": False, "error": "network",
-                "message": f"network error fetching {raw_url}: {e.reason}"}
-    except Exception as e:  # noqa: BLE001
-        return {"ok": False, "error": "fetch_failed",
-                "message": f"{type(e).__name__}: {e}"}
-
-    # Fallback: authenticated gh api call.
-    argv = ["gh", "api",
-            f"repos/{repo}/contents/{path}",
-            "--jq", ".content"]
-    if ref != "main":
-        argv = ["gh", "api",
-                f"repos/{repo}/contents/{path}?ref={ref}",
-                "--jq", ".content"]
-    res = _run(argv, timeout=timeout)
-    if not res["ok"]:
         return res
-    import base64
+    encoded = (res["stdout"] or "").strip()
+    if not encoded:
+        # Defensive: gh returned 0 but no payload — treat as not_found rather
+        # than crash on b64 decode of empty string.
+        return {"ok": False, "error": "not_found",
+                "message": f"{path} returned empty payload at {ref}"}
     try:
-        decoded = base64.b64decode((res["stdout"] or "").strip()).decode("utf-8")
+        decoded = base64.b64decode(encoded).decode("utf-8")
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": "decode_failed",
                 "message": f"could not decode gh api response: {e}"}
