@@ -80,7 +80,8 @@ a Champion, you have a published-tier-grade build.
 
 - `dm_npcs(tier?)` — list the roster
 - `dm_npc(npc_id)` — full NPC loadout
-- `dm_match_npc(loadout, npc_id, seed?, include_round_log?)` — resolve
+- `dm_match_npc(npc_id, loadout?, seed?, include_round_log?)` — resolve;
+  `loadout` defaults to the active loadout (set via `dm_loadout_set`)
 
 See [`mcp.md`](mcp.md) for the full envelope spec.
 

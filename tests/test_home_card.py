@@ -302,6 +302,43 @@ class TestLoadouts:
         assert "No saved loadouts yet" in out
         assert "daimon loadout-edit" in out
 
+    def test_active_loadout_chip_carries_eyebrow(self, base_payload):
+        """The active flag promotes the chip to an ACTIVE-eyebrow style.
+        Inactive chips remain on the muted-panel border."""
+        base_payload["saved_loadouts"] = [
+            {"name": "aggro_volt", "card_count": 6, "active": False},
+            {"name": "control_test", "card_count": 6, "active": True},
+        ]
+        out = render_home_card(base_payload)
+        assert "ACTIVE" in out, "active chip should show the ACTIVE eyebrow"
+        # The eyebrow only appears once — only one active loadout.
+        assert out.count(">ACTIVE<") == 1
+
+    def test_active_chip_renders_first(self, base_payload):
+        """Active loadout sorts to the front of the chip strip so the
+        eye lands on the current deck before the alternates."""
+        base_payload["saved_loadouts"] = [
+            {"name": "aggro_volt", "card_count": 6, "active": False},
+            {"name": "midrange", "card_count": 6, "active": False},
+            {"name": "zzz_combo", "card_count": 6, "active": True},
+        ]
+        out = render_home_card(base_payload)
+        # zzz_combo (active) appears before aggro_volt despite being
+        # alphabetically later — proves the active-first sort fires.
+        assert out.find("zzz_combo") < out.find("aggro_volt")
+        assert out.find("zzz_combo") < out.find("midrange")
+
+    def test_no_active_flag_means_no_eyebrow(self, base_payload):
+        """Backwards-compat: a payload missing the active key on every
+        entry (e.g. an old summary) renders all chips as inactive — no
+        ACTIVE eyebrow renders anywhere."""
+        base_payload["saved_loadouts"] = [
+            {"name": "aggro_volt", "card_count": 6},
+            {"name": "control_test", "card_count": 6},
+        ]
+        out = render_home_card(base_payload)
+        assert ">ACTIVE<" not in out
+
 
 class TestNoIdentityCard:
     def test_renders_onboarding_when_no_identity(self):

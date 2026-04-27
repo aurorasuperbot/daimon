@@ -790,7 +790,16 @@ def _render_daily_quests(quests: List[Dict[str, Any]]) -> str:
 
 
 def _render_loadouts(loadouts: List[Dict[str, Any]]) -> str:
-    """Saved-loadouts strip with an inline 'build new' CTA when empty."""
+    """Saved-loadouts strip with an inline 'build new' CTA when empty.
+
+    Renders the active loadout with distinct styling — accent-colored
+    border, "ACTIVE" eyebrow on the chip, sorted to the front. Inactive
+    loadouts use the default muted-panel styling. The single source of
+    truth for "is this active" is the ``active`` boolean on each entry
+    (set by :func:`daimon.mcp.server._saved_loadouts_summary`); we never
+    re-derive it from a separate pointer here so the renderer stays a
+    pure function over the payload.
+    """
     if not loadouts:
         return (
             f'<div style="font-size:12px;color:{_C_MUTED};'
@@ -800,19 +809,42 @@ def _render_loadouts(loadouts: List[Dict[str, Any]]) -> str:
             "</div>"
         )
 
+    # Stable sort with active-first — preserves the alphabetical order
+    # `_saved_loadouts_summary` already gives us within each group.
+    ordered = sorted(loadouts[:6], key=lambda lo: not bool(lo.get("active")))
+
     chips: List[str] = []
-    for lo in loadouts[:6]:
+    for lo in ordered:
         name = lo.get("name", "?")
         cnt = lo.get("card_count", 0)
-        chips.append(
-            f'<span style="background:{_C_PANEL};color:{_C_TEXT};'
-            f'border:1px solid {_C_PANEL_HI};border-radius:4px;'
-            'padding:2px 8px;font-size:11px;font-family:monospace;">'
-            f"{_esc(name)}"
-            f'<span style="color:{_C_MUTED};margin-left:4px;">'
-            f"({int(cnt)})</span>"
-            "</span>"
-        )
+        is_active = bool(lo.get("active"))
+        if is_active:
+            # Accent border + filled accent eyebrow distinguishes the
+            # active chip without changing the chip footprint (so the
+            # row layout doesn't reflow when the active loadout swaps).
+            chips.append(
+                f'<span style="background:{_C_PANEL};color:{_C_TEXT};'
+                f'border:1px solid {_C_ACCENT};border-radius:4px;'
+                'padding:2px 8px;font-size:11px;font-family:monospace;'
+                'display:inline-flex;align-items:center;gap:6px;">'
+                f'<span style="background:{_C_ACCENT};color:#0b0d12;'
+                'border-radius:3px;padding:0 4px;font-size:9px;'
+                'letter-spacing:1px;font-weight:bold;">ACTIVE</span>'
+                f"{_esc(name)}"
+                f'<span style="color:{_C_MUTED};">'
+                f"({int(cnt)})</span>"
+                "</span>"
+            )
+        else:
+            chips.append(
+                f'<span style="background:{_C_PANEL};color:{_C_TEXT};'
+                f'border:1px solid {_C_PANEL_HI};border-radius:4px;'
+                'padding:2px 8px;font-size:11px;font-family:monospace;">'
+                f"{_esc(name)}"
+                f'<span style="color:{_C_MUTED};margin-left:4px;">'
+                f"({int(cnt)})</span>"
+                "</span>"
+            )
     return (
         f'<div>'
         f'<div style="font-size:10px;color:{_C_MUTED};'

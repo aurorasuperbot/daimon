@@ -16,6 +16,12 @@ The bundle lives under ``daimon/loadouts/showcase/`` with ``manifest.json``
 as the index and one ``<loadout_id>.json`` file per loadout.
 """
 
+from daimon.loadouts.active import (
+    ACTIVE_META_VERSION,
+    clear_active_loadout,
+    get_active_loadout_name,
+    set_active_loadout_name,
+)
 from daimon.loadouts.loader import (
     DEFAULT_SHOWCASE_PKG,
     ShowcaseLoadout,
@@ -34,4 +40,9 @@ __all__ = [
     "resolve_showcase_loadout",
     "loadout_from_data",
     "load_loadout_file",
+    # Active-loadout pointer (user-facing default opponent selection)
+    "ACTIVE_META_VERSION",
+    "get_active_loadout_name",
+    "set_active_loadout_name",
+    "clear_active_loadout",
 ]

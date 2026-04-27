@@ -73,7 +73,7 @@ language interpretation only if none match.
 |-----------------------------------|------------------------------------|------------------------------------------|
 | `@daimon home`                    | `dm_home_card()`                   | the `message` field, verbatim            |
 | `@daimon pull`                    | `dm_pull(seed=...)`                | post a small `:::html` pull-result card  |
-| `@daimon match-npc <Name>`        | `dm_match_npc(loadout, npc_id)`    | post the post-match summary              |
+| `@daimon match-npc <Name>`        | `dm_match_npc(npc_id, loadout?)` — `loadout` defaults to active | post the post-match summary              |
 | `@daimon init`                    | `dm_init()`                        | post pubkey + mnemonic warning           |
 | `@daimon show my collection`      | `dm_collection()`                  | post a compact summary                   |
 | `@daimon quests` / `@daimon daily`| `dm_quests()`                      | post the 3 quests + claimed-rewards diff |

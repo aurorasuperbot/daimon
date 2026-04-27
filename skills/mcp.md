@@ -94,14 +94,23 @@ Mining receipts come from the Claude Code `PostToolUse` hook installed via
 | `dm_collection()` | List owned serials (UUID per minted card). | live |
 | `dm_pull(seed?, catalog?)` | Spend 100 currency, mint a fresh card from the active pack. | live |
 
-### Loadouts (4) — pure local
+### Loadouts (7) — pure local
 
 | Tool | Purpose | Status |
 |---|---|---|
 | `dm_loadout_validate(loadout)` | Structural legality check (6 cards, max 2 of same species, known enums). | live |
-| `dm_loadout_save(loadout, name)` | Save a named deck to `~/.config/daimon/loadouts/`. | live |
-| `dm_loadout_list()` | List saved deck names. | live |
+| `dm_loadout_save(loadout, name)` | Save a named deck to `~/.config/daimon/loadouts/`. Auto-sets active on first save. | live |
+| `dm_loadout_list()` | List saved deck names. The active loadout is flagged with `"active": true` and surfaced as `active_loadout` at the top level. | live |
 | `dm_loadout_load(name)` | Fetch a saved deck. | live |
+| `dm_loadout_set(name)` | Designate a saved loadout as the active default (used by `dm_match_npc` when `loadout` is omitted). | live |
+| `dm_loadout_get_active()` | Inspect the active-loadout pointer (returns `{name, exists}` so stale pointers are visible). | live |
+| `dm_loadout_clear_active()` | Unset the active-loadout pointer. | live |
+
+The active-loadout pointer lives at `~/.config/daimon/loadout_meta.json`
+as `{"version": 1, "active_loadout": "<name>"}`. Pointer-by-name (not
+pointer-by-cards) means editing the named loadout via `dm_loadout_save`
+propagates automatically — no "your active is stale" footgun. See
+`daimon/loadouts/active.py` for the persistence rationale.
 
 ### Match (1) — local PvE
 
@@ -115,7 +124,7 @@ Mining receipts come from the Claude Code `PostToolUse` hook installed via
 |---|---|---|
 | `dm_npcs(tier?)` | List the 25-NPC roster, optionally filtered to one tier. | live |
 | `dm_npc(npc_id)` | Full loadout + tier + lore for one NPC. | live |
-| `dm_match_npc(loadout, npc_id, seed?, include_round_log?)` | Resolve PvE match against an NPC's loadout. | live |
+| `dm_match_npc(npc_id, loadout?, seed?, include_round_log?)` | Resolve PvE match against an NPC. `loadout` defaults to the active loadout (set via `dm_loadout_set`). | live |
 
 Tiers: `rookie` → `novice` → `veteran` → `elite` → `champion`. Phase 5 sim
 proves zero cross-tier upsets at 21 seeds × 600 pairings.

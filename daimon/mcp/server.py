@@ -51,10 +51,13 @@ Collection + pulls:
   dm_pull              → spend currency + mint new card
 
 Loadouts (pure-local saved-deck CRUD):
-  dm_loadout_validate  → structural validity check
-  dm_loadout_save      → persist a named loadout to ~/.config/daimon/loadouts
-  dm_loadout_list      → list saved loadout names
-  dm_loadout_load      → fetch a saved loadout by name
+  dm_loadout_validate     → structural validity check
+  dm_loadout_save         → persist a named loadout (auto-sets active on first save)
+  dm_loadout_list         → list saved loadout names (active flagged)
+  dm_loadout_load         → fetch a saved loadout by name
+  dm_loadout_set          → designate a saved loadout as the active default
+  dm_loadout_get_active   → inspect the active-loadout pointer
+  dm_loadout_clear_active → unset the active-loadout pointer
 
 Match / PvP:
   dm_match             → resolve two arbitrary loadouts (writes V2 Match to state file)
@@ -907,11 +910,28 @@ def _pending_tier_ceremony_payload() -> Optional[Dict[str, Any]]:
 
 
 def _saved_loadouts_summary() -> List[Dict[str, Any]]:
-    """List saved loadouts (name + card_count). Mirrors dm_loadout_list
+    """List saved loadouts (name + card_count + active). Mirrors dm_loadout_list
     but trimmed for the home payload — no paths, no mtimes, no corrupt
-    entries (those just get skipped). Returns [] when no loadouts dir."""
+    entries (those just get skipped). Returns [] when no loadouts dir.
+
+    The ``active`` boolean flags the loadout currently designated by
+    :mod:`daimon.loadouts.active` — single source of truth read once
+    (validate_exists=False so a stale pointer with a deleted file shows
+    no entry as active, rather than silently flagging a nonexistent one).
+    """
     if not LOADOUTS_DIR.exists():
         return []
+    # Resolve active pointer once for the whole list — cheaper than
+    # per-entry calls and consistent if the file is rewritten mid-scan.
+    try:
+        from daimon.loadouts.active import (
+            get_active_loadout_name as _get_active,
+        )
+        active_name = _get_active(validate_exists=False)
+    except Exception:  # noqa: BLE001
+        logger.exception("_saved_loadouts_summary: active read failed")
+        active_name = None
+
     out: List[Dict[str, Any]] = []
     for entry in sorted(LOADOUTS_DIR.iterdir()):
         if not entry.is_file() or entry.suffix != ".json":
@@ -921,7 +941,11 @@ def _saved_loadouts_summary() -> List[Dict[str, Any]]:
             cards = doc.get("cards", [])
             if not isinstance(cards, list):
                 continue
-            out.append({"name": entry.stem, "card_count": len(cards)})
+            out.append({
+                "name": entry.stem,
+                "card_count": len(cards),
+                "active": entry.stem == active_name,
+            })
         except Exception:
             # Skip malformed files; dm_loadout_list reports them properly.
             continue
@@ -960,7 +984,7 @@ def dm_home() -> Dict[str, Any]:
                            "rarity", "note"}, ...] (newest-first, ≤5),
        "recommended_npc": {"npc_id", "name", "tier", "rank",
                            "flavor", "reason"} | null,
-       "saved_loadouts": [{"name", "card_count"}, ...],
+       "saved_loadouts": [{"name", "card_count", "active"}, ...],
        "daily_quests": [{"quest_id", "template_id", "title", "tier",
                          "reward", "progress", "target",
                          "complete", "claimed"}, ...],  # exactly 3 entries
@@ -1711,8 +1735,8 @@ def dm_npc(npc_id: str) -> Dict[str, Any]:
 
 @mcp.tool()
 def dm_match_npc(
-    loadout: Any,
     npc_id: str,
+    loadout: Any = None,
     seed: Optional[str] = None,
     include_round_log: bool = False,
 ) -> Dict[str, Any]:
@@ -1723,9 +1747,18 @@ def dm_match_npc(
     so the play HUD renders the fight; the response carries an extra
     `npc` block with the opponent's identity.
 
+    When ``loadout`` is omitted (or explicitly ``None``), this defaults to
+    the active loadout pointed at by :mod:`daimon.loadouts.active`. If no
+    active loadout is set, this returns ``{"error": "no_active_loadout",
+    ...}`` with a hint pointing at ``dm_loadout_save`` / ``dm_loadout_set``
+    — never silently picks a random saved loadout. The response includes
+    ``"used_active_loadout": "<name>"`` whenever the active was used, so
+    the caller's UI can label the side panel.
+
     Args:
-      loadout: Your team. Either {"cards": [...]} or a bare card array.
       npc_id: NPC slug. Call dm_npcs() first to enumerate.
+      loadout: Your team. Either {"cards": [...]}, a bare card array, or
+               omit/None to use the active loadout.
       seed: Optional 32-byte hex (64 chars). Defaults to all-zeros for
             replay-safe play.
       include_round_log: If True, include per-round action traces.
@@ -1737,14 +1770,24 @@ def dm_match_npc(
        "state_id": "match_...",
        "npc": {"npc_id": "...", "name": "...", "tier": "...",
                "rank": int, "flavor": "..."},
+       "used_active_loadout": "<name>"|null,
        "rounds": [...]?}
 
     Failure envelopes:
-      {"error": "invalid_input", "message": "..."}     loadout/seed bad
-      {"error": "unknown_npc", "message": "..."}       npc_id not in roster
-      {"error": "internal_error", "message": "..."}    catalog/loadout resolve failed
+      {"error": "invalid_input", "message": "..."}      loadout/seed bad
+      {"error": "unknown_npc", "message": "..."}        npc_id not in roster
+      {"error": "no_active_loadout", "message": "...",
+       "hint": "..."}                                   loadout omitted, none set
+      {"error": "active_loadout_missing", "message": "...",
+       "name": "..."}                                   pointer present, file deleted
+      {"error": "active_loadout_corrupt", "message": "...",
+       "name": "..."}                                   pointer present, JSON bad
+      {"error": "internal_error", "message": "..."}     catalog/loadout resolve failed
     """
     from daimon.catalog import load_catalog
+    from daimon.loadouts.active import (
+        get_active_loadout_name as _get_active,
+    )
     from daimon.npcs import get_npc as _get_npc
     from daimon.npcs.loader import _resolve_loadout_cards
 
@@ -1758,6 +1801,52 @@ def dm_match_npc(
         npc = _get_npc(npc_id)
     except KeyError as e:
         return {"error": "unknown_npc", "message": str(e), "npc_id": npc_id}
+
+    # Resolve player loadout argument — fall back to the active pointer
+    # when omitted. We do this BEFORE NPC catalog resolution so the
+    # "you have no active loadout" hint surfaces early on a fresh install.
+    used_active: Optional[str] = None
+    effective_loadout: Any = loadout
+    if loadout is None:
+        # validate_exists=False so we can distinguish "no pointer" from
+        # "stale pointer" with separate error codes.
+        active_name = _get_active(validate_exists=False)
+        if active_name is None:
+            return {
+                "error": "no_active_loadout",
+                "message": "no loadout argument provided and no active "
+                           "loadout is set",
+                "hint": "Save a loadout with dm_loadout_save then activate "
+                        "it via dm_loadout_set <name>, or pass an explicit "
+                        "loadout argument.",
+            }
+        target = _loadout_path(active_name)
+        if not target.is_file():
+            return {
+                "error": "active_loadout_missing",
+                "message": f"active loadout {active_name!r} no longer "
+                           "exists on disk",
+                "name": active_name,
+                "hint": "Run dm_loadout_set with an existing loadout, or "
+                        "dm_loadout_clear_active to drop the stale pointer.",
+            }
+        try:
+            doc = json.loads(target.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            return {
+                "error": "active_loadout_corrupt",
+                "message": str(e),
+                "name": active_name,
+            }
+        cards = doc.get("cards", [])
+        if not isinstance(cards, list):
+            return {
+                "error": "active_loadout_corrupt",
+                "message": "cards not a list",
+                "name": active_name,
+            }
+        effective_loadout = {"cards": cards}
+        used_active = active_name
 
     # Resolve NPC loadout (raw card dicts -> engine Loadout). Catalog load
     # could fail if package data is missing; surface that as internal_error.
@@ -1774,7 +1863,7 @@ def dm_match_npc(
 
     # Validate player loadout + seed.
     try:
-        a_lo, a_raw = _resolve_loadout_payload(loadout, "loadout")
+        a_lo, a_raw = _resolve_loadout_payload(effective_loadout, "loadout")
         seed_bytes = _seed_from_arg(seed)
     except (ValueError, TypeError) as e:
         return {"error": "invalid_input", "message": str(e)}
@@ -1826,6 +1915,7 @@ def dm_match_npc(
             "rank": npc.rank,
             "flavor": npc.flavor,
         },
+        "used_active_loadout": used_active,
         "daily_quests": daily_quests,
     }
     if include_round_log:
@@ -2287,14 +2377,24 @@ def dm_loadout_save(loadout: Any, name: str) -> Dict[str, Any]:
     — a name-collision replaces the old file; a validation failure refuses
     to write anything.
 
+    Auto-active behavior: if the local install has no active loadout set
+    yet (fresh install or after `dm_loadout_clear_active`), saving the
+    first loadout also designates it as active. Subsequent saves never
+    auto-promote — explicit `dm_loadout_set` is required to swap.
+
     Args:
       loadout: `{"cards": [...]}` or bare array of card dicts.
       name: 1–48 chars of `[A-Za-z0-9_-]`. Used as the filename.
 
     Returns:
       {"status": "ok", "name": "...", "path": "...", "card_count": 6,
-       "overwrote": bool}
+       "overwrote": bool, "set_active": bool}
     """
+    from daimon.loadouts.active import (
+        get_active_loadout_name as _get_active,
+        set_active_loadout_name as _set_active,
+    )
+
     try:
         safe_name = _validate_loadout_name(name)
     except ValueError as e:
@@ -2316,13 +2416,125 @@ def dm_loadout_save(loadout: Any, name: str) -> Dict[str, Any]:
     # artifact.
     doc = {"name": safe_name, "cards": list(raw)}
     target.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+
+    # Auto-set active on first-ever save. Pointer-by-name (see
+    # daimon/loadouts/active.py) means re-saving the active loadout
+    # propagates automatically — we only flip the pointer when there's
+    # nothing to point at yet.
+    set_active = False
+    try:
+        if _get_active(validate_exists=False) is None:
+            _set_active(safe_name)
+            set_active = True
+    except Exception:  # noqa: BLE001
+        # The save itself succeeded — don't fail the tool just because
+        # the convenience auto-promotion misfired. Log + carry on.
+        logger.exception("dm_loadout_save: auto-set-active failed")
+
     return {
         "status": "ok",
         "name": safe_name,
         "path": str(target),
         "card_count": len(raw),
         "overwrote": overwrote,
+        "set_active": set_active,
     }
+
+
+@mcp.tool()
+def dm_loadout_set(name: str) -> Dict[str, Any]:
+    """Designate a saved loadout as the active default opponent.
+
+    The active loadout is the one `dm_match_npc` uses when called without
+    a `loadout` argument, and the one the home-card highlights as your
+    "current deck." It's a single pointer at
+    ``~/.config/daimon/loadout_meta.json`` — see
+    :mod:`daimon.loadouts.active` for the persistence rationale.
+
+    Args:
+      name: A loadout previously saved via `dm_loadout_save`. Must
+            currently exist on disk.
+
+    Returns:
+      {"status": "ok", "active_loadout": "<name>",
+       "previous": "<old>"|null}
+
+    Failure envelopes:
+      {"error": "invalid_name", "message": "..."}      bad chars / length
+      {"error": "unknown_loadout", "name": "..."}      no saved loadout matches
+    """
+    from daimon.loadouts.active import (
+        get_active_loadout_name as _get_active,
+        set_active_loadout_name as _set_active,
+    )
+
+    try:
+        safe_name = _validate_loadout_name(name)
+    except ValueError as e:
+        return {"error": "invalid_name", "message": str(e)}
+
+    target = _loadout_path(safe_name)
+    if not target.is_file():
+        return {"error": "unknown_loadout", "name": safe_name}
+
+    # Capture previous pointer for caller's UI ("active swapped: X → Y").
+    # validate_exists=False so a stale pointer (file deleted by hand) still
+    # surfaces in the response — informative for the diff display.
+    previous = _get_active(validate_exists=False)
+    _set_active(safe_name)
+    return {
+        "status": "ok",
+        "active_loadout": safe_name,
+        "previous": previous,
+    }
+
+
+@mcp.tool()
+def dm_loadout_get_active() -> Dict[str, Any]:
+    """Return the currently active loadout pointer.
+
+    Returns:
+      {"status": "ok",
+       "active_loadout": "<name>"|null,
+       "exists": bool}
+
+    `exists` distinguishes "no active set" (active_loadout=null,
+    exists=false) from "active set but the file was deleted by hand"
+    (active_loadout=<name>, exists=false). The home-card uses this to
+    show a self-corrective hint in the latter case.
+    """
+    from daimon.loadouts.active import (
+        get_active_loadout_name as _get_active,
+    )
+    raw_name = _get_active(validate_exists=False)
+    if raw_name is None:
+        return {"status": "ok", "active_loadout": None, "exists": False}
+    exists = _loadout_path(raw_name).is_file()
+    return {
+        "status": "ok",
+        "active_loadout": raw_name,
+        "exists": exists,
+    }
+
+
+@mcp.tool()
+def dm_loadout_clear_active() -> Dict[str, Any]:
+    """Explicitly unset the active loadout pointer.
+
+    After this call, `dm_match_npc` requires an explicit `loadout`
+    argument until the next `dm_loadout_set` (or until the next
+    `dm_loadout_save` re-triggers the first-save auto-promotion).
+
+    Returns:
+      {"status": "ok", "previous": "<old>"|null}
+    """
+    from daimon.loadouts.active import (
+        clear_active_loadout as _clear_active,
+        get_active_loadout_name as _get_active,
+    )
+    previous = _get_active(validate_exists=False)
+    _clear_active()
+    return {"status": "ok", "previous": previous}
 
 
 @mcp.tool()
@@ -2331,18 +2543,33 @@ def dm_loadout_list() -> Dict[str, Any]:
 
     Returns:
       {"loadouts": [{"name": "...", "card_count": int,
-                     "path": "...", "mtime": float}], "count": int}
+                     "path": "...", "mtime": float, "active": bool}],
+       "count": int,
+       "active_loadout": "<name>"|null}
 
-    Malformed JSON files are skipped with a `corrupt` marker in their entry.
+    `active_loadout` at the top level is the canonical pointer (also
+    surfaced as the per-entry `active` flag for convenience). Malformed
+    JSON files are surfaced with a `corrupt` marker — they retain the
+    `active` flag so a corrupt-but-currently-active loadout is visible.
     """
+    try:
+        from daimon.loadouts.active import (
+            get_active_loadout_name as _get_active,
+        )
+        active_name = _get_active(validate_exists=False)
+    except Exception:  # noqa: BLE001
+        logger.exception("dm_loadout_list: active read failed")
+        active_name = None
+
     if not LOADOUTS_DIR.exists():
-        return {"loadouts": [], "count": 0}
+        return {"loadouts": [], "count": 0, "active_loadout": active_name}
 
     out: List[Dict[str, Any]] = []
     for entry in sorted(LOADOUTS_DIR.iterdir()):
         if not entry.is_file() or entry.suffix != ".json":
             continue
         name = entry.stem
+        is_active = name == active_name
         try:
             doc = json.loads(entry.read_text(encoding="utf-8"))
             cards = doc.get("cards", [])
@@ -2353,6 +2580,7 @@ def dm_loadout_list() -> Dict[str, Any]:
                 "card_count": len(cards),
                 "path": str(entry),
                 "mtime": entry.stat().st_mtime,
+                "active": is_active,
             })
         except Exception as e:  # noqa: BLE001
             out.append({
@@ -2360,8 +2588,13 @@ def dm_loadout_list() -> Dict[str, Any]:
                 "corrupt": True,
                 "message": str(e),
                 "path": str(entry),
+                "active": is_active,
             })
-    return {"loadouts": out, "count": len(out)}
+    return {
+        "loadouts": out,
+        "count": len(out),
+        "active_loadout": active_name,
+    }
 
 
 @mcp.tool()
