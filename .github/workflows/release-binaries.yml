@@ -83,8 +83,16 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          # Nuitka pulls a C compiler on first run; pin a known-good version.
-          python -m pip install "nuitka>=2.4,<3" ordered-set zstandard
+          # Pin Nuitka to an exact version. ``>=2.4,<3`` is too loose:
+          # Nuitka makes user-visible compilation behaviour changes
+          # within minor releases (--standalone layout, --include-data
+          # path semantics, dependency-resolver internals) and a
+          # surprise upgrade between two release builds will
+          # silently change the ``.dist`` tree we then merge in
+          # ``scripts/build_nuitka.py``. Bumping this pin is a
+          # deliberate, reviewed action — bump when we've smoke-tested
+          # the new version end-to-end on at least one matrix runner.
+          python -m pip install "nuitka==2.4.10" ordered-set zstandard
           # Install the project so Nuitka can resolve daimon imports.
           python -m pip install -e .
 

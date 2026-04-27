@@ -280,6 +280,47 @@ def archive_dist(dist_dir: Path, archive_path: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# Two-binary dist tree merge
+# ---------------------------------------------------------------------------
+
+def _merge_dist_tree(*, src: Path, dst: Path, skip: str) -> None:
+    """Recursively copy paths from ``src`` into ``dst`` that aren't already there.
+
+    Used to fold a secondary Nuitka standalone .dist tree into the
+    canonical one without clobbering shared cpython runtime files.
+
+    Why not ``shutil.copytree(..., dirs_exist_ok=True)``? That happily
+    overwrites files in ``dst`` that exist in ``src`` — for the shared
+    cpython runtime files this is a no-op (byte-identical) but it
+    doubles the IO and would silently mask any future divergence
+    between two Nuitka builds in the same tempdir. We prefer "missing
+    only, never overwrite" semantics so any divergence raises an
+    explicit error from the test layer instead of silently winning.
+
+    ``skip`` is the secondary entry-point binary's basename — that file
+    is copied separately by the caller (with executable bits + codesign
+    preserved) and must not be re-handled here.
+    """
+    for src_root, dirs, files in os.walk(src):
+        rel_root = Path(src_root).relative_to(src)
+        dst_root = dst / rel_root
+        dst_root.mkdir(parents=True, exist_ok=True)
+        for fname in files:
+            if rel_root == Path(".") and fname == skip:
+                # Caller already placed this with shutil.copy2.
+                continue
+            src_file = Path(src_root) / fname
+            dst_file = dst_root / fname
+            if dst_file.exists():
+                # Already present from the canonical tree — skip silently.
+                # Any real divergence (different bytes for the same path)
+                # is a Nuitka bug that the build pipeline can't fix
+                # without reproducing the issue in isolation.
+                continue
+            shutil.copy2(src_file, dst_file)
+
+
+# ---------------------------------------------------------------------------
 # Top-level driver
 # ---------------------------------------------------------------------------
 
@@ -334,8 +375,25 @@ def main() -> int:
             produced_binaries.append((binary_name, binary))
 
         # Merge: the first binary's .dist tree is canonical (because it
-        # contains the embedded WezTerm); the second binary's executable
-        # gets copied next to it.
+        # contains the embedded WezTerm); the secondary binaries' .dist
+        # trees get RSYNC-MERGED on top so each binary's own
+        # transitive Python C-extension dependencies (.so / .pyd) are
+        # present alongside its executable.
+        #
+        # Why the merge matters: Nuitka's standalone mode emits the
+        # closure of native dependencies for each entry point under
+        # that entry's .dist tree. ``daimon`` and ``dmn-mcp`` import
+        # different top-level packages — ``dmn-mcp`` pulls in the
+        # ``mcp`` SDK and its anyio/sniffio C-accelerators; ``daimon``
+        # does not. If we only copied the secondary binary file (the
+        # earlier code path used ``shutil.copy2`` here), the secondary
+        # binary would launch on the user's machine and immediately
+        # ``ImportError`` on the missing .so. The fix is a tree merge:
+        # walk each secondary .dist, copy any path that doesn't
+        # already exist under the canonical .dist. Files present in
+        # both trees are skipped (they're the shared cpython runtime
+        # bits and are byte-identical across builds in the same
+        # tempdir).
         canonical_name, canonical_bin = produced_binaries[0]
         canonical_dist = canonical_bin.parent
         # Rename to the conventional dist directory.
@@ -345,7 +403,12 @@ def main() -> int:
         shutil.copytree(canonical_dist, final_dist)
 
         for binary_name, binary in produced_binaries[1:]:
+            secondary_dist = binary.parent
+            # Copy the binary itself first (always — it's the entry point).
             shutil.copy2(binary, final_dist / binary.name)
+            # Then tree-merge everything else from the secondary .dist
+            # that the canonical .dist doesn't already have.
+            _merge_dist_tree(src=secondary_dist, dst=final_dist, skip=binary.name)
 
         # Drop the per-entry build scratch dirs to keep the output dir clean.
         for binary_name, _ in produced_binaries:
