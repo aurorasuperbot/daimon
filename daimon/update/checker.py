@@ -3,14 +3,20 @@
 Two entry points:
 
   * ``ensure_art_available(blocking=False)`` — call from CLI startup. If no
-    pack is installed it does a synchronous, user-visible download (the
-    first-run experience). If a pack IS installed, it spawns a detached
+    manifest is installed it does a synchronous, user-visible fetch of the
+    pack manifest (small — ~50-100 KB; well under one second on a normal
+    connection). If a manifest IS installed, it spawns a detached
     background process to check for newer releases and returns immediately.
 
   * ``spawn_background_check()`` — fire-and-forget. Spawns
     ``python -m daimon.update --check`` with stdin/stdout/stderr redirected
     to the update log, in its own process group, then returns. The parent
     process exits independently.
+
+Per-card art is fetched lazily by :func:`daimon.update.lazy.ensure_art_for`
+on the first render of each card, so this module never blocks the CLI on
+a multi-hundred-megabyte download — that pattern died with the monolithic
+art-pack flow.
 
 Rate-limiting:
   * Default: at most one network check per 24 hours per machine.
@@ -21,13 +27,14 @@ Rate-limiting:
 
 Opt-out:
   * ``DAIMON_NO_AUTO_UPDATE=1`` short-circuits ``ensure_art_available`` —
-    the caller still works (uses whatever pack is installed) but no
-    network call is made.
+    the caller still works (renders placeholders for any cards not on
+    disk) but no network call is made.
 
-Why a subprocess rather than a thread?
-  * The check involves ~1MB JSON, but the *update* (if one is found)
-    downloads 900MB+. We don't want a 30-min download tied to the lifetime
-    of the parent CLI invocation. Detaching is the only honest pattern.
+Why a subprocess for the background check?
+  * The check involves ~1 MB JSON of release metadata. The actual updates
+    are per-card (~50-500 KB each, fetched on demand by lazy.ensure_art_for)
+    so the detach pattern protects the parent CLI from a slow network on
+    the *check* itself, not from a giant tarball — the tarball is gone.
 """
 
 from __future__ import annotations
@@ -47,6 +54,7 @@ from daimon.update.paths import (
     cache_dir,
     current_version,
     last_check_path,
+    manifest_path,
     pinned_version,
     update_check_interval_hours,
     update_log_path,
@@ -111,22 +119,35 @@ def is_check_due(now: Optional[float] = None) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# pack-installed predicate
+# Pack-state predicates
 # ---------------------------------------------------------------------------
 
-def is_pack_installed(pack_name: str = ART_PACK_NAME) -> bool:
-    """True iff ``art/<pack>/.version`` exists AND the pack dir is non-empty.
+def is_manifest_installed(pack_name: str = ART_PACK_NAME) -> bool:
+    """True iff a manifest is on disk for the given pack.
 
-    The version file alone is insufficient — a half-finished install could
-    leave the file present but the dir empty. We require at least one
-    card-id subdir as a sanity check.
+    This is the *minimum* installed state under the lazy-art model — once
+    the manifest is present the runtime can lazily fetch any card on
+    demand. ``is_pack_installed`` (below) tracks the *richer* state of
+    "any cards have actually been downloaded" — useful for telling a fresh
+    onboard from one that has begun materializing art.
+    """
+    return manifest_path(pack_name).is_file()
+
+
+def is_pack_installed(pack_name: str = ART_PACK_NAME) -> bool:
+    """True iff at least one card has been materialized under the live pack.
+
+    Distinct from :func:`is_manifest_installed`: a fresh onboard installs
+    the manifest but no cards (those land lazily on first render). We
+    expose both predicates so callers can distinguish "the runtime can
+    fetch any card it needs" (manifest installed) from "the user has
+    already played at least one match" (cards materialized).
     """
     if current_version(pack_name) is None:
         return False
     pack = art_pack_dir(pack_name)
     if not pack.is_dir():
         return False
-    # Cheap non-empty check: any subdir means at least one card landed.
     try:
         for child in pack.iterdir():
             if child.is_dir():
@@ -199,17 +220,17 @@ def ensure_art_available(
     blocking: bool = False,
     pack_name: str = ART_PACK_NAME,
 ) -> None:
-    """Guarantee an art pack is on disk; spawn an async update check if due.
+    """Guarantee a manifest is on disk; spawn an async update check if due.
 
     Behavior matrix:
 
-        installed   auto_update   check_due   action
+        manifest    auto_update   check_due   action
         ----------  ------------  ----------  ---------------------------
-        no          no            *           WARN to stderr, return
-        no          yes           *           SYNCHRONOUS download (block)
-        yes         no            *           no-op
-        yes         yes           no          no-op
-        yes         yes           yes         spawn detached check
+        absent      no            *           WARN to stderr, return
+        absent      yes           *           SYNCHRONOUS manifest fetch
+        present     no            *           no-op
+        present     yes           no          no-op
+        present     yes           yes         spawn detached check
 
     With ``blocking=True``, also runs the check synchronously when due
     (used by the explicit ``daimon update`` command — there we WANT to
@@ -217,47 +238,51 @@ def ensure_art_available(
 
     ``DAIMON_NO_AUTO_UPDATE=1`` is an UNCONDITIONAL opt-out: it suppresses
     the first-run sync fetch as well as background checks. When opted out
-    with no pack installed we emit a one-line stderr warning explaining
-    the state (rendering will fall back to placeholders via
-    ``art_path_for``'s soft-fail) so the user understands why art is
-    missing. This contract matches the documented behavior in the
-    package docstring.
+    with no manifest installed we emit a one-line stderr warning explaining
+    the state (per-card art will fall back to placeholders via
+    :func:`daimon.update.lazy.ensure_art_for`'s soft-fail).
 
-    This function never raises on network failure when a pack is already
-    installed — that's the whole point of the rate-limit + background
-    pattern. First-run network failures DO propagate when auto-update is
-    enabled (the caller asked for the fetch and we couldn't deliver).
+    This function never raises on network failure when a manifest is
+    already installed. First-run network failures DO propagate when
+    auto-update is enabled (the caller asked for the fetch and we
+    couldn't deliver).
+
+    Per-card art (PNG bytes) is fetched lazily by callers via
+    :func:`daimon.update.lazy.ensure_art_for`. This function only ensures
+    the *manifest* — the index that lazy fetching needs to compute
+    per-card URLs and digests.
     """
     # Opt-out short-circuit — UNCONDITIONAL. If the user set
-    # DAIMON_NO_AUTO_UPDATE=1 they explicitly do not want network calls,
-    # full stop. We honor it whether or not a pack is installed.
+    # DAIMON_NO_AUTO_UPDATE=1 they explicitly do not want network calls.
     if not auto_update_enabled():
-        if not is_pack_installed(pack_name):
+        if not is_manifest_installed(pack_name):
             sys.stderr.write(
-                f"daimon: DAIMON_NO_AUTO_UPDATE=1 is set but no art pack "
-                f"is installed at {art_pack_dir(pack_name)}.\n"
-                f"  rendering will fall back to placeholders.\n"
+                f"daimon: DAIMON_NO_AUTO_UPDATE=1 is set but no manifest "
+                f"is installed at {manifest_path(pack_name)}.\n"
+                f"  card art will fall back to placeholders.\n"
                 f"  to install: unset DAIMON_NO_AUTO_UPDATE and re-run, "
-                f"or download the pack manually.\n"
+                f"or run `daimon update` manually.\n"
             )
             sys.stderr.flush()
         return
 
-    if not is_pack_installed(pack_name):
+    if not is_manifest_installed(pack_name):
         # First run, auto-update enabled — synchronous fetch with the
-        # user watching.
-        from daimon.update.fetcher import do_update
+        # user watching. Manifest-only is small (~50-100 KB) so this is
+        # the right place to block, unlike the legacy 1.6 GB tarball.
+        from daimon.update.manifest import fetch_manifest
         cache_dir().mkdir(parents=True, exist_ok=True)
         sys.stderr.write(
-            "daimon: no art pack installed — fetching latest "
+            "daimon: no manifest installed — fetching latest "
             f"({pinned_version() or 'art-v*'})...\n"
         )
         sys.stderr.flush()
         try:
-            rel = do_update(show_progress=True, pack_name=pack_name)
-            update_last_check(latest_seen=rel.tag, action="installed")
+            m = fetch_manifest(show_progress=True, pack_name=pack_name)
+            update_last_check(latest_seen=m.pack_version, action="installed")
             sys.stderr.write(
-                f"daimon: installed {rel.tag} into {art_pack_dir(pack_name)}\n"
+                f"daimon: installed manifest for {m.pack_version} "
+                f"({m.card_count} cards) — art will be fetched on demand.\n"
             )
             sys.stderr.flush()
         except Exception as e:
@@ -270,11 +295,12 @@ def ensure_art_available(
 
     if blocking:
         # Used by `daimon update` — synchronous, but still don't crash on
-        # network errors (the caller can run with the existing pack).
-        from daimon.update.fetcher import ArtUpdateError, do_update
+        # network errors (the caller can run with the existing manifest).
+        from daimon.update.fetcher import ArtUpdateError
+        from daimon.update.manifest import fetch_manifest
         try:
-            rel = do_update(show_progress=True, pack_name=pack_name)
-            update_last_check(latest_seen=rel.tag, action="updated")
+            m = fetch_manifest(show_progress=True, pack_name=pack_name)
+            update_last_check(latest_seen=m.pack_version, action="updated")
         except ArtUpdateError as e:
             update_last_check(error=str(e), action="update_failed")
             sys.stderr.write(f"daimon: update check failed: {e}\n")
@@ -288,6 +314,7 @@ __all__ = [
     "ensure_art_available",
     "spawn_background_check",
     "is_check_due",
+    "is_manifest_installed",
     "is_pack_installed",
     "read_last_check",
     "write_last_check",

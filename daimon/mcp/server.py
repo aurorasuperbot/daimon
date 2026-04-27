@@ -339,6 +339,37 @@ def _catalog_summary(catalog_id: str) -> Dict[str, Any]:
 # `status == "not_yet_implemented"` were updated in the same commit.
 
 
+def _maybe_spawn_play_hud() -> Optional[int]:
+    """Best-effort: pop the spectator HUD if it isn't already running.
+
+    Called after every state-mutating tool that writes a ``match`` or
+    ``pull`` to ``state.json`` so the user sees the animation without
+    having to run ``daimon play`` themselves. Honors
+    ``DAIMON_NO_AUTO_HUD=1`` and the inside-terminal sentinel; returns
+    ``None`` on opt-out or when an existing HUD is already up.
+
+    NOTE on ``require_tty=False``: the MCP stdio server runs with stdout
+    piped to the parent agent process — by definition never a TTY. The
+    ``require_tty`` gate exists in ``spawn_play_hud`` to stop CI shells
+    and one-off ``daimon`` invocations from popping a window; the MCP
+    code path is the OPPOSITE situation (an interactive agent
+    explicitly asking for a match). Passing ``require_tty=False`` here
+    is what makes ``hud_pid`` actually populate on the response, instead
+    of always returning ``None``. The two opt-outs above are the
+    correct gates for the agent context.
+
+    Failure is silent — the agent's response must not depend on whether
+    a window popped. The PID (when one is returned) is added to the
+    response envelope as ``hud_pid`` so the agent can surface a
+    "watching now" hint to the player.
+    """
+    try:
+        from daimon.play.spawn import spawn_play_hud
+        return spawn_play_hud(require_tty=False)
+    except Exception:  # noqa: BLE001 — best-effort
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -412,6 +443,96 @@ def dm_init(force: bool = False) -> Dict[str, Any]:
             "means loss of your collection."
         ),
     }
+
+
+@mcp.tool()
+def dm_onboard(
+    force: bool = False,
+    wire_claude_code: bool = False,
+    spawn_prefetch: bool = True,
+) -> Dict[str, Any]:
+    """One-shot first-run setup, agent-driven variant of `daimon onboard`.
+
+    Folds identity generation, recovery file write, manifest fetch,
+    starter-card prefetch, and (optionally) Claude Code hook wiring
+    into a single tool call. The default `wire_claude_code=False`
+    matches the typical agent flow: the agent is already running
+    *inside* Claude Code, so the daimon MCP server is by definition
+    already wired. The PostToolUse mining hook is a separate question
+    — leave wiring it to the user (`daimon mine install-hook` from
+    their terminal), or pass `wire_claude_code=True` if the user
+    explicitly asked for the full setup via this tool.
+
+    Args:
+      force: If True, overwrite an existing identity. DESTRUCTIVE.
+      wire_claude_code: If True, also write the daimon mcpServers
+             entry + PostToolUse hook into ~/.claude/settings.json.
+             The MCP entry is idempotent (a redundant write of the
+             current path is a no-op); the hook write is gated on
+             the user accepting the prompt at their end.
+      spawn_prefetch: If True, spawn a detached background prefetcher
+             for non-starter cards. Default True.
+
+    Returns on success:
+      {"status": "ok",
+       "identity_action": "generated" | "already_present",
+       "pubkey_hex": "<hex>",
+       "mnemonic": "word1 word2 ...",   # empty when identity already existed
+       "recovery_path": "/abs/path/to/recovery.txt" | null,
+       "manifest_action": "installed" | "already_present" | "failed",
+       "manifest_version": "v1_alpha" | null,
+       "manifest_error": "..." | null,
+       "starter_fetched": ["card_id", ...],
+       "starter_failed": [["card_id", "error"], ...],
+       "prefetch_pid": int | null,
+       "claude_code_action": "wired" | "refreshed" | "already_present"
+                            | "skipped" | "failed",
+       "claude_code_settings": "/abs/.claude/settings.json" | null,
+       "claude_code_backup": "/abs/.../settings.json.bak.*" | null,
+       "claude_code_error": "..." | null,
+       "claude_code_mcp_command": "/abs/dmn-mcp" | null,
+       "warning": "Save the mnemonic NOW..."}    # only when mnemonic is non-empty
+
+    Surface the mnemonic to the user IMMEDIATELY — show it as plain
+    text and ask them to write it down before continuing. DAIMON
+    never persists it; this tool returns it once and loses it.
+    """
+    from daimon.onboard import run_onboard
+
+    try:
+        result = run_onboard(
+            force_identity=force,
+            confirm_mnemonic=None,  # the agent handles confirmation surface-side
+            wire_claude_code=wire_claude_code,
+            spawn_prefetch=spawn_prefetch,
+        )
+    except FileExistsError as e:
+        return {
+            "error": "identity_exists",
+            "message": str(e),
+            "hint": "Pass force=true to overwrite (DESTRUCTIVE — "
+                    "old collection + ledger position will be lost "
+                    "unless you have the mnemonic).",
+        }
+    except Exception as e:  # noqa: BLE001 — structured-error contract
+        return {
+            "error": "internal_error",
+            "message": f"{type(e).__name__}: {e}",
+        }
+
+    payload: Dict[str, Any] = {
+        "status": "ok",
+        **result.to_dict(),
+    }
+    if result.mnemonic:
+        payload["warning"] = (
+            "Save the mnemonic NOW. It is shown once only — DAIMON "
+            "never persists it. A copy was also written to "
+            f"{result.recovery_path or '<recovery file>'} (mode 0600). "
+            "Loss of both mnemonic and identity.key means loss of your "
+            "collection."
+        )
+    return payload
 
 
 @mcp.tool()
@@ -1274,6 +1395,8 @@ def dm_match(
     # match, claims any quest that just hit its goal.
     daily_quests = _refresh_and_claim_quests()
 
+    hud_pid = _maybe_spawn_play_hud()
+
     out: Dict[str, Any] = {
         "winner": result.winner,
         "reason": result.reason,
@@ -1283,6 +1406,7 @@ def dm_match(
         "seed": seed_bytes.hex(),
         "state_id": state_id,
         "daily_quests": daily_quests,
+        "hud_pid": hud_pid,
     }
     if include_round_log:
         out["rounds"] = full_rounds
@@ -1503,6 +1627,8 @@ def dm_match_npc(
     # After-action quest evaluation — claims any quest that just hit its goal.
     daily_quests = _refresh_and_claim_quests()
 
+    hud_pid = _maybe_spawn_play_hud()
+
     out: Dict[str, Any] = {
         "status": "ok",
         "winner": result.winner,
@@ -1512,6 +1638,7 @@ def dm_match_npc(
         "round_count": len(result.rounds),
         "seed": seed_bytes.hex(),
         "state_id": state_id,
+        "hud_pid": hud_pid,
         "npc": {
             "npc_id": npc.npc_id,
             "name": npc.name,
@@ -1735,10 +1862,13 @@ def dm_pull(seed: Optional[str] = None,
     # (e.g. "Pull a card" / "Pull 2 cards"). Idempotent.
     daily_quests = _refresh_and_claim_quests()
 
+    hud_pid = _maybe_spawn_play_hud()
+
     return {
         "status": "ok",
         "state_id": state_id,
         "daily_quests": daily_quests,
+        "hud_pid": hud_pid,
         **receipt_dict,
     }
 

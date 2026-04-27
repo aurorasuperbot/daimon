@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from daimon.mining import buffer as _mine_buffer
 from daimon.play.hud import (
     MatchPlayback,
     Phase,
@@ -36,6 +37,41 @@ from daimon.play.state import write_state
 
 
 FIXTURE = Path(__file__).parent.parent / "daimon" / "play" / "fixtures" / "match_sample.json"
+
+
+# ---------------------------------------------------------------------------
+# Test isolation — autouse fixtures
+# ---------------------------------------------------------------------------
+#
+# The HUD reads ``daimon.mining.buffer.BUFFER_PATH`` via ``_resolved_buffer_path``
+# whenever a HudApp instance is constructed without an explicit ``buffer_path=``
+# argument. Without isolation, tests that rely on ``app.recent`` being empty
+# pick up any production ``~/.config/daimon/mine_buffer.jsonl`` content and
+# fail intermittently — it's cleanly green on a fresh machine, then fails as
+# soon as a real ``daimon`` invocation has populated the buffer.
+#
+# The autouse fixture redirects the module-level path to a per-test tmp file
+# so isolation is the default rather than something every individual test must
+# remember to set up. Tests that *do* want to inspect the buffer (e.g.
+# ``test_hudapp_polls_mining_buffer_and_renders``) override the fixture by
+# monkeypatching to their own ``tmp_path / "mine_buffer.jsonl"`` and passing
+# that as ``buffer_path=`` — they continue to work because the fixture only
+# moves the default away from the user's home directory; it doesn't lock the
+# value.
+@pytest.fixture(autouse=True)
+def _isolate_mine_buffer(tmp_path_factory, monkeypatch):
+    """Redirect mine_buffer.BUFFER_PATH to a per-test tmp file.
+
+    Uses ``tmp_path_factory`` (session-scoped) rather than the function-scoped
+    ``tmp_path`` because monkeypatch is function-scoped — we want the patch
+    re-applied each test, but the directory the file lives in can be shared.
+    Each test gets a unique filename via uuid to avoid cross-test reads.
+    """
+    import uuid as _uuid
+    sandbox = tmp_path_factory.mktemp(f"hud_{_uuid.uuid4().hex[:8]}")
+    isolated = sandbox / "mine_buffer.jsonl"
+    monkeypatch.setattr(_mine_buffer, "BUFFER_PATH", isolated)
+    yield isolated
 
 
 @pytest.fixture

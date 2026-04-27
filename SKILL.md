@@ -2,28 +2,39 @@
 
 > **You are an AI agent.** This file is your entry point. Humans onboard via README; you onboard here. Read only the section relevant to what you want to do.
 
-## Bootstrap (run these once, in order)
+## Bootstrap (one command)
+
+If you're running inside Claude Code with the daimon MCP tools wired
+up already, call `dm_onboard` and you're done. From a shell:
 
 ```bash
-pip install daimon-engine        # the engine + CLI + MCP server
-daimon install                   # bootstrap the bundled WezTerm (~30 MB)
-daimon init                      # generate this machine's ed25519 identity
-daimon doctor                    # verify the install — all sections green?
+daimon onboard
 ```
 
-`daimon install` downloads a DAIMON-flavoured WezTerm bundle for this OS+arch
-from `aurorasuperbot/daimon` GitHub Releases (sha256-verified, atomic swap),
-drops it at `~/.daimon/bin/wezterm`, and writes a locked render config to
-`~/.daimon/etc/wezterm.lua`. **DAIMON ships its own terminal so card art
-renders pixel-perfect at known DPI / cell size / colour space** — every
-player's render surface is identical. The interactive commands (`daimon shop`,
-`daimon collection`, `daimon loadout edit`, `daimon play`) auto-launch in this
-terminal. Pass `--in-place` to render in the current terminal anyway.
+`daimon onboard` folds the previous four-step bootstrap into a single
+flow: identity generation, recovery file write, manifest fetch +
+starter-card prefetch, detached background prefetcher for the rest,
+and an atomic write of the daimon `mcpServers` entry + PostToolUse
+hook into `~/.claude/settings.json`. Re-running is safe — existing
+identities and Claude Code wiring are preserved.
 
-The first command that needs card art (`daimon match`, `daimon pull`,
-`daimon play`) auto-fetches the matching art-pack from
-`aurorasuperbot/daimon-cards` GitHub Releases (~1.6 GB, one-time). Subsequent
-runs do silent, rate-limited (24 h) background update checks.
+DAIMON ships its own terminal so card art renders pixel-perfect at
+known DPI / cell size / colour space. **Binary distributions** (winget
+/ Scoop / Brew / AppImage / .deb / .rpm) bake WezTerm into the
+standalone tree at build time; `pip install daimon-engine` users get
+WezTerm fetched on first onboard run. Either way, the interactive
+commands (`daimon shop`, `daimon collection`, `daimon loadout edit`,
+`daimon play`) auto-launch in our terminal. Pass `--in-place` to
+render in the current terminal anyway.
+
+Card art is fetched **lazily, per card**, the first time each card
+needs to render. Onboarding fetches a small `manifest.json` (~50KB)
+plus the starter cards' art (the cards your first ten pulls might
+surface); a detached background prefetcher lands the rest while you
+play. The first `dm_match` / `dm_pull` call also auto-spawns a
+spectator HUD window so you see the result animate.
+
+Verify with `daimon doctor` — all sections should be green.
 
 ## Routing
 

@@ -1,30 +1,26 @@
-"""Download + verify + atomic-swap of art-pack tarballs.
+"""HTTP download + verify + atomic-swap primitives for art-pack updates.
 
-Flow (do_update):
+This module exposes the shared building blocks used by the lazy art
+pipeline (manifest fetching in :mod:`daimon.update.manifest`, per-card
+JIT fetching in :mod:`daimon.update.lazy`):
 
-  1. Resolve target release (latest, pinned, or explicit tag).
-  2. Refuse cross-major upgrades unless ``force=True``.
-  3. Download tarball → ``cache/staging/<asset>.partial`` with a progress bar.
-  4. Stream-verify sha256 against the expected digest (sidecar > release-body).
-  5. Rename ``.partial`` → ``<asset>``.
-  6. Extract into ``cache/staging/<pack-name>/`` (safe extract, no traversal).
-  7. Atomic swap:
-       a. ``art/<pack>/`` → ``art/<pack>.trash.<ts>/``  (single rename)
-       b. ``cache/staging/<pack>/`` → ``art/<pack>/``    (single rename)
-       c. write ``.version`` + ``.checksum`` into the live pack
-       d. delete the trash dir + delete the staged tarball
-  8. Return the new ``ReleaseInfo``.
+  * :func:`download_with_progress` — streaming HTTP fetch into a
+    ``.partial`` file, atomic rename on success.
+  * :func:`sha256_file` / :func:`parse_sha256_sidecar` /
+    :func:`fetch_expected_sha256` — verification helpers.
+  * :func:`safe_extract_tarball` — tarball extraction that rejects path
+    traversal, symlinks, hardlinks, and device nodes.
+  * :func:`atomic_swap` — two-syscall rename that replaces a live
+    directory with a staged one, leaving a ``.trash.<ts>`` orphan if
+    the second rename fails (mopped up on next run).
+  * :func:`cleanup_trash` — sweep abandoned trash dirs from prior
+    crashed swaps.
 
-Atomicity:
-  * Renames within the same filesystem are atomic on POSIX. We require
-    ``cache/`` and ``art/`` to live under the same root (they do, by
-    construction in paths.py) so the swap is one syscall, not a copy.
-  * If the process dies between (a) and (b), the next invocation finds no
-    live pack and re-downloads. The trash dir is mopped up next run.
-
-Failure modes are surfaced via ``ArtUpdateError`` so callers can log /
-notify without parsing tracebacks. Network/HTTP failures from the api
-module are wrapped at the call site.
+The legacy monolithic ``do_update`` flow that downloaded one giant
+``v1_alpha.tar.gz`` and swapped the entire pack dir was removed when the
+lazy-art rewrite landed; per-card downloads against a manifest replaced
+it. The primitives here remain the contract used by both the manifest
+fetcher and the per-card fetcher.
 """
 
 from __future__ import annotations
@@ -44,18 +40,7 @@ from urllib.request import Request, urlopen
 from daimon.update import api
 from daimon.update.paths import (
     ART_PACK_NAME,
-    COMPAT_ART_MAJOR,
-    DEFAULT_ART_ASSET_NAME,
-    art_pack_dir,
-    art_repo,
     art_root,
-    cache_dir,
-    checksum_file,
-    current_version,
-    parse_art_version,
-    pinned_version,
-    staging_dir,
-    version_file,
 )
 
 
@@ -345,156 +330,11 @@ def cleanup_trash(pack_name: str = ART_PACK_NAME) -> None:
             shutil.rmtree(child, ignore_errors=True)
 
 
-# ---------------------------------------------------------------------------
-# Top-level orchestration
-# ---------------------------------------------------------------------------
-
-def _resolve_target(
-    target_version: Optional[str],
-    force: bool,
-) -> api.ReleaseInfo:
-    """Pick which release we're installing — pinned, explicit, or latest.
-
-    Raises ``ArtUpdateError`` on no match or cross-major bump (unless force).
-    """
-    repo = art_repo()
-    pin = target_version or pinned_version()
-
-    try:
-        if pin:
-            rel = api.gh_release_by_tag(repo, pin)
-            if rel is None:
-                raise ArtUpdateError(
-                    f"pinned version {pin!r} not found on {repo} "
-                    f"(or asset {DEFAULT_ART_ASSET_NAME} missing)"
-                )
-        else:
-            rel = api.gh_latest_release(repo)
-            if rel is None:
-                raise ArtUpdateError(
-                    f"no compatible art-pack release found on {repo}"
-                )
-    except (HTTPError, URLError) as e:
-        raise ArtUpdateError(f"GitHub API error: {e}") from e
-
-    if rel.version is None:
-        raise ArtUpdateError(f"release tag {rel.tag!r} is not a valid art-vX.Y")
-
-    major, _ = rel.version
-    if major != COMPAT_ART_MAJOR and not force:
-        raise ArtUpdateError(
-            f"refusing auto-upgrade: release {rel.tag} is major v{major}, "
-            f"engine supports major v{COMPAT_ART_MAJOR}. "
-            "Update the engine first, or pass --force."
-        )
-
-    return rel
-
-
-def do_update(
-    target_version: Optional[str] = None,
-    force: bool = False,
-    show_progress: bool = True,
-    pack_name: str = ART_PACK_NAME,
-) -> api.ReleaseInfo:
-    """End-to-end refresh — download, verify, swap. Returns the installed release.
-
-    Args:
-        target_version: explicit tag to install (e.g. ``"art-v1.0"``).
-            ``None`` means latest (subject to ``DAIMON_PIN_ART``).
-        force: bypass the cross-major-version guard. Use only when the
-            engine has been intentionally upgraded to a new pack format.
-        show_progress: print a progress bar to stderr. Disable in
-            background-spawned subprocesses to keep their log clean.
-        pack_name: which pack to install into (only ``v1_alpha`` for V1).
-
-    Idempotent: if the resolved version equals ``current_version()``, the
-    download is skipped and the existing pack info is returned.
-    """
-    cleanup_trash(pack_name)
-
-    rel = _resolve_target(target_version, force)
-
-    if not force and current_version(pack_name) == rel.tag:
-        return rel
-
-    # Sized staging — fail fast if we don't have headroom.
-    staging = staging_dir()
-    staging.mkdir(parents=True, exist_ok=True)
-
-    expected_sha = fetch_expected_sha256(rel)
-    # We REQUIRE a digest for unattended updates. A release without one is
-    # treated as broken — operator can publish the sidecar and re-run.
-    if not expected_sha:
-        raise ArtUpdateError(
-            f"release {rel.tag} ships no sha256 sidecar and no digest in "
-            f"the body — refusing to install unverified bytes."
-        )
-
-    # asset_url is the human-facing URL — its tail is always the filename,
-    # even when we ultimately download from asset_api_url (which ends in
-    # an opaque numeric asset ID).
-    asset_name = (rel.asset_url or DEFAULT_ART_ASSET_NAME).rsplit("/", 1)[-1]
-    tarball_path = staging / f"{pack_name}-{rel.tag}-{asset_name}"
-
-    asset_dl_url, octet = _pick_asset_url(rel.asset_url, rel.asset_api_url)
-    download_with_progress(
-        asset_dl_url, tarball_path,
-        expected_size=rel.asset_size,
-        label=f"daimon: fetching {rel.tag}",
-        show_progress=show_progress,
-        octet_stream=octet,
-    )
-
-    actual = sha256_file(tarball_path)
-    if actual.lower() != expected_sha.lower():
-        tarball_path.unlink(missing_ok=True)
-        raise ArtUpdateError(
-            f"sha256 mismatch on {asset_name}: expected {expected_sha}, "
-            f"got {actual} — refusing to install."
-        )
-
-    # Extract into a sibling dir under staging, then swap.
-    staged_pack_parent = staging / f"{pack_name}-{rel.tag}"
-    if staged_pack_parent.exists():
-        shutil.rmtree(staged_pack_parent)
-    safe_extract_tarball(tarball_path, staged_pack_parent)
-
-    # The tarball top-level is `art/<pack>/...` (matches repo layout).
-    # Detect both that shape and a flat `<pack>/...` shape.
-    candidate_a = staged_pack_parent / "art" / pack_name
-    candidate_b = staged_pack_parent / pack_name
-    if candidate_a.is_dir():
-        staged_pack = candidate_a
-    elif candidate_b.is_dir():
-        staged_pack = candidate_b
-    else:
-        raise ArtUpdateError(
-            f"extracted tarball does not contain expected dir "
-            f"({candidate_a} or {candidate_b})"
-        )
-
-    live = art_pack_dir(pack_name)
-    atomic_swap(staged_pack, live)
-
-    # Persist the version + checksum sidecar files inside the live pack.
-    version_file(pack_name).write_text(rel.tag + "\n", encoding="utf-8")
-    checksum_file(pack_name).write_text(
-        f"{expected_sha}  {asset_name}\n", encoding="utf-8"
-    )
-
-    # Clean up: the staging parent dir + downloaded tarball are no longer needed.
-    shutil.rmtree(staged_pack_parent, ignore_errors=True)
-    tarball_path.unlink(missing_ok=True)
-
-    return rel
-
-
 __all__ = [
     "ArtUpdateError",
-    "do_update",
     "download_with_progress",
     "sha256_file",
+    "parse_sha256_sidecar",
     "fetch_expected_sha256",
     "safe_extract_tarball",
     "atomic_swap",

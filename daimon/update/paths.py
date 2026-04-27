@@ -5,17 +5,19 @@ Layout (default, under ``$HOME``):
     ~/.daimon/                          DAIMON_ART_DIR root
       art/v1_alpha/                     art_pack_dir() — the live pack
         .version                          "art-v1.0"
-        .checksum                         "<sha256>  v1_alpha.tar.gz"
-        <card_id>/
+        .checksum                         "<sha256>  manifest.json"
+        .manifest.json                    manifest_path() — pack index
+        <card_id>/                        populated lazily on demand
           base.png
           manifest.json
           variants/v0.png
           variants/v1.png ...
       cache/                            cache_dir() — staging + last-check
         last_check.json                   {ts, latest_seen, ...}
-        staging/                          download + extract scratch
-          v1_alpha-art-v1.1.tar.gz
-          v1_alpha-art-v1.1/...
+        prefetch_state.json               progress of background prefetcher
+        staging/                          per-card download + extract scratch
+          card_<card_id>.tar.gz.partial
+          card_<card_id>_unpacked/...
 
 Path precedence:
   1. ``DAIMON_ART_DIR`` env var — explicit override (used in tests, CI)
@@ -100,6 +102,26 @@ def version_file(pack_name: str = ART_PACK_NAME) -> Path:
 
 def checksum_file(pack_name: str = ART_PACK_NAME) -> Path:
     return art_pack_dir(pack_name) / ".checksum"
+
+
+def manifest_path(pack_name: str = ART_PACK_NAME) -> Path:
+    """Pack index: ``art/<pack>/.manifest.json``.
+
+    The manifest enumerates every card in the pack, keyed by card_id, with a
+    per-card sha256 + asset name. It's the small (~50–100 KB) file fetched
+    on first run; per-card art (PNG, manifest, variants) is downloaded
+    lazily on demand against the entries here.
+    """
+    return art_pack_dir(pack_name) / ".manifest.json"
+
+
+def prefetch_state_path() -> Path:
+    """Progress file for the background prefetcher: ``cache/prefetch_state.json``.
+
+    Persisted so a re-spawned prefetcher resumes where the previous run left
+    off rather than re-fetching cards already on disk.
+    """
+    return cache_dir() / "prefetch_state.json"
 
 
 def current_version(pack_name: str = ART_PACK_NAME) -> Optional[str]:

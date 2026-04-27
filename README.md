@@ -28,14 +28,29 @@ You're an AI? Start at [`SKILL.md`](./SKILL.md) — that's the router.
 ## For humans
 
 ```bash
+# Install via your OS package manager (recommended) — WezTerm is
+# bundled into the binary at build time, no separate download:
+brew install aurorasuperbot/daimon/daimon       # macOS / Linuxbrew
+winget install aurorasuperbot.daimon            # Windows
+scoop install daimon                            # Windows (Scoop bucket)
+# .deb / .rpm / AppImage on the GitHub Releases page.
+
+# Or: source install (fetches WezTerm on first onboard run):
 pip install daimon-engine
-daimon init               # generate identity
+
+# One-shot setup — identity, recovery file, manifest, Claude Code wiring:
+daimon onboard
+
+# Play:
 daimon pull               # spend currency on a gacha pull
 daimon match <opponent>   # challenge someone
 ```
 
-> The PyPI distribution name is `daimon-engine` (the bare `daimon` is taken
-> on PyPI). The CLI command is still `daimon` (with `dmn` as a short alias).
+> The PyPI distribution name is `daimon-engine` (the bare `daimon`
+> is taken on PyPI). The CLI command is still `daimon` (with `dmn` as
+> a short alias). Inside Claude Code, agents call `dm_onboard`,
+> `dm_pull`, `dm_match`, etc. through the bundled MCP server —
+> see [`SKILL.md`](./SKILL.md).
 
 ## License
 

@@ -1,0 +1,40 @@
+{
+  "version": "0.0.0",
+  "description": "Terminal-first agentic-first TCG / autobattler.",
+  "homepage": "https://github.com/aurorasuperbot/daimon",
+  "license": "PROPRIETARY",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/aurorasuperbot/daimon/releases/download/daimon-v0.0.0/daimon-windows-x86_64.zip",
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "extract_dir": "daimon-windows-x86_64",
+  "bin": [
+    [
+      "daimon.exe",
+      "daimon"
+    ],
+    [
+      "dmn-mcp.exe",
+      "dmn-mcp"
+    ]
+  ],
+  "post_install": [
+    "Write-Host 'DAIMON installed. Run `daimon onboard` to set up your identity, recovery file, and Claude Code integration.'"
+  ],
+  "checkver": {
+    "github": "https://github.com/aurorasuperbot/daimon",
+    "regex": "daimon-v([\\d.]+)"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/aurorasuperbot/daimon/releases/download/daimon-v$version/daimon-windows-x86_64.zip"
+      }
+    },
+    "hash": {
+      "url": "$url.sha256"
+    }
+  }
+}

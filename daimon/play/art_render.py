@@ -22,43 +22,69 @@ Two output paths share this module:
      PIL bitmaps directly into the canvas at the right cell coordinates.
      Pixel-perfect for design review.
 
-Both paths share one resolver: :func:`resolve_card_art`, which wraps the
-engine's :func:`daimon.render.art.art_path_for` and adds a small
-in-memory thumbnail cache + missing-art placeholder. The module never
-reads card metadata or makes decisions about which art belongs to which
-card — callers pass in card_id + optional skin_slug; we return pixels.
+Both paths share one resolver: :func:`resolve_card_art`. It first asks
+the lazy fetcher to ensure the card's art directory is on disk (a no-op
+hit when the card is already cached, a per-card download on first
+render), then defers to the engine's pure :func:`art_path_for` for the
+final equipped-skin-aware PNG path. Callers pass in card_id + optional
+skin_slug; we return pixels (or ``None`` when the network is gone and
+nothing is cached, in which case the renderer falls back to a
+placeholder tile).
 """
 
 from __future__ import annotations
 
-import functools
+import concurrent.futures as cf
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 # ---------------------------------------------------------------------------
 # Asset resolution
 # ---------------------------------------------------------------------------
 
 
-@functools.lru_cache(maxsize=1024)
 def resolve_card_art(card_id: str, *,
                      skin_slug: Optional[str] = None) -> Optional[Path]:
     """Find the PNG for a card (optionally for a specific skin variant).
+
+    Lazy-fetches the per-card tarball from the active manifest if the
+    card's art directory isn't on disk yet — first render of a brand-new
+    card pulls ~50-500 KB once and never again. Subsequent renders are
+    pure stat calls. A network failure on the lazy fetch falls through
+    silently to the cache (which may yield ``None`` if there's nothing
+    on disk), and the caller renders a placeholder tile.
 
     When ``skin_slug`` is given, look it up in the card's manifest first;
     fall through to the canonical art if the slug isn't installed. When
     ``skin_slug`` is None we honor the player's equipped skin via
     ``art_path_for`` so the same card looks the same across all surfaces.
 
-    Returns the absolute path or None if no art exists for this card.
+    Returns the absolute path or None if no art is on disk for this card.
+
+    Note: the legacy ``@functools.lru_cache`` on this resolver was
+    dropped with the lazy-fetch migration. ``lru_cache`` caches ``None``
+    indefinitely, so once a card resolved before its tarball was
+    downloaded it would stay broken for the session even after the
+    fetch completed. The underlying lookups are stat() calls (sub-μs on
+    modern filesystems), so dropping the cache costs negligible CPU.
     """
-    from daimon.render.art import _read_manifest, _variant_id_for_slug, _variant_png
+    from daimon.render.art import (
+        _read_manifest,
+        _variant_id_for_slug,
+        _variant_png,
+        art_path_for,
+    )
+    from daimon.update.lazy import ensure_art_for
     from daimon.update.paths import art_pack_dir
 
-    art_root = art_pack_dir()
-    card_dir = art_root / card_id
+    # JIT-fetch the card's tarball if it isn't cached yet. Soft-fail on
+    # network errors — placeholder rendering is the right fallback when
+    # we can't reach the registry.
+    ensure_art_for(card_id)
+
+    card_dir = art_pack_dir() / card_id
 
     if skin_slug:
         manifest = _read_manifest(card_dir)
@@ -71,8 +97,87 @@ def resolve_card_art(card_id: str, *,
         # Fall through if the requested skin isn't on disk.
 
     # No specific slug requested → defer to the equipped-aware resolver.
-    from daimon.render.art import art_path_for
     return art_path_for(card_id)
+
+
+def prewarm_card_art(
+    card_ids: Iterable[str],
+    *,
+    workers: int = 4,
+    timeout_per_card: Optional[float] = None,
+) -> dict[str, Optional[Path]]:
+    """Concurrently materialize art for every card_id before a render loop.
+
+    Without this pre-warm step, the *first* frame of a battle pays N
+    sequential ``ensure_art_for`` round-trips inline — for a 12-card
+    match (6 per side) the first second of animation hitches
+    perceptibly while each per-card tarball downloads. After this
+    helper runs, ``resolve_card_art`` calls inside the render loop
+    are pure cache hits.
+
+    Soft-fail by design: a card whose download errors (network gone,
+    sha mismatch, registry 404) just resolves to ``None`` and the
+    render loop falls back to placeholder rendering — the same
+    fallback path every cache miss already follows. We don't propagate
+    exceptions because the alternative is "first failure aborts the
+    whole battle render", which is strictly worse than rendering one
+    placeholder tile.
+
+    De-duplicates ``card_ids`` (a 6-card loadout commonly mirrors the
+    same species across both sides — fetching the tarball twice is
+    pure waste).
+
+    Args:
+        card_ids: iterable of card identifiers to pre-warm. Order doesn't
+            matter; the loop fans out via a thread pool.
+        workers: parallel fetches. Default 4 — same as
+            :data:`daimon.update.prefetch.DEFAULT_WORKERS`. Per-card
+            payloads are small (~50–500 KB) so concurrency mostly
+            amortises TCP setup, not bytes.
+        timeout_per_card: optional per-card wall-clock cap (seconds).
+            ``None`` means honor whatever timeout the underlying HTTP
+            stack uses. A sub-second cap is appropriate when this is
+            called inline before a TUI repaint and we'd rather render
+            placeholders than block the user's terminal.
+
+    Returns:
+        Mapping of ``card_id → resolved_path | None``. The render loop
+        does not need this return value (it re-resolves via
+        ``resolve_card_art``, which is now a cache hit), but tests
+        and instrumentation use it to verify which cards actually
+        landed.
+    """
+    unique_ids = list(dict.fromkeys(card_ids))  # preserves order, dedups
+    results: dict[str, Optional[Path]] = {cid: None for cid in unique_ids}
+    if not unique_ids:
+        return results
+
+    def _resolve_one(cid: str) -> tuple[str, Optional[Path]]:
+        try:
+            return cid, resolve_card_art(cid)
+        except Exception:  # noqa: BLE001 — soft-fail is the contract
+            return cid, None
+
+    # ``max_workers >= len(unique_ids)`` is fine — the pool spawns at most
+    # ``min(max_workers, submitted_tasks)`` threads.
+    with cf.ThreadPoolExecutor(
+        max_workers=max(1, min(workers, len(unique_ids)))
+    ) as pool:
+        futures = {pool.submit(_resolve_one, cid): cid for cid in unique_ids}
+        for fut in cf.as_completed(futures, timeout=None):
+            try:
+                if timeout_per_card is not None:
+                    cid, path = fut.result(timeout=timeout_per_card)
+                else:
+                    cid, path = fut.result()
+                results[cid] = path
+            except cf.TimeoutError:
+                # Deliberate — partial pre-warm is still a win.
+                continue
+            except Exception:  # noqa: BLE001
+                continue
+
+    return results
 
 
 # ---------------------------------------------------------------------------

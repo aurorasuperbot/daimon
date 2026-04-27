@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.5.0.schema.json
+#
+# winget singleton manifest for DAIMON. After a `daimon-vX.Y.Z` tag
+# fires `release-binaries.yml`, bump the `PackageVersion`, update the
+# `InstallerSha256`, and submit a PR to:
+#
+#     https://github.com/microsoft/winget-pkgs
+#
+# The published manifest splits into Installer / Locale / Version
+# files, but the singleton form is what we maintain in-repo so a
+# single edit captures the release. The submission tool
+# (wingetcreate / komac) auto-splits it on PR.
+
+PackageIdentifier: aurorasuperbot.daimon
+PackageVersion: "0.0.0"  # BUMP ME on every release
+PackageName: DAIMON
+Publisher: aurorasuperbot
+PublisherUrl: https://github.com/aurorasuperbot
+PublisherSupportUrl: https://github.com/aurorasuperbot/daimon/issues
+PackageUrl: https://github.com/aurorasuperbot/daimon
+License: PROPRIETARY
+LicenseUrl: https://github.com/aurorasuperbot/daimon/blob/main/LICENSE
+ShortDescription: Terminal-first agentic-first TCG / autobattler.
+Description: |
+  DAIMON is a terminal-first, agentic-first trading-card game and
+  autobattler. The CLI runs inside a bundled WezTerm so card art
+  renders pixel-perfect via the Kitty Graphics Protocol, and a
+  PostToolUse hook in Claude Code mines in-game currency from
+  productive agent activity. Ships with the dmn-mcp stdio server
+  so AI agents can play (and lose) autonomously.
+Tags:
+  - cli
+  - tcg
+  - autobattler
+  - claude-code
+  - mcp
+Installers:
+  - Architecture: x64
+    InstallerType: zip
+    InstallerUrl: https://github.com/aurorasuperbot/daimon/releases/download/daimon-v0.0.0/daimon-windows-x86_64.zip
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000  # BUMP ME
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: daimon-windows-x86_64\daimon.exe
+        PortableCommandAlias: daimon
+      - RelativeFilePath: daimon-windows-x86_64\dmn-mcp.exe
+        PortableCommandAlias: dmn-mcp
+    Commands:
+      - daimon
+      - dmn-mcp
+ManifestType: singleton
+ManifestVersion: 1.5.0
