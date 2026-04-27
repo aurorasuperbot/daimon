@@ -266,6 +266,7 @@ def _render_match_animated(
     """
     # Imported lazily — the play module pulls in PIL + pydantic only when a
     # match actually arrives, keeping CLI-only imports cheap.
+    from daimon.play.art_render import prewarm_card_art
     from daimon.play.frame import ACTION_BEAT_MS, build_mid_action_frame
     from daimon.play.pil_renderer import render_frame_to_png
     from daimon.play.schema import Match
@@ -274,6 +275,19 @@ def _render_match_animated(
     state_id = state.id
     frames_dir = renders_dir / f"match_{state_id}"
     frames_dir.mkdir(parents=True, exist_ok=True)
+
+    # Pre-warm every card's art in parallel before the render loop fans
+    # out. A 12-card match (6 per side) without this would pay 12
+    # sequential ``ensure_art_for`` round-trips inside the *first* frame
+    # — perceptible hitch on a fresh install before the prefetch
+    # subprocess has filled the cache. With pre-warm, the loop's
+    # ``resolve_card_art`` calls are stat-only.
+    loadout_card_ids = [
+        lc.species
+        for participant in match.participants.values()
+        for lc in participant.loadout
+    ]
+    prewarm_card_art(loadout_card_ids)
 
     milestones = _frame_milestones(ACTION_BEAT_MS, interval_ms)
 
