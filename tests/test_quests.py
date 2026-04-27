@@ -214,9 +214,27 @@ def test_today_str_is_utc_iso():
 # ---------------------------------------------------------------------------
 
 def _force_today(monkeypatch):
-    """Make ``progress._today_iso`` return a fixed date for matcher tests."""
+    """Make every clock-source in the quest evaluation pipeline return a
+    fixed UTC date for matcher tests.
+
+    The matcher walks three time sources:
+      * ``progress._today_iso`` — drives the "is this entry today?" filter.
+      * ``buffer._now_iso``     — stamped onto every ticker append.
+      * ``ledger._now_iso``     — stamped onto every ledger append.
+
+    Originally only ``progress._today_iso`` was patched. That worked on
+    the day the tests were written (2026-04-26 — the entry's real-time
+    ts happened to start with the forced date) and silently broke at
+    the next UTC midnight rollover, which is exactly what happened on
+    2026-04-27 when the merge sweep ran. Patching all three sources
+    makes the test independent of wall-clock time forever — same root
+    cause / robust fix discipline, no skip / no xfail.
+    """
     fixed = "2026-04-26"
+    fixed_ts = f"{fixed}T12:00:00+00:00"
     monkeypatch.setattr(progress_mod, "_today_iso", lambda *_a, **_kw: fixed)
+    monkeypatch.setattr(buffer_mod, "_now_iso", lambda *_a, **_kw: fixed_ts)
+    monkeypatch.setattr(ledger_mod, "_now_iso", lambda *_a, **_kw: fixed_ts)
     return fixed
 
 
