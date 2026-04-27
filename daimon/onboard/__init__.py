@@ -35,6 +35,14 @@ from daimon.onboard.orchestrator import (
     run_onboard,
     write_recovery_file,
 )
+from daimon.onboard.stages import (
+    STAGE_ORDER,
+    TOTAL_STAGES,
+    OnboardingStage,
+    OnboardingState,
+    detect_stage,
+    stage_index,
+)
 
 __all__ = [
     "OnboardResult",
@@ -45,4 +53,11 @@ __all__ = [
     "is_daimon_mcp_present",
     "resolve_mcp_command",
     "uninstall_claude_code_integration",
+    # Onboarding-stage detection (read-only)
+    "OnboardingStage",
+    "OnboardingState",
+    "STAGE_ORDER",
+    "TOTAL_STAGES",
+    "detect_stage",
+    "stage_index",
 ]

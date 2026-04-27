@@ -12,11 +12,19 @@ rather than trusting any single number in this docstring.
 
 Identity + currency:
   dm_init              → bootstrap identity + BIP39 mnemonic (one-time)
+  dm_onboard           → one-shot first-run setup (identity + recovery file +
+                         manifest + starter prefetch + optional Claude Code
+                         wiring). Folds the four legacy bootstrap steps.
+  dm_onboarding_status → read-only snapshot of the 5-stage onboarding journey
+                         (bootstrap / asset_load / first_pull / first_match /
+                         mining_hook / graduated). Identical to the
+                         ``onboarding`` field on the ``dm_home`` payload.
   dm_whoami            → pubkey + handle + balance + totals (absorbed mine_status)
   dm_home              → one-call snapshot for the chat home card (identity +
                          balance + recent matches/pulls + recommended NPC +
-                         saved loadouts + daily quests) — sources: ledger +
-                         mine_buffer + arena.my_rank + npcs roster + quests
+                         saved loadouts + daily quests + onboarding stage) —
+                         sources: ledger + mine_buffer + arena.my_rank +
+                         npcs roster + quests + onboard.stages
   dm_register          → open identity registration Issue in arena
   dm_mine_status       → DEPRECATED alias for dm_whoami; kept for back-compat
 
@@ -543,6 +551,56 @@ def dm_onboard(
 
 
 @mcp.tool()
+def dm_onboarding_status() -> Dict[str, Any]:
+    """Return the player's current onboarding stage (read-only snapshot).
+
+    The 5-stage product flow lives on top of the existing engine
+    primitives — this tool just walks the gates and reports the first
+    one still open. Stages, in order:
+
+      1. ``bootstrap``   — no identity yet (run ``dm_onboard``)
+      2. ``asset_load``  — identity OK, art-pack manifest missing
+      3. ``first_pull``  — collection empty (call ``dm_pull``)
+      4. ``first_match`` — has cards, no recorded match yet (challenge
+         the rank-1 Rookie NPC, default "Sparring Sam")
+      5. ``mining_hook`` — hook missing (run ``daimon mine install-hook``)
+      6. ``graduated``   — all five gates cleared; the home card hides
+         the onboarding banner.
+
+    The returned envelope mirrors :class:`daimon.onboard.OnboardingState`
+    and is **identical** to the ``onboarding`` field embedded inside
+    ``dm_home``'s payload — agents that already called ``dm_home`` don't
+    need to call this tool too.
+
+    Returns:
+      {"status": "ok",
+       "stage": "bootstrap" | "asset_load" | "first_pull" |
+                "first_match" | "mining_hook" | "graduated",
+       "step": int,                 # 1..6 (1-based, GRADUATED is 6)
+       "total": 5,                  # non-graduated stage count
+       "title": "...",              # short banner title (empty when GRADUATED)
+       "blurb": "...",              # one-sentence next-step description
+       "cta_label": "...",          # button text (empty when GRADUATED)
+       "cta_message": "@daimon ...",# what the button posts (empty when GRADUATED)
+       "signals": {...}}            # per-stage diagnostic dict (debug)
+
+    Never raises — every probe is best-effort and degrades to "stage not
+    cleared" on error so the player gets the prompt rather than being
+    silently advanced past a real gate.
+    """
+    try:
+        from daimon.onboard.stages import detect_stage
+        state = detect_stage().to_dict()
+    except Exception as e:  # noqa: BLE001 — structured envelope contract
+        logger.exception("dm_onboarding_status: detect_stage failed")
+        return {
+            "error": "internal_error",
+            "message": f"{type(e).__name__}: {e}",
+        }
+    return {"status": "ok", **state}
+
+
+@mcp.tool()
 def dm_whoami() -> Dict[str, Any]:
     """Return the local DAIMON identity + mining snapshot.
 
@@ -908,7 +966,10 @@ def dm_home() -> Dict[str, Any]:
                          "complete", "claimed"}, ...],  # exactly 3 entries
        "tier_ceremony": {"pending_tier", "prev_tier",
                          "tiers_to_mint": [...], "reward_total": int,
-                         "wins_at_check": int} | null}  # null when nothing to claim
+                         "wins_at_check": int} | null,  # null when nothing to claim
+       "onboarding": {"stage", "step", "total", "title", "blurb",
+                      "cta_label", "cta_message", "signals"}}
+                                       # see daimon.onboard.stages
 
     Returns {"error": "no_identity", ...} if `daimon init` has never run.
     Never raises — every sub-source is wrapped in best-effort fallback so the
@@ -1006,6 +1067,17 @@ def dm_home() -> Dict[str, Any]:
         recent_matches=full_match_window,
     )
 
+    # Onboarding stage detection — pure read-only walk over local FS state.
+    # Lives at the bottom of the payload because the renderer composes the
+    # banner ABOVE the tier ceremony (earliest journey stage gets surfaced
+    # first), but the field order in the JSON itself is irrelevant.
+    try:
+        from daimon.onboard.stages import detect_stage as _detect_stage
+        onboarding_payload = _detect_stage().to_dict()
+    except Exception:  # noqa: BLE001 — never let the detector break dm_home
+        logger.exception("dm_home: onboarding stage detection failed")
+        onboarding_payload = None
+
     return {
         "status": "ok",
         "identity": {
@@ -1028,6 +1100,7 @@ def dm_home() -> Dict[str, Any]:
         "saved_loadouts": _saved_loadouts_summary(),
         "daily_quests": daily_quests,
         "tier_ceremony": _pending_tier_ceremony_payload(),
+        "onboarding": onboarding_payload,
     }
 
 

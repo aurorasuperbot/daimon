@@ -316,6 +316,114 @@ class TestNoIdentityCard:
         assert "@daimon init" in out
 
 
+class TestOnboardingBanner:
+    """Coverage for the in-progress onboarding banner.
+
+    The banner sits ABOVE the tier-ceremony banner and the play CTA in
+    the body composition. It renders only while the player has an
+    identity AND at least one gate is still open — at GRADUATED (or
+    when the field is None) it collapses to the empty string so the
+    rest of the card flows up.
+    """
+
+    def _onboarding(self, **overrides):
+        base = {
+            "stage": "first_pull",
+            "step": 3,
+            "total": 5,
+            "title": "Pull your first card",
+            "blurb": "Your collection is empty. Time to gacha.",
+            "cta_label": "Pull a card",
+            "cta_message": "@daimon pull",
+            "signals": {"collection_count": 0},
+        }
+        base.update(overrides)
+        return base
+
+    def test_banner_renders_title_blurb_and_step_eyebrow(self, base_payload):
+        base_payload["onboarding"] = self._onboarding()
+        out = render_home_card(base_payload)
+        assert "STEP 3 OF 5" in out
+        assert "Pull your first card" in out
+        assert "Your collection is empty" in out
+        # CTA button text + the message it posts via window.agentAction
+        assert "Pull a card" in out
+        assert "@daimon pull" in out
+
+    def test_banner_appears_before_tier_ceremony(self, base_payload):
+        """Onboarding banner must precede the tier-ceremony banner so the
+        earliest journey stage gets surfaced first."""
+        base_payload["onboarding"] = self._onboarding(
+            title="Onboarding banner title",
+        )
+        base_payload["tier_ceremony"] = {
+            "pending_tier": "Novice",
+            "prev_tier": "Rookie",
+            "tiers_to_mint": ["Novice"],
+            "reward_total": 100,
+            "wins_at_check": 5,
+        }
+        out = render_home_card(base_payload)
+        onboarding_pos = out.index("Onboarding banner title")
+        tier_pos = out.index("TIER UP")
+        assert onboarding_pos < tier_pos, (
+            "Onboarding banner must render before the tier-ceremony banner"
+        )
+
+    def test_banner_hidden_when_graduated(self, base_payload):
+        base_payload["onboarding"] = {
+            "stage": "graduated",
+            "step": 6,
+            "total": 5,
+            "title": "",
+            "blurb": "",
+            "cta_label": "",
+            "cta_message": "",
+            "signals": {},
+        }
+        out = render_home_card(base_payload)
+        assert "STEP" not in out  # banner suppressed when graduated
+        # The rest of the card still renders normally
+        assert "PLAY VS" in out
+
+    def test_banner_hidden_when_field_missing(self, base_payload):
+        # No onboarding key at all → defensive default → banner skipped.
+        base_payload.pop("onboarding", None)
+        out = render_home_card(base_payload)
+        assert "STEP" not in out
+        assert "PLAY VS" in out  # rest of card still renders
+
+    def test_banner_hidden_when_field_none(self, base_payload):
+        base_payload["onboarding"] = None
+        out = render_home_card(base_payload)
+        assert "STEP" not in out
+
+    def test_banner_skipped_when_title_blank(self, base_payload):
+        """Defensive: malformed payload with empty title shouldn't draw a
+        broken banner. The whole banner suppresses, the rest of the card
+        still renders.
+        """
+        base_payload["onboarding"] = self._onboarding(title="")
+        out = render_home_card(base_payload)
+        assert "STEP 3 OF 5" not in out
+        assert "PLAY VS" in out
+
+    def test_banner_escapes_dynamic_strings(self, base_payload):
+        """XSS safety: title/blurb/cta_label come from server-side data
+        but the renderer must HTML-escape them anyway (defense in depth).
+        """
+        base_payload["onboarding"] = self._onboarding(
+            title="<script>alert(1)</script>",
+            cta_message="@daimon battle Tom O'Malley",
+        )
+        out = render_home_card(base_payload)
+        assert "<script>alert(1)</script>" not in out
+        assert "&lt;script&gt;" in out
+        # JS-escaped form for the onclick handler — apostrophes
+        # backslash-escaped so they don't break out of the JS string.
+        assert "Tom O\\'Malley" in out
+
+
 class TestEscaping:
     """XSS safety — every dynamic string must be HTML-escaped."""
 

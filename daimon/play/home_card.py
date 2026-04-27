@@ -185,6 +185,112 @@ def _render_no_identity() -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# Onboarding banner — surfaces the first unfinished journey step.
+#
+# Slots ABOVE every other section in the body composition (see
+# ``render_home_card``). Hidden when ``onboarding`` is None or when the
+# stage is "graduated" — at that point the player has cleared every
+# gate and the card returns to its steady-state layout.
+# ---------------------------------------------------------------------------
+
+def _render_onboarding_banner(onboarding: Optional[Dict[str, Any]]) -> str:
+    """Render the next-step banner for an in-progress onboarding journey.
+
+    Returns the empty string when:
+      * ``onboarding`` is None (detector failed — fail-safe to no banner).
+      * ``stage == "graduated"`` — the player is done, banner would be noise.
+      * The payload is missing the required ``title`` / ``blurb`` fields,
+        meaning we can't draw something coherent.
+
+    The visible affordances mirror the tier-ceremony banner to keep the
+    home card visually consistent across "you have unfinished setup" and
+    "you have unclaimed rewards" — same gradient-button shape, same
+    "STEP N OF M" eyebrow line, same right-aligned action chip.
+
+    The CTA button posts ``cta_message`` (e.g. ``@daimon onboard``) into
+    chat via ``window.agentAction('send_message', ...)`` — the user's
+    local Claude Code mention-watcher reacts and runs the corresponding
+    tool. When ``cta_label`` / ``cta_message`` are empty (currently only
+    the GRADUATED branch, which we don't render anyway) the button slot
+    collapses to a static info chip.
+    """
+    if not onboarding:
+        return ""
+    stage = str(onboarding.get("stage") or "")
+    if stage == "graduated" or not stage:
+        return ""
+
+    title = str(onboarding.get("title") or "")
+    blurb = str(onboarding.get("blurb") or "")
+    if not title or not blurb:
+        # Defensive — a malformed payload shouldn't render a broken
+        # banner. Drop silently so the rest of the card still shows.
+        return ""
+
+    step = int(onboarding.get("step", 0) or 0)
+    total = int(onboarding.get("total", 0) or 0)
+    cta_label = str(onboarding.get("cta_label") or "")
+    cta_message = str(onboarding.get("cta_message") or "")
+
+    eyebrow = (
+        f"STEP {step} OF {total}" if step and total else "GET STARTED"
+    )
+
+    # Gradient mirrors the tier-ceremony banner palette for visual rhyming
+    # but uses the indigo accent so it reads as "next step", not "reward".
+    grad_from = _C_ACCENT
+    grad_to = _C_ACCENT_HI
+
+    # Right-side action chip — when we have a CTA we show a clickable
+    # button; otherwise an empty span so the flex layout still lines up.
+    if cta_label and cta_message:
+        action_chip = (
+            f'<button '
+            f'onclick="window.agentAction(\'send_message\','
+            f'{{text:\'{_esc_js(cta_message)}\'}}, this); '
+            'event.stopPropagation();" '
+            f'style="background:{_C_BG};color:{_C_TEXT};border:none;'
+            f'border-radius:6px;padding:6px 12px;font-weight:600;'
+            'font-size:12px;cursor:pointer;'
+            'white-space:nowrap;flex-shrink:0;">'
+            f"{_esc(cta_label)}"
+            "</button>"
+        )
+    else:
+        action_chip = (
+            f'<span style="font-size:11px;color:{_C_BG};opacity:0.65;'
+            'letter-spacing:1px;flex-shrink:0;">PENDING</span>'
+        )
+
+    return (
+        f'<div style="background:linear-gradient(135deg,{grad_from} 0%,'
+        f'{grad_to} 100%);color:{_C_BG};border-radius:10px;'
+        'padding:14px 16px;margin-bottom:12px;display:block;">'
+        '<div style="display:flex;justify-content:space-between;'
+        'align-items:center;gap:10px;">'
+        # Left: eyebrow + title + blurb
+        '<div style="min-width:0;flex:1;">'
+        '<div style="font-size:11px;letter-spacing:1.5px;opacity:0.75;'
+        'font-weight:600;">'
+        f"{_esc(eyebrow)}"
+        "</div>"
+        '<div style="font-size:16px;margin-top:2px;font-weight:700;'
+        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+        f"{_esc(title)}"
+        "</div>"
+        '<div style="font-size:12px;margin-top:4px;opacity:0.85;'
+        'line-height:1.35;font-weight:500;">'
+        f"{_esc(blurb)}"
+        "</div>"
+        "</div>"
+        # Right: CTA chip
+        f"{action_chip}"
+        "</div>"
+        "</div>"
+    )
+
+
 def _render_header(identity: Dict[str, Any], rank: Dict[str, Any],
                    balance: int, pull: Dict[str, Any]) -> str:
     """Top strip: handle + tier/rank + balance + pull readiness."""
@@ -759,13 +865,21 @@ def render_home_card(payload: Dict[str, Any]) -> str:
     loadouts = payload.get("saved_loadouts") or []
     daily_quests = payload.get("daily_quests") or []
     tier_ceremony = payload.get("tier_ceremony")  # may be None
+    onboarding = payload.get("onboarding")  # may be None or {stage: "graduated"}
 
-    # Tier-up banner sits ABOVE the play CTA so a tier crossing is the
-    # first thing the player sees on next open. CTAs that ship rewards
-    # always lead — the play button is the second-most-important
-    # element when a ceremony is pending.
+    # Section ordering rationale (top → bottom):
+    #   1. Header (always present — identity + balance + pull readiness)
+    #   2. Onboarding banner (if any gate is still open) — earliest
+    #      product-journey stage takes precedence over everything else
+    #      below; a brand-new player with no identity doesn't need to
+    #      see a tier-ceremony banner.
+    #   3. Tier-up ceremony (if a tier crossing is unclaimed) — rewards
+    #      lead over routine play CTAs.
+    #   4. Play CTA + secondary actions (the steady-state path).
+    #   5. Stats / quests / recent activity / loadouts (info, not action).
     body = "".join([
         _render_header(identity, rank, balance, pull),
+        _render_onboarding_banner(onboarding),
         _render_tier_ceremony(tier_ceremony),
         _render_play_cta(recommended),
         _render_secondary_actions(pull),
