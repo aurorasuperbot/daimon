@@ -55,6 +55,7 @@ ids.txt`` to read newline-separated IDs from a file instead.
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
 import sys
@@ -119,6 +120,15 @@ def build_card_tarball(card_dir: Path, out_path: Path) -> tuple[int, str]:
     deterministic mtime and a fixed user/group so two runs over the
     same source files produce byte-identical tarballs (important for
     incremental updates that compare per-card sha256 across releases).
+
+    Determinism note: ``tarfile.open(..., "w:gz")`` opens its own
+    GzipFile internally and uses ``time.time()`` for the gzip header's
+    mtime field — so two builds from identical sources would still
+    produce different sha256s, defeating the per-card incremental
+    update story (every release would re-download every card even
+    when nothing changed). We open the GzipFile ourselves with
+    ``mtime=0`` and pass it to tarfile via ``fileobj=`` so both the
+    tar entries AND the gzip header are byte-stable.
     """
     files = _walk_card_files(card_dir)
     if not files:
@@ -128,7 +138,13 @@ def build_card_tarball(card_dir: Path, out_path: Path) -> tuple[int, str]:
         )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(out_path, "w:gz", compresslevel=9) as tf:
+    # Two-stage open: explicit GzipFile (mtime=0 → deterministic header) +
+    # tarfile in plain "w" mode pointed at it. Equivalent to "w:gz" in
+    # output bytes EXCEPT the gzip header mtime is locked.
+    with out_path.open("wb") as raw, \
+         gzip.GzipFile(filename="", mode="wb", compresslevel=9,
+                       fileobj=raw, mtime=0) as gz, \
+         tarfile.open(mode="w", fileobj=gz) as tf:
         for src in files:
             arc = src.relative_to(card_dir).as_posix()
             info = tf.gettarinfo(name=str(src), arcname=arc)

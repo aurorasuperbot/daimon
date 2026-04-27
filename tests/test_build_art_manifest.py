@@ -147,6 +147,36 @@ class TestBuildCardTarball:
         )
         assert sha_a == sha_b
 
+    def test_gzip_header_mtime_is_zero(self, source_dir: Path, tmp_path: Path):
+        """Regression: the gzip stream header MUST have mtime=0.
+
+        ``tarfile.open(..., "w:gz")`` uses ``time.time()`` for the gzip
+        header's mtime field. The previous deterministic_sha test only
+        compared two builds in the same second so it never caught this
+        — across release boundaries (or across CI runners with skewed
+        clocks) the per-card sha256 would flap, defeating the
+        manifest-diff incremental-update story.
+
+        We assert the literal mtime bytes (offset 4..7 of the gzip
+        envelope, little-endian uint32) are zero. This is the
+        belt-and-braces complement to the determinism test: even if
+        someone reverts the GzipFile(mtime=0) call, this fails.
+        """
+        import struct
+
+        out = tmp_path / "card.tar.gz"
+        build_art_manifest.build_card_tarball(source_dir / "alpha_card", out)
+        raw = out.read_bytes()
+        # gzip header layout (RFC 1952): magic(2) + cm(1) + flg(1) +
+        # mtime(4 LE) + xfl(1) + os(1).
+        assert raw[:2] == b"\x1f\x8b", "not a gzip stream"
+        mtime = struct.unpack("<I", raw[4:8])[0]
+        assert mtime == 0, (
+            f"gzip header mtime should be 0 for deterministic builds, "
+            f"got {mtime}. If this fails, build_card_tarball reverted "
+            f'to tarfile.open(..., "w:gz") which writes time.time().'
+        )
+
     def test_raises_on_empty_card_dir(self, tmp_path: Path):
         empty = tmp_path / "empty_card"
         empty.mkdir()
