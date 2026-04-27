@@ -48,6 +48,16 @@ from daimon.mining.installer import (
 DAIMON_MCP_SERVER_NAME = "daimon"
 DAIMON_MCP_BINARY_NAME = "dmn-mcp"
 
+# Cap on the number of ``settings.json.bak.<stamp>`` files we keep
+# alongside the live settings file. Without a cap, every re-onboard
+# (or every daimon-engine upgrade that refreshes the MCP command path)
+# leaves a fresh backup behind — over a year of weekly upgrades that
+# is 50+ stale files cluttering ``~/.claude/``. We keep the N newest
+# (by mtime) and silently delete older ones; the absolute newest is
+# always retained, so a user who needs to undo the latest write can
+# always do so.
+DEFAULT_BACKUP_RETENTION = 5
+
 
 # ---------------------------------------------------------------------------
 # MCP command resolver
@@ -127,12 +137,64 @@ def _read_settings(path: Path) -> Dict[str, Any]:
     return data
 
 
-def _backup(path: Path) -> Optional[Path]:
+def _backup(
+    path: Path,
+    *,
+    retention: int = DEFAULT_BACKUP_RETENTION,
+) -> Optional[Path]:
+    """Snapshot ``path`` to a timestamped sibling, then prune old snapshots.
+
+    Returns the new backup path (or ``None`` if there was nothing to back up).
+    Pruning is best-effort: an OSError on an old-backup unlink doesn't
+    fail the new backup. Retention applies only to backups that share
+    our exact ``.bak.<stamp>`` naming convention — files the user
+    parked alongside the settings file with other names are left alone.
+    """
     if not path.exists():
         return None
     bak = path.with_suffix(path.suffix + f".bak.{_now_stamp()}")
     shutil.copy2(path, bak)
+    _prune_old_backups(path, retention=retention)
     return bak
+
+
+def _prune_old_backups(path: Path, *, retention: int) -> None:
+    """Keep only the ``retention`` most-recent ``<path>.bak.<stamp>`` files.
+
+    Glob pattern is ``<filename>.bak.*`` (the ``_now_stamp`` format makes
+    this unambiguous — no false positives against unrelated files
+    sharing the prefix). We rank by mtime so even if two stamps are
+    chronologically close the newer write wins. ``retention<=0`` is a
+    no-op (caller opted out); negative values would otherwise wipe
+    every backup including the one we just took.
+    """
+    if retention <= 0:
+        return
+    parent = path.parent
+    if not parent.is_dir():
+        return
+    prefix = path.name + ".bak."
+    candidates = []
+    try:
+        for child in parent.iterdir():
+            if child.name.startswith(prefix) and child.is_file():
+                try:
+                    candidates.append((child.stat().st_mtime, child))
+                except OSError:
+                    continue
+    except OSError:
+        return
+    if len(candidates) <= retention:
+        return
+    # Sort newest-first; everything past `retention` gets pruned.
+    candidates.sort(key=lambda pair: pair[0], reverse=True)
+    for _mtime, stale in candidates[retention:]:
+        try:
+            stale.unlink()
+        except OSError:
+            # Best-effort — a permission error on cleanup must not block
+            # the actual settings write that just succeeded.
+            pass
 
 
 def _write_settings_atomic(path: Path, data: Dict[str, Any]) -> None:

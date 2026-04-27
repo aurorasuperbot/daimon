@@ -29,6 +29,9 @@ from daimon.mining.installer import HOOK_OWNER
 from daimon.onboard.claude_code import (
     DAIMON_MCP_BINARY_NAME,
     DAIMON_MCP_SERVER_NAME,
+    DEFAULT_BACKUP_RETENTION,
+    _backup,
+    _prune_old_backups,
     install_claude_code_integration,
     is_daimon_mcp_present,
     resolve_mcp_command,
@@ -233,6 +236,65 @@ class TestInstallIntegration:
         # Exactly one .bak.* file should have been written.
         backups = list(tmp_path.glob("settings.json.bak.*"))
         assert len(backups) == 1
+
+    def test_backup_retention_caps_old_snapshots(self, tmp_path):
+        """Many synthetic stale backups + one real write must collapse to N."""
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({"unrelated": 1}))
+
+        # Plant 12 fake stale backups with monotonically increasing mtimes
+        # so the prune step has a deterministic ranking to work with.
+        # If we left mtime to chance the test would be flaky on fast
+        # filesystems where many files share the same mtime second.
+        import time as _time
+        for i in range(12):
+            stale = tmp_path / f"settings.json.bak.20260101T0000{i:02d}Z"
+            stale.write_text("{}")
+            os.utime(stale, (_time.time() - (12 - i) * 60,
+                             _time.time() - (12 - i) * 60))
+
+        # Trigger a real backup.
+        bak = _backup(settings)
+        assert bak is not None and bak.exists()
+
+        # Survivors = the freshly created backup + (DEFAULT_BACKUP_RETENTION - 1)
+        # of the most-recent planted ones. Exact total: DEFAULT_BACKUP_RETENTION.
+        survivors = sorted(tmp_path.glob("settings.json.bak.*"))
+        assert len(survivors) == DEFAULT_BACKUP_RETENTION, (
+            f"expected {DEFAULT_BACKUP_RETENTION} survivors after prune, "
+            f"got {len(survivors)}: {survivors}"
+        )
+        # The just-written backup must be among the survivors — the
+        # whole point of the cap is that the freshest is never pruned.
+        assert bak in survivors
+
+    def test_prune_with_zero_retention_is_noop(self, tmp_path):
+        """retention<=0 must NOT delete anything (the new backup included)."""
+        settings = tmp_path / "settings.json"
+        settings.write_text("{}")
+        for i in range(3):
+            (tmp_path / f"settings.json.bak.20260101T0000{i:02d}Z").write_text("{}")
+        _prune_old_backups(settings, retention=0)
+        survivors = list(tmp_path.glob("settings.json.bak.*"))
+        assert len(survivors) == 3
+
+    def test_backup_ignores_unrelated_files(self, tmp_path):
+        """Sibling files that don't match settings.json.bak.* must be left alone."""
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({"unrelated": 1}))
+        # Decoy files with similar but non-matching names.
+        (tmp_path / "other.json.bak.20260101T000000Z").write_text("{}")
+        (tmp_path / "settings.json.backup").write_text("{}")
+        (tmp_path / "settings.json.bak").write_text("{}")  # no .<stamp> suffix
+        _backup(settings, retention=1)  # very aggressive prune
+        # Decoys remain untouched.
+        assert (tmp_path / "other.json.bak.20260101T000000Z").exists()
+        assert (tmp_path / "settings.json.backup").exists()
+        # NOTE: ``settings.json.bak`` (no trailing dot) actually starts with
+        # the prefix "settings.json.bak." after we add the dot? No — the
+        # prefix is the literal string "settings.json.bak." and the file
+        # name is "settings.json.bak", so it does NOT start with the prefix.
+        assert (tmp_path / "settings.json.bak").exists()
 
     def test_rejects_nonobject_top_level(self, tmp_path):
         settings = tmp_path / "settings.json"
