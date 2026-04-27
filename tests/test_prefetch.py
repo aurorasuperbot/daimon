@@ -21,8 +21,13 @@ from daimon.update.manifest import (
 )
 from daimon.update.paths import art_pack_dir, prefetch_state_path
 from daimon.update.prefetch import (
+    PREFETCH_LOCK_NAME,
     PrefetchState,
+    _existing_prefetch_alive,
+    _prefetch_lock_path,
+    acquire_prefetch_lock,
     read_state,
+    release_prefetch_lock,
     run_prefetch,
     write_state as write_prefetch_state,
 )
@@ -306,3 +311,146 @@ class TestSpawnPrefetchSubprocess:
         monkeypatch.setattr(_sp, "Popen", boom)
         result = spawn_prefetch_subprocess()
         assert result is None
+
+    def test_existing_alive_lock_blocks_spawn(self, art_dir: Path, monkeypatch):
+        """If a live prefetcher already holds the lock, don't fork a second one."""
+        from daimon.update.prefetch import spawn_prefetch_subprocess
+
+        # Acquire the lock as if another prefetcher were running. Our own
+        # PID is alive (we're the test process), so _existing_prefetch_alive
+        # will report True.
+        fd = acquire_prefetch_lock()
+        assert fd is not None
+        try:
+            def boom(*_a, **_kw):
+                pytest.fail("Popen called while singleton lock is held")
+
+            import subprocess as _sp
+            monkeypatch.setattr(_sp, "Popen", boom)
+            result = spawn_prefetch_subprocess()
+            assert result is None
+        finally:
+            release_prefetch_lock(fd)
+
+
+# ---------------------------------------------------------------------------
+# Singleton lock — race + stale recovery
+# ---------------------------------------------------------------------------
+
+class TestPrefetchSingletonLock:
+    def test_acquire_then_second_acquire_returns_none(self, art_dir: Path):
+        first = acquire_prefetch_lock()
+        assert first is not None
+        try:
+            second = acquire_prefetch_lock()
+            assert second is None, (
+                "second concurrent acquire must fail — O_EXCL pidfile contract"
+            )
+        finally:
+            release_prefetch_lock(first)
+
+    def test_release_then_reacquire_succeeds(self, art_dir: Path):
+        first = acquire_prefetch_lock()
+        assert first is not None
+        release_prefetch_lock(first)
+
+        second = acquire_prefetch_lock()
+        assert second is not None, (
+            "after release, the lockfile must be gone and a new acquire must win"
+        )
+        release_prefetch_lock(second)
+
+    def test_stale_lock_with_dead_pid_is_stolen(self, art_dir: Path):
+        """A lockfile referencing a dead PID must be silently recovered.
+
+        This is the SIGKILL/OOM/power-loss case: a previous prefetcher
+        died without unlinking its lockfile. Without stale recovery the
+        cache would be permanently un-prefetchable until a human ran
+        `rm`.
+        """
+        # Find a PID that is not in use. PID 1 is always alive (init);
+        # we want a definitely-dead one. Walk down from a synthetic
+        # high number and find one that os.kill(pid, 0) reports gone.
+        import os
+
+        dead_pid = None
+        for candidate in range(2_000_000, 2_100_000):
+            try:
+                os.kill(candidate, 0)
+            except ProcessLookupError:
+                dead_pid = candidate
+                break
+            except OSError:
+                continue
+        assert dead_pid is not None, "couldn't find a definitely-dead PID for the test"
+
+        # Plant a stale lockfile.
+        lock_path = _prefetch_lock_path()
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(f"{dead_pid}\n", encoding="utf-8")
+        assert _existing_prefetch_alive() is False
+
+        # Acquire should recover (steal) the orphan lock.
+        fd = acquire_prefetch_lock()
+        assert fd is not None, "stale lock with dead PID must be stolen"
+        try:
+            # The new lockfile holds *our* PID now, not the dead one.
+            contents = lock_path.read_text(encoding="utf-8").strip()
+            assert int(contents.splitlines()[0]) == os.getpid()
+        finally:
+            release_prefetch_lock(fd)
+
+    def test_existing_prefetch_alive_returns_false_when_no_lock(self, art_dir: Path):
+        assert _existing_prefetch_alive() is False
+
+    def test_existing_prefetch_alive_returns_true_for_live_owner(self, art_dir: Path):
+        fd = acquire_prefetch_lock()
+        assert fd is not None
+        try:
+            assert _existing_prefetch_alive() is True
+        finally:
+            release_prefetch_lock(fd)
+
+    def test_run_prefetch_bails_cleanly_when_lock_held(self, art_dir: Path, monkeypatch):
+        """Contended-lock case: must return a no-op state, not raise, and not network."""
+        manifest, payloads = _install_manifest(["alpha", "beta"])
+
+        def boom(*_a, **_kw):
+            pytest.fail("network called even though singleton lock was held")
+
+        monkeypatch.setattr(fetcher, "_http_open", boom)
+
+        # Hold the lock as a fake "other prefetcher".
+        fd = acquire_prefetch_lock()
+        assert fd is not None
+        try:
+            log = io.StringIO()
+            state = run_prefetch(workers=2, log_stream=log)
+            assert state.fetched_count == 0
+            assert state.skipped_count == 0
+            assert state.total == 0
+            assert state.is_complete  # started_at == completed_at
+            assert "another prefetcher" in log.getvalue()
+        finally:
+            release_prefetch_lock(fd)
+
+    def test_run_prefetch_releases_lock_on_success(self, art_dir: Path, monkeypatch):
+        manifest, payloads = _install_manifest(["alpha"])
+        monkeypatch.setattr(
+            fetcher, "_http_open",
+            lambda url, *, octet_stream=False: FakeHTTPResponse(payloads["alpha"]),
+        )
+        run_prefetch(workers=1, log_stream=io.StringIO())
+
+        # Lock must be gone (file unlinked) so the next prefetch can run.
+        assert not _prefetch_lock_path().exists(), (
+            "run_prefetch must release the singleton lock on clean exit"
+        )
+
+    def test_run_prefetch_releases_lock_on_failure(self, art_dir: Path):
+        """No manifest → ArtUpdateError. Lock must still be released."""
+        with pytest.raises(ArtUpdateError):
+            run_prefetch(workers=1, log_stream=io.StringIO())
+        assert not _prefetch_lock_path().exists(), (
+            "run_prefetch must release the singleton lock even when it raises"
+        )

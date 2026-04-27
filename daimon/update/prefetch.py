@@ -70,6 +70,151 @@ from daimon.update.paths import (
 
 DEFAULT_WORKERS = 4
 PREFETCH_LOG_NAME = "prefetch.log"
+PREFETCH_LOCK_NAME = "prefetch.lock"
+
+
+# ---------------------------------------------------------------------------
+# Singleton lock — prevents two prefetchers from racing on the same cache
+# ---------------------------------------------------------------------------
+
+def _prefetch_lock_path() -> Path:
+    return cache_dir() / PREFETCH_LOCK_NAME
+
+
+def _pid_alive(pid: int) -> bool:
+    """Cheap liveness check. Mirrors ``daimon.play.spawn._pid_alive``."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Process exists but isn't ours — treat as alive (don't steal the lock).
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def acquire_prefetch_lock() -> Optional[int]:
+    """Try to acquire the singleton prefetcher lock. Atomic.
+
+    Returns the file descriptor on success (caller is responsible for
+    eventual release via :func:`release_prefetch_lock`), or ``None``
+    when another prefetcher already holds it.
+
+    Implementation: ``O_CREAT|O_EXCL`` is the only POSIX-portable way
+    to do "create-if-not-exists, fail otherwise" without a TOCTOU race.
+    Windows does not support O_EXCL on file create the same way, but
+    Python's ``os.open`` translates it via the standard Windows
+    semantics (CREATE_NEW), which fails if the file exists — same
+    contract.
+
+    Stale lock recovery: if the lockfile already exists, we read the
+    embedded ``pid`` and check whether that PID is still alive. A
+    crashed prefetcher (SIGKILL'd, OOM, power loss) leaves an
+    orphan lockfile with a dead PID — we silently steal it. This
+    avoids the "user has to manually rm the lockfile" failure mode
+    that classic O_EXCL pidfiles suffer from.
+
+    Two onboards racing each other are the primary case this guards:
+    without the lock, both would spawn a prefetcher subprocess, both
+    would walk the same manifest, both would download every card —
+    bandwidth doubled, per-card temp dir collisions only avoided
+    because :func:`daimon.update.lazy._unique_staging` namespaces by
+    PID. With the lock, the second onboard's spawn returns immediately
+    and the first run completes uncontested.
+    """
+    p = _prefetch_lock_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        fd = os.open(str(p), flags, 0o644)
+    except FileExistsError:
+        # Existing lock — check liveness, steal if dead.
+        if _is_lock_stale(p):
+            try:
+                p.unlink()
+            except FileNotFoundError:
+                pass  # raced with another stealer — let them have it
+            try:
+                fd = os.open(str(p), flags, 0o644)
+            except FileExistsError:
+                return None  # someone else stole it first
+        else:
+            return None
+    # Write our PID so other processes can check liveness on us.
+    try:
+        os.write(fd, f"{os.getpid()}\n".encode("utf-8"))
+        os.fsync(fd)
+    except OSError:
+        # Couldn't even write our PID — give up cleanly.
+        try:
+            os.close(fd)
+            p.unlink()
+        except (OSError, FileNotFoundError):
+            pass
+        return None
+    return fd
+
+
+def _is_lock_stale(path: Path) -> bool:
+    """Read the PID from a lockfile and check whether it's still alive."""
+    try:
+        contents = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        # Can't read it — treat as stale rather than block forever.
+        return True
+    if not contents:
+        return True
+    try:
+        owner_pid = int(contents.splitlines()[0])
+    except (ValueError, IndexError):
+        return True
+    return not _pid_alive(owner_pid)
+
+
+def _existing_prefetch_alive() -> bool:
+    """Optimistic singleton check for the spawn side.
+
+    Reads the lockfile (if any) and returns ``True`` only when the owner
+    PID is still alive. The lockfile-existence check alone is not enough
+    — a SIGKILL'd prefetcher leaves an orphan, and we don't want one
+    crash to block prefetching forever.
+
+    This is racy by definition (two callers can both pre-check, both see
+    "no lock", both spawn, then one child wins the O_EXCL acquire and
+    the other exits cleanly). The race is fine: the *child*'s
+    :func:`acquire_prefetch_lock` is the definitive guard. The pre-check
+    is purely an optimization to skip the fork/exec when we already
+    know it's pointless.
+    """
+    p = _prefetch_lock_path()
+    if not p.is_file():
+        return False
+    return not _is_lock_stale(p)
+
+
+def release_prefetch_lock(fd: int) -> None:
+    """Release the singleton prefetcher lock. Best-effort.
+
+    Closes the fd and unlinks the lockfile. Both operations are
+    individually best-effort — a missing lockfile (someone else
+    cleaned it up) is fine; a failed close is logged but not
+    propagated. The next prefetch run will recover via
+    ``_is_lock_stale`` on the orphan lockfile.
+    """
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+    try:
+        _prefetch_lock_path().unlink()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -192,86 +337,115 @@ def run_prefetch(
             (useful for the onboard flow, which skips the starter pack
             it already fetched synchronously).
 
-    Returns the final :class:`PrefetchState`.
+    Returns the final :class:`PrefetchState`. When another prefetcher
+    already holds the singleton lock, returns a no-op state with
+    ``manifest_version=""`` and ``total=0`` (and writes nothing to disk
+    — clobbering the active prefetcher's state file would corrupt its
+    progress reporting).
     """
     log = log_stream if log_stream is not None else sys.stderr
 
-    m = manifest if manifest is not None else load_manifest(pack_name)
-    if m is None:
-        raise ArtUpdateError(
-            f"prefetch: no manifest installed for pack {pack_name!r}; "
-            "run `daimon update` first"
-        )
-
-    skip_set = set(skip_card_ids)
-    todo = [
-        cid for cid in sorted(m.cards.keys())
-        if cid not in skip_set and not is_card_cached(cid, pack_name=pack_name)
-    ]
-    skipped_count = len(m.cards) - len(todo)
-
-    state = PrefetchState(
-        manifest_version=m.pack_version,
-        pack_name=pack_name,
-        started_at=int(time.time()),
-        total=len(m.cards),
-        skipped_count=skipped_count,
-    )
-    write_state(state)
-
-    if not todo:
+    # Singleton acquire. The lock guarantees at most one prefetcher per
+    # cache directory at a time. If we lose the race, exit cleanly so
+    # the parent process / CLI sees a successful no-op rather than an
+    # error — onboard spawns are explicitly fire-and-forget and a
+    # contended lock is the *expected* outcome of the second of two
+    # racing onboards.
+    lock_fd = acquire_prefetch_lock()
+    if lock_fd is None:
         log.write(
-            f"prefetch: nothing to do — all {len(m.cards)} cards "
-            f"already cached for {m.pack_version}.\n"
+            "prefetch: another prefetcher already holds the singleton "
+            "lock for this cache; exiting cleanly.\n"
         )
         log.flush()
+        now = int(time.time())
+        return PrefetchState(
+            manifest_version="",
+            pack_name=pack_name,
+            started_at=now,
+            completed_at=now,
+            total=0,
+        )
+
+    try:
+        m = manifest if manifest is not None else load_manifest(pack_name)
+        if m is None:
+            raise ArtUpdateError(
+                f"prefetch: no manifest installed for pack {pack_name!r}; "
+                "run `daimon update` first"
+            )
+
+        skip_set = set(skip_card_ids)
+        todo = [
+            cid for cid in sorted(m.cards.keys())
+            if cid not in skip_set and not is_card_cached(cid, pack_name=pack_name)
+        ]
+        skipped_count = len(m.cards) - len(todo)
+
+        state = PrefetchState(
+            manifest_version=m.pack_version,
+            pack_name=pack_name,
+            started_at=int(time.time()),
+            total=len(m.cards),
+            skipped_count=skipped_count,
+        )
+        write_state(state)
+
+        if not todo:
+            log.write(
+                f"prefetch: nothing to do — all {len(m.cards)} cards "
+                f"already cached for {m.pack_version}.\n"
+            )
+            log.flush()
+            state.completed_at = int(time.time())
+            write_state(state)
+            return state
+
+        log.write(
+            f"prefetch: starting — {len(todo)} of {len(m.cards)} cards "
+            f"to fetch for {m.pack_version}, {workers} workers.\n"
+        )
+        log.flush()
+
+        # ``cleanup_card_staging`` mops up any per-card scratch dirs left
+        # behind by a previous crashed run. Cheap, runs once.
+        cleanup_card_staging()
+
+        def _fetch_one(card_id: str) -> tuple[str, Optional[str]]:
+            try:
+                fetch_card(card_id, manifest=m, pack_name=pack_name,
+                           show_progress=False)
+                return card_id, None
+            except ArtUpdateError as e:
+                return card_id, str(e)
+            except Exception as e:  # noqa: BLE001 — we record + continue
+                return card_id, f"{type(e).__name__}: {e}"
+
+        with cf.ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+            futures = {pool.submit(_fetch_one, cid): cid for cid in todo}
+            for fut in cf.as_completed(futures):
+                cid, err = fut.result()
+                if err is None:
+                    state.fetched_count += 1
+                    log.write(f"  ok   {cid}\n")
+                else:
+                    state.failed.append([cid, err])
+                    log.write(f"  FAIL {cid}: {err}\n")
+                log.flush()
+
         state.completed_at = int(time.time())
         write_state(state)
+
+        duration = state.completed_at - state.started_at
+        log.write(
+            f"prefetch: done — {state.fetched_count} fetched, "
+            f"{state.skipped_count} skipped, {state.failed_count} failed "
+            f"in {duration}s.\n"
+        )
+        log.flush()
         return state
-
-    log.write(
-        f"prefetch: starting — {len(todo)} of {len(m.cards)} cards "
-        f"to fetch for {m.pack_version}, {workers} workers.\n"
-    )
-    log.flush()
-
-    # ``cleanup_card_staging`` mops up any per-card scratch dirs left
-    # behind by a previous crashed run. Cheap, runs once.
-    cleanup_card_staging()
-
-    def _fetch_one(card_id: str) -> tuple[str, Optional[str]]:
-        try:
-            fetch_card(card_id, manifest=m, pack_name=pack_name,
-                       show_progress=False)
-            return card_id, None
-        except ArtUpdateError as e:
-            return card_id, str(e)
-        except Exception as e:  # noqa: BLE001 — we record + continue
-            return card_id, f"{type(e).__name__}: {e}"
-
-    with cf.ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {pool.submit(_fetch_one, cid): cid for cid in todo}
-        for fut in cf.as_completed(futures):
-            cid, err = fut.result()
-            if err is None:
-                state.fetched_count += 1
-                log.write(f"  ok   {cid}\n")
-            else:
-                state.failed.append([cid, err])
-                log.write(f"  FAIL {cid}: {err}\n")
-            log.flush()
-
-    state.completed_at = int(time.time())
-    write_state(state)
-
-    duration = state.completed_at - state.started_at
-    log.write(
-        f"prefetch: done — {state.fetched_count} fetched, "
-        f"{state.skipped_count} skipped, {state.failed_count} failed "
-        f"in {duration}s.\n"
-    )
-    log.flush()
-    return state
+    finally:
+        release_prefetch_lock(lock_fd)
 
 
 # ---------------------------------------------------------------------------
@@ -300,8 +474,18 @@ def spawn_prefetch_subprocess(
 
     Honors ``DAIMON_NO_AUTO_UPDATE=1``: returns ``None`` without
     spawning when opted out.
+
+    Singleton optimization: if a prefetcher lockfile is present and its
+    owner PID is alive, returns ``None`` without forking. The child
+    would have done the same check via :func:`acquire_prefetch_lock`
+    and exited cleanly, but skipping the fork saves a measurable
+    amount of work on systems where ``daimon onboard`` is invoked
+    twice in quick succession.
     """
     if not auto_update_enabled():
+        return None
+
+    if _existing_prefetch_alive():
         return None
 
     try:
