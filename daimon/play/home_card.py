@@ -249,6 +249,120 @@ def _render_header(identity: Dict[str, Any], rank: Dict[str, Any],
     )
 
 
+# Crest emoji per tier — printed in the ceremony banner. Kept as plain
+# unicode (no SVG) so DOMPurify never strips it.
+_TIER_CREST = {
+    "Novice": "✦",        # four-pointed star — the first achievement
+    "Veteran": "⚔",       # crossed swords — battle-worn
+    "Elite": "✪",         # filled star — eliteness
+    "Champion": "♛",      # queen — top of the ladder
+}
+
+# Background gradient per tier — celebratory, distinct per tier so the
+# eye reads "this is something different" even at-a-glance.
+_TIER_GRADIENT = {
+    "Novice": ("#22d3ee", "#0891b2"),    # cyan-400 → cyan-600
+    "Veteran": ("#a78bfa", "#7c3aed"),   # violet-400 → violet-600
+    "Elite": ("#f472b6", "#db2777"),     # pink-400 → pink-600
+    "Champion": ("#fbbf24", "#d97706"),  # amber-400 → amber-600
+}
+
+
+def _render_tier_ceremony(ceremony: Optional[Dict[str, Any]]) -> str:
+    """Celebratory banner above the play CTA when a tier crossing is unclaimed.
+
+    Renders nothing when ``ceremony`` is None (the common case — most
+    callers won't have a pending ceremony at any given moment).
+
+    For multi-tier jumps (``tiers_to_mint`` length > 1) the banner shows
+    the highest tier as the headline crest + "+N¤" total, with a small
+    sub-line listing the intermediate tiers ("through Novice + Veteran")
+    so the player understands they're claiming multiple ceremonies at
+    once.
+
+    The CLAIM button posts ``@daimon claim tier-up`` — the local Claude
+    Code mention-watcher (or the human directly) responds by calling
+    ``dm_tier_up_claim`` which mints the ledger entries.
+    """
+    if not ceremony:
+        return ""
+    pending_tier = str(ceremony.get("pending_tier") or "")
+    prev_tier = str(ceremony.get("prev_tier") or "")
+    reward_total = int(ceremony.get("reward_total", 0))
+    tiers_to_mint = ceremony.get("tiers_to_mint") or []
+    if not pending_tier or reward_total <= 0:
+        # Defensive — a malformed payload shouldn't render a broken
+        # banner. Drop silently and let the normal CTA take over.
+        return ""
+
+    crest = _TIER_CREST.get(pending_tier, "★")
+    grad_from, grad_to = _TIER_GRADIENT.get(
+        pending_tier, (_C_ACCENT, _C_ACCENT_HI)
+    )
+
+    multi_line = ""
+    if len(tiers_to_mint) > 1:
+        # "through Novice + Veteran" reads more naturally than a list,
+        # but for 3+ skipped tiers we drop to comma-join.
+        labels = list(tiers_to_mint)
+        if len(labels) == 2:
+            joined = " + ".join(labels)
+        else:
+            joined = ", ".join(labels[:-1]) + " + " + labels[-1]
+        multi_line = (
+            f'<div style="font-size:11px;margin-top:4px;opacity:0.85;'
+            'font-weight:500;">'
+            f"includes {_esc(joined)}"
+            "</div>"
+        )
+
+    sub_line = (
+        f"promoted from {_esc(prev_tier)}" if prev_tier else "new tier reached"
+    )
+
+    cmd = "@daimon claim tier-up"
+    return (
+        '<button '
+        f'onclick="window.agentAction(\'send_message\','
+        f'{{text:\'{_esc_js(cmd)}\'}}, this)" '
+        f'style="background:linear-gradient(135deg,{grad_from} 0%,'
+        f'{grad_to} 100%);color:{_C_BG};border:none;'
+        f'border-radius:10px;padding:14px 16px;font-weight:700;'
+        'font-size:14px;cursor:pointer;width:100%;text-align:left;'
+        'margin-bottom:12px;display:block;'
+        f'box-shadow:0 0 0 2px {grad_from} inset;">'
+        '<div style="display:flex;justify-content:space-between;'
+        'align-items:center;gap:10px;">'
+        # Left: crest + tier label
+        '<div style="min-width:0;flex:1;">'
+        '<div style="font-size:11px;letter-spacing:1.5px;opacity:0.75;">'
+        "TIER UP"
+        "</div>"
+        '<div style="font-size:18px;margin-top:2px;'
+        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+        f'<span style="margin-right:6px;">{_esc(crest)}</span>'
+        f"{_esc(pending_tier)}"
+        "</div>"
+        f'<div style="font-size:11px;margin-top:2px;opacity:0.75;'
+        'font-weight:500;">'
+        f"{sub_line}"
+        "</div>"
+        f"{multi_line}"
+        "</div>"
+        # Right: reward + claim chip
+        '<div style="text-align:right;flex-shrink:0;">'
+        '<div style="font-size:20px;font-weight:800;'
+        'letter-spacing:-0.5px;">'
+        f"+{reward_total}¤"
+        "</div>"
+        '<div style="font-size:11px;margin-top:2px;opacity:0.85;'
+        'letter-spacing:1px;">CLAIM</div>'
+        "</div>"
+        "</div>"
+        "</button>"
+    )
+
+
 def _render_play_cta(recommended: Optional[Dict[str, Any]]) -> str:
     """The Marvel-Snap-style giant primary button."""
     if recommended is None:
@@ -644,9 +758,15 @@ def render_home_card(payload: Dict[str, Any]) -> str:
     recommended = payload.get("recommended_npc")
     loadouts = payload.get("saved_loadouts") or []
     daily_quests = payload.get("daily_quests") or []
+    tier_ceremony = payload.get("tier_ceremony")  # may be None
 
+    # Tier-up banner sits ABOVE the play CTA so a tier crossing is the
+    # first thing the player sees on next open. CTAs that ship rewards
+    # always lead — the play button is the second-most-important
+    # element when a ceremony is pending.
     body = "".join([
         _render_header(identity, rank, balance, pull),
+        _render_tier_ceremony(tier_ceremony),
         _render_play_cta(recommended),
         _render_secondary_actions(pull),
         _render_stats_strip(rank, recent_matches),

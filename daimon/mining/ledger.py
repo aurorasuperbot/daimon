@@ -12,8 +12,8 @@ just `sum(amount for entry in entries)`.
 
 Each entry is a dict with these fields:
   ts          — RFC3339 UTC timestamp
-  kind        — "mine" | "pull" | "genesis" | "purchase" | "quest_reward"
-  amount      — int (positive for mine/quest_reward, negative for pull/purchase, 0 for genesis)
+  kind        — "mine" | "pull" | "genesis" | "purchase" | "quest_reward" | "tier_up_reward"
+  amount      — int (positive for mine/quest_reward/tier_up_reward, negative for pull/purchase, 0 for genesis)
   tool_name   — Claude Code tool name (mine entries only)
   factors     — debug breakdown from compute_reward (mine only)
   novelty_key — dedup key (mine only)
@@ -454,6 +454,77 @@ def append_quest_reward_entry(
     return entry
 
 
+def append_tier_up_reward_entry(
+    *,
+    tier: str,
+    prev_tier: str,
+    wins_at_claim: int,
+    reward: int,
+    idempotency_key: Optional[str] = None,
+    identity: Optional[Identity] = None,
+    path: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    """Append a tier-up ceremony reward (positive amount). Returns entry or None if deduped.
+
+    Mirrors ``append_quest_reward_entry`` in shape — positive amount, no
+    balance check needed. Distinct ``kind="tier_up_reward"`` so ceremony
+    income can be broken out from raw mining / quest rewards in stats and
+    ledger inspection (rare, high-stakes events vs. dailies vs. tool spam).
+
+    Idempotency is the contract: ``ceremony.tier_up.claim_pending`` calls
+    this with ``idempotency_key=f"tier_up_{tier}"`` per claimed tier so a
+    re-run NEVER mints a second reward for the same tier — even after a
+    drop-and-reclimb, since claimed_tier in the local state is monotonic.
+
+    Args:
+      tier: The tier label being claimed (e.g. ``"Veteran"``). Persisted
+        on the entry for ledger inspection / replay.
+      prev_tier: The previous tier label this claim is crossing FROM
+        (e.g. ``"Novice"``). Persisted for stats & display history.
+      wins_at_claim: The wins count at the moment the claim was made.
+        Snapshot-only — stored so an audit can reconstruct *why* the
+        claim fired.
+      reward: Positive amount. Refuses zero/negative input loudly.
+      idempotency_key: Optional override. Defaults to None (no dedup) —
+        callers should always pass a key in production.
+
+    Raises:
+      ValueError: reward <= 0.
+    """
+    if reward <= 0:
+        raise ValueError("tier_up reward must be positive")
+    if path is None:
+        path = LEDGER_PATH
+    identity = identity or load_identity()
+    _ensure_dir()
+    initialize_ledger(identity, path)
+
+    entries = _read_entries(path)
+    if idempotency_key and _has_idempotency_key(idempotency_key, entries):
+        return None
+
+    last = entries[-1] if entries else None
+    prev_hash = entry_hash(last) if last else GENESIS_PREV_HASH
+
+    extras: Dict[str, Any] = {
+        "tier": tier,
+        "prev_tier": prev_tier,
+        "wins_at_claim": int(wins_at_claim),
+    }
+    if idempotency_key:
+        extras["idempotency_key"] = idempotency_key
+
+    entry = _build_entry(
+        identity=identity,
+        kind="tier_up_reward",
+        amount=int(reward),
+        prev_hash=prev_hash,
+        extras=extras,
+    )
+    _append_line(entry, path)
+    return entry
+
+
 def get_balance(path: Optional[Path] = None) -> int:
     if path is None:
         path = LEDGER_PATH
@@ -485,6 +556,8 @@ class LedgerStats:
     purchase_count: int = 0      # number of skin purchases
     total_quest_reward: int = 0  # ¤ earned from daily quest auto-claims
     quest_reward_count: int = 0  # number of quest_reward entries
+    total_tier_up_reward: int = 0  # ¤ earned from tier-up ceremonies
+    tier_up_reward_count: int = 0  # number of tier_up_reward entries
 
 
 def get_stats(path: Optional[Path] = None) -> LedgerStats:
@@ -499,6 +572,8 @@ def get_stats(path: Optional[Path] = None) -> LedgerStats:
                         if e.get("kind") == "purchase"]
     quest_amounts = [int(e.get("amount", 0)) for e in entries
                      if e.get("kind") == "quest_reward"]
+    tier_up_amounts = [int(e.get("amount", 0)) for e in entries
+                       if e.get("kind") == "tier_up_reward"]
     return LedgerStats(
         entry_count=len(entries),
         balance=sum(int(e.get("amount", 0)) for e in entries),
@@ -510,6 +585,8 @@ def get_stats(path: Optional[Path] = None) -> LedgerStats:
         purchase_count=len(purchase_amounts),
         total_quest_reward=sum(quest_amounts),
         quest_reward_count=len(quest_amounts),
+        total_tier_up_reward=sum(tier_up_amounts),
+        tier_up_reward_count=len(tier_up_amounts),
     )
 
 

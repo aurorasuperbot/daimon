@@ -25,6 +25,13 @@ Daily quests:
                          (HMAC-deterministic per (pubkey, UTC date); same
                          primitive as the skin shop rotation)
 
+Tier-up ceremony:
+  dm_tier_up_claim     → claim ceremony reward for any unclaimed tier
+                         crossings (Novice +100¤ / Veteran +250¤ /
+                         Elite +500¤ / Champion +1000¤). Multi-tier
+                         jumps mint all skipped tiers in one call.
+                         Idempotent — safe to retry.
+
 Catalog (pure-local):
   dm_expansions        → list installed catalogs (manifest metadata)
   dm_catalog_list      → list cards in a catalog
@@ -818,6 +825,29 @@ def _refresh_and_claim_quests() -> List[Dict[str, Any]]:
     return [_quest_progress_to_dict(p) for p in snapshot]
 
 
+def _pending_tier_ceremony_payload() -> Optional[Dict[str, Any]]:
+    """Read-only snapshot of any unclaimed tier-up ceremony.
+
+    Called from ``dm_home`` (read-only contract — must NOT mint a
+    reward as a side effect of inspecting the home card). Returns the
+    serialized ``PendingCeremony`` dict, or ``None`` when no ceremony
+    is pending / arena is unreachable / no identity.
+
+    Best-effort: any exception in the underlying ceremony machinery
+    returns None so the home card still renders the rest of the
+    payload even on a half-broken install.
+    """
+    try:
+        from daimon.ceremony import pending_ceremony
+        pending = pending_ceremony()
+    except Exception:  # noqa: BLE001
+        logger.exception("ceremony: pending_ceremony failed")
+        return None
+    if pending is None:
+        return None
+    return pending.to_dict()
+
+
 def _saved_loadouts_summary() -> List[Dict[str, Any]]:
     """List saved loadouts (name + card_count). Mirrors dm_loadout_list
     but trimmed for the home payload — no paths, no mtimes, no corrupt
@@ -875,7 +905,10 @@ def dm_home() -> Dict[str, Any]:
        "saved_loadouts": [{"name", "card_count"}, ...],
        "daily_quests": [{"quest_id", "template_id", "title", "tier",
                          "reward", "progress", "target",
-                         "complete", "claimed"}, ...]   # exactly 3 entries}
+                         "complete", "claimed"}, ...],  # exactly 3 entries
+       "tier_ceremony": {"pending_tier", "prev_tier",
+                         "tiers_to_mint": [...], "reward_total": int,
+                         "wins_at_check": int} | null}  # null when nothing to claim
 
     Returns {"error": "no_identity", ...} if `daimon init` has never run.
     Never raises — every sub-source is wrapped in best-effort fallback so the
@@ -994,6 +1027,7 @@ def dm_home() -> Dict[str, Any]:
         "recommended_npc": recommended,
         "saved_loadouts": _saved_loadouts_summary(),
         "daily_quests": daily_quests,
+        "tier_ceremony": _pending_tier_ceremony_payload(),
     }
 
 
@@ -1130,6 +1164,79 @@ def dm_quests() -> Dict[str, Any]:
             "max_daily_reward": max_daily,
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Tier-up ceremony — explicit-claim, rare, high-stakes promotion event
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def dm_tier_up_claim() -> Dict[str, Any]:
+    """Claim any pending tier-up ceremony reward(s).
+
+    The arena leaderboard derives a player's tier from raw wins —
+    Rookie (0+) / Novice (3+) / Veteran (10+) / Elite (25+) / Champion
+    (50+). Each time the local player crosses one of these thresholds,
+    a ceremony reward is owed:
+
+      * → Novice    +100¤
+      * → Veteran   +250¤
+      * → Elite     +500¤
+      * → Champion +1000¤
+
+    Unlike daily quests (auto-claim), ceremonies are **explicit** —
+    the home-card surface shows a "CLAIM READY" banner that the player
+    confirms by invoking this tool. Rationale: ceremonies are rare
+    (max 4 ever per identity) and the reward is large; a beat of UI
+    attention is correct.
+
+    ## Multi-tier jump
+
+    A streak that crosses multiple thresholds before claiming (e.g. a
+    Rookie who wins 10 in a row goes Rookie → Novice → Veteran)
+    mints **all** crossed tiers in a single call. Each tier is its own
+    ledger entry with its own idempotency key, so a re-run is a strict
+    no-op.
+
+    ## Idempotency
+
+    Safe to call repeatedly. Returns ``status="noop"`` when nothing
+    is pending. The ledger's ``idempotency_key=f"tier_up_{TierName}"``
+    contract guarantees at most one ledger entry per tier per identity
+    even if the call is interrupted mid-claim and retried.
+
+    Returns:
+      Success (something was claimed):
+        ``{"status": "ok",
+           "prev_tier": str,
+           "claimed_tier": str,            # new high-water mark
+           "claimed_tiers": [str, ...],     # tiers actually minted this call
+           "reward_total": int,
+           "wins_at_claim": int,
+           "balance": int,
+           "claim_history": [...]}``
+
+      No-op (already claimed up to current tier):
+        ``{"status": "noop", "claimed_tier": str, "balance": int}``
+
+      Error envelopes:
+        ``{"error": "no_identity", "hint": ...}``
+    """
+    try:
+        from daimon.ceremony import claim_pending
+    except Exception as e:  # noqa: BLE001
+        return {"error": "internal_error",
+                "message": f"ceremony import failed: {type(e).__name__}: {e}"}
+
+    try:
+        return claim_pending()
+    except Exception as e:  # noqa: BLE001
+        # A ledger-write failure here is rare but worth surfacing
+        # rather than silently swallowing — the agent needs to know
+        # the reward didn't land.
+        logger.exception("ceremony: claim_pending raised")
+        return {"error": "claim_failed",
+                "message": f"{type(e).__name__}: {e}"}
 
 
 # ---------------------------------------------------------------------------
