@@ -75,6 +75,9 @@ class OnboardResult:
     pubkey_hex: str
     mnemonic: str = ""
     recovery_path: Optional[str] = None
+    bundle_action: str = "skipped"
+    bundle_version: Optional[str] = None
+    bundle_error: Optional[str] = None
     manifest_action: str = "skipped"
     manifest_version: Optional[str] = None
     manifest_error: Optional[str] = None
@@ -93,6 +96,9 @@ class OnboardResult:
             "pubkey_hex": self.pubkey_hex,
             "mnemonic": self.mnemonic,
             "recovery_path": self.recovery_path,
+            "bundle_action": self.bundle_action,
+            "bundle_version": self.bundle_version,
+            "bundle_error": self.bundle_error,
             "manifest_action": self.manifest_action,
             "manifest_version": self.manifest_version,
             "manifest_error": self.manifest_error,
@@ -163,6 +169,7 @@ def run_onboard(
     wire_claude_code: bool = True,
     settings_path: Optional[Path] = None,
     spawn_prefetch: bool = True,
+    install_bundle: bool = True,
     log: LogFn = _noop_log,
 ) -> OnboardResult:
     """Run the onboarding flow end-to-end.
@@ -210,46 +217,96 @@ def run_onboard(
 
     result_kwargs: Dict[str, Any] = {}
 
+    from daimon.identity.keys import CONFIG_DIR
+
     # -----------------------------------------------------------------------
-    # Step 1: Identity
+    # Step 1: Identity + recovery (transactional — recovery is written
+    # BEFORE any log call so a downstream crash never loses the mnemonic).
     # -----------------------------------------------------------------------
     if PRIVATE_KEY_PATH.exists() and not force_identity:
         existing = load_identity()
-        log(f"identity: already present at {PRIVATE_KEY_PATH}")
+        recovery_existing = CONFIG_DIR / "recovery.txt"
+        recovery_path_str = (
+            str(recovery_existing) if recovery_existing.exists() else None
+        )
         result_kwargs.update(
             identity_action="already_present",
             pubkey_hex=existing.pubkey_hex,
             mnemonic="",
+            recovery_path=recovery_path_str,
         )
+        log(f"identity: already present at {PRIVATE_KEY_PATH}")
+        if recovery_path_str is None:
+            log(
+                "recovery: WARN — identity exists but recovery.txt is missing. "
+                "Mnemonic is no longer recoverable from this machine. "
+                "Back up identity.key now, or re-run with --force to "
+                "regenerate (DESTRUCTIVE)."
+            )
     else:
         identity = generate_identity(force=force_identity)
-        log(f"identity: generated → pubkey {identity.pubkey_hex[:16]}…")
+        # Persist recovery FIRST — before any log/print so a stdout encoding
+        # crash, broken pipe, or SIGINT cannot lose the mnemonic.
+        recovery_path_str: Optional[str] = None
+        if identity.mnemonic:
+            try:
+                recovery = write_recovery_file(identity.mnemonic)
+                recovery_path_str = str(recovery)
+            except OSError:
+                recovery_path_str = None
         result_kwargs.update(
             identity_action="generated",
             pubkey_hex=identity.pubkey_hex,
             mnemonic=identity.mnemonic or "",
+            recovery_path=recovery_path_str,
         )
-
-    # -----------------------------------------------------------------------
-    # Step 2: Recovery file (only when we have a fresh mnemonic)
-    # -----------------------------------------------------------------------
-    if result_kwargs["mnemonic"]:
-        try:
-            recovery = write_recovery_file(result_kwargs["mnemonic"])
-            result_kwargs["recovery_path"] = str(recovery)
-            log(f"recovery: written to {recovery} (mode 0600)")
-        except OSError as e:
-            log(f"recovery: WARN — failed to write recovery file: {e}")
-            result_kwargs["recovery_path"] = None
+        log(f"identity: generated -> pubkey {identity.pubkey_hex[:16]}")
+        if recovery_path_str:
+            log(f"recovery: written to {recovery_path_str} (mode 0600)")
+        elif identity.mnemonic:
+            log("recovery: WARN — failed to write recovery file")
 
         # -------------------------------------------------------------------
-        # Mnemonic confirmation gate
+        # Mnemonic confirmation gate (after the file is on disk so users
+        # who Ctrl-C still have the recovery.txt backstop).
         # -------------------------------------------------------------------
-        if confirm_mnemonic is not None:
-            confirmed = bool(confirm_mnemonic(result_kwargs["mnemonic"]))
+        if confirm_mnemonic is not None and identity.mnemonic:
+            confirmed = bool(confirm_mnemonic(identity.mnemonic))
             if not confirmed:
                 log("onboard: aborted by user before continuing.")
                 return OnboardResult(**result_kwargs)
+
+    # -----------------------------------------------------------------------
+    # Step 2: WezTerm bundle install (cross-platform — linux/macos/windows
+    # × x86_64/aarch64). Mandatory: card art rendering uses the Kitty
+    # Graphics Protocol which only works on the bundled WezTerm at our
+    # locked DPI/cell-size. Skip with install_bundle=False (CI / smoke).
+    # -----------------------------------------------------------------------
+    if install_bundle:
+        try:
+            from daimon.install import (
+                BundleInstallError,
+                install_bundle as _install_bundle,
+            )
+            report = _install_bundle(verify_smoke_test=False)
+            action = "already_installed" if report.skipped_download else "installed"
+            result_kwargs.update(
+                bundle_action=action,
+                bundle_version=report.tag,
+            )
+            log(f"bundle: {action} ({report.tag})")
+        except BundleInstallError as e:
+            result_kwargs.update(
+                bundle_action="failed",
+                bundle_error=str(e),
+            )
+            log(f"bundle: FAILED -- {e}")
+        except OSError as e:
+            result_kwargs.update(
+                bundle_action="failed",
+                bundle_error=str(e),
+            )
+            log(f"bundle: FAILED -- {e}")
 
     # -----------------------------------------------------------------------
     # Step 3: Manifest + starter prefetch
