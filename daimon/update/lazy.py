@@ -30,11 +30,13 @@ Entry points::
 
 from __future__ import annotations
 
+import functools
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 from urllib.error import HTTPError, URLError
 
 from daimon.update.fetcher import (
@@ -112,6 +114,69 @@ def _unique_staging(card_id: str) -> Path:
         counter += 1
 
 
+_REPO_FROM_BASE_URL = re.compile(
+    r"^https://github\.com/([^/]+/[^/]+)/releases/"
+)
+
+
+@functools.lru_cache(maxsize=8)
+def _release_asset_api_urls(repo: str, tag: str) -> Dict[str, str]:
+    """Fetch the release's full asset list once, return ``{name: api_url}``.
+
+    Required for private-repo card downloads — GitHub refuses bearer auth
+    on ``browser_download_url`` and only accepts the
+    ``api.github.com/.../releases/assets/<id>`` + ``Accept: application/octet-stream``
+    pattern. We pay one API call per (repo, tag) per process and cache
+    the mapping; subsequent card fetches reuse it.
+
+    Returns ``{}`` on any failure so callers fall back to the browser
+    URL (which works for public repos with no token).
+    """
+    try:
+        from daimon.update.api import _gh_get
+
+        rel = _gh_get(f"/repos/{repo}/releases/tags/{tag}")
+    except (HTTPError, URLError, OSError, ValueError):
+        return {}
+    if not isinstance(rel, dict):
+        return {}
+    out: Dict[str, str] = {}
+    for asset in rel.get("assets") or []:
+        if not isinstance(asset, dict):
+            continue
+        name = asset.get("name")
+        url = asset.get("url")
+        if isinstance(name, str) and isinstance(url, str):
+            out[name] = url
+    return out
+
+
+def _resolve_card_url(manifest: Manifest, asset_name: str) -> tuple[str, bool]:
+    """Pick the right card download URL based on auth state.
+
+    With a token we always prefer the API URL (private + public repos
+    both work). Without a token we fall back to the manifest-constructed
+    browser_download_url (public-repo path).
+
+    Returns ``(url, octet_stream)``.
+    """
+    has_token = bool(
+        os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    )
+    if has_token:
+        m_repo = _REPO_FROM_BASE_URL.match(manifest.asset_base_url)
+        if m_repo:
+            cache = _release_asset_api_urls(m_repo.group(1), manifest.pack_version)
+            api_url = cache.get(asset_name)
+            if api_url:
+                return api_url, True
+    # Fall back to browser_download_url (public-repo path).
+    base = manifest.asset_base_url
+    if not base.endswith("/"):
+        base = base + "/"
+    return base + asset_name, False
+
+
 def cleanup_card_staging() -> None:
     """Sweep abandoned per-card staging dirs from prior crashed fetches."""
     base = staging_dir() / "cards"
@@ -171,11 +236,13 @@ def fetch_card(
         return live
 
     entry = m.cards[card_id]
-    url = m.card_url(card_id)
+    url, octet = _resolve_card_url(m, entry.asset_name)
     staging = _unique_staging(card_id)
 
     try:
-        # Download tarball.
+        # Download tarball. octet=True means we resolved a private-repo
+        # API URL above; octet=False means the manifest-constructed
+        # browser_download_url (public-repo path).
         tarball = staging.with_suffix(".tar.gz")
         staging.parent.mkdir(parents=True, exist_ok=True)
         download_with_progress(
@@ -184,7 +251,7 @@ def fetch_card(
             expected_size=entry.size_bytes,
             label=f"daimon: fetching art for {card_id}",
             show_progress=show_progress,
-            octet_stream=False,  # asset_base_url is the public download CDN
+            octet_stream=octet,
         )
         actual = sha256_file(tarball)
         if actual.lower() != entry.sha256.lower():
