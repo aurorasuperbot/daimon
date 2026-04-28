@@ -25,6 +25,16 @@ from __future__ import annotations
 import os
 import sys
 
+# Force stdout/stderr to UTF-8 on Windows where the default cp1252 encoding
+# crashes on glyphs like → / … / ✓ used throughout DAIMON's CLI output.
+# Mac/Linux already default to UTF-8 so this is a no-op there.
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except (OSError, ValueError):
+        pass
+
 import click
 
 from daimon import __version__
@@ -129,6 +139,9 @@ def init(force: bool) -> None:
                    "PostToolUse hook).")
 @click.option("--no-prefetch", is_flag=True,
               help="Don't spawn the background card prefetcher.")
+@click.option("--no-bundle", is_flag=True,
+              help="Don't install the WezTerm bundle. Card art will not "
+                   "render until you run `daimon install` separately.")
 @click.option("--settings", "settings_path", default=None,
               help="Override the Claude Code settings.json path.")
 @click.option("--yes", is_flag=True,
@@ -138,7 +151,8 @@ def init(force: bool) -> None:
 @click.option("--json", "as_json", is_flag=True,
               help="Emit the result envelope as JSON instead of human text.")
 def onboard(force: bool, no_claude_code: bool, no_prefetch: bool,
-            settings_path: str | None, yes: bool, as_json: bool) -> None:
+            no_bundle: bool, settings_path: str | None, yes: bool,
+            as_json: bool) -> None:
     """One-shot first-run setup: identity + recovery + manifest + Claude Code.
 
     Folds the previous four-step bootstrap (``daimon install`` ->
@@ -210,6 +224,7 @@ def onboard(force: bool, no_claude_code: bool, no_prefetch: bool,
         wire_claude_code=not no_claude_code,
         settings_path=settings_override,
         spawn_prefetch=not no_prefetch,
+        install_bundle=not no_bundle,
         log=log_fn,
     )
 
@@ -224,6 +239,11 @@ def onboard(force: bool, no_claude_code: bool, no_prefetch: bool,
                f"({result.pubkey_hex[:16]}…)")
     if result.recovery_path:
         click.echo(f"recovery:    {result.recovery_path}")
+    click.echo(f"bundle:      {result.bundle_action}"
+               + (f" ({result.bundle_version})" if result.bundle_version
+                  else ""))
+    if result.bundle_error:
+        click.echo(f"             error: {result.bundle_error}")
     click.echo(f"manifest:    {result.manifest_action}"
                + (f" ({result.manifest_version})" if result.manifest_version
                   else ""))
@@ -242,7 +262,8 @@ def onboard(force: bool, no_claude_code: bool, no_prefetch: bool,
 
     # Non-zero exit if anything critical failed so scripts notice.
     if result.manifest_action == "failed" or \
-            result.claude_code_action == "failed":
+            result.claude_code_action == "failed" or \
+            result.bundle_action == "failed":
         sys.exit(1)
 
 
@@ -313,7 +334,7 @@ def install(version: str | None, force: bool, no_smoke_test: bool) -> None:
     """Bootstrap the DAIMON game terminal (one-time setup after `pip install`).
 
     Downloads the matching WezTerm bundle for this OS+architecture from the
-    aurorasuperbot/daimon-engine GitHub Releases, verifies sha256, extracts
+    aurorasuperbot/daimon GitHub Releases, verifies sha256, extracts
     to ``~/.daimon/bin/``, and writes the locked render config to
     ``~/.daimon/etc/wezterm.lua``.
 
@@ -378,11 +399,37 @@ def doctor(as_json: bool) -> None:
         "installed_version": current_version(),
     }
     identity_present = PRIVATE_KEY_PATH.is_file()
+    recovery_present = (CONFIG_DIR / "recovery.txt").is_file()
     identity = {
         "config_dir": str(CONFIG_DIR),
         "key_path": str(PRIVATE_KEY_PATH),
         "key_present": identity_present,
+        "recovery_present": recovery_present,
     }
+    # Claude Code wiring status — read settings.json and check for the
+    # daimon mcpServers entry + the PostToolUse hook with _owner=daimon.
+    claude_code: dict = {"settings_path": None, "mcp_present": False,
+                         "hook_present": False}
+    try:
+        from daimon.mining.installer import DEFAULT_SETTINGS_PATH
+        import json as _json2
+        claude_code["settings_path"] = str(DEFAULT_SETTINGS_PATH)
+        if DEFAULT_SETTINGS_PATH.is_file():
+            try:
+                _data = _json2.loads(
+                    DEFAULT_SETTINGS_PATH.read_text(encoding="utf-8")
+                )
+                claude_code["mcp_present"] = (
+                    "daimon" in (_data.get("mcpServers") or {})
+                )
+                claude_code["hook_present"] = any(
+                    h.get("_owner") == "daimon"
+                    for h in (_data.get("hooks") or {}).get("PostToolUse", [])
+                )
+            except (OSError, ValueError):
+                pass
+    except ImportError:
+        pass
     env = {
         k: os.environ.get(k)
         for k in (
@@ -409,6 +456,7 @@ def doctor(as_json: bool) -> None:
             "bundle": bundle,
             "art": art,
             "identity": identity,
+            "claude_code": claude_code,
             "env": env,
         }, indent=2))
         return
@@ -421,13 +469,24 @@ def doctor(as_json: bool) -> None:
     click.echo(f"  config:     {bundle['wezterm_config']}"
                f"  {'(present)' if bundle['config_present'] else '(MISSING)'}")
     click.echo()
-    click.echo("[art pack]")
+    click.echo("[art]")
     click.echo(f"  installed:  {art['installed_version'] or '(none)'}")
     click.echo(f"  pack dir:   {art['art_pack_dir']}")
     click.echo()
     click.echo("[identity]")
     click.echo(f"  generated:  {'yes' if identity_present else 'no'}")
     click.echo(f"  key:        {identity['key_path']}")
+    click.echo(f"  recovery:   {'present' if recovery_present else 'MISSING'}")
+    click.echo()
+    click.echo("[claude code]")
+    if claude_code["settings_path"]:
+        click.echo(f"  settings:   {claude_code['settings_path']}")
+        click.echo(f"  mcp entry:  "
+                   f"{'wired' if claude_code['mcp_present'] else 'missing'}")
+        click.echo(f"  mining hook:"
+                   f" {'wired' if claude_code['hook_present'] else 'missing'}")
+    else:
+        click.echo("  settings:   (mining installer unavailable)")
     if env:
         click.echo()
         click.echo("[env]")
@@ -435,7 +494,8 @@ def doctor(as_json: bool) -> None:
             click.echo(f"  {k}={v}")
     if not bundle["is_installed"]:
         click.echo()
-        click.echo("hint: run `daimon install` to bootstrap the game terminal.")
+        click.echo("hint: run `daimon onboard` to bootstrap the game terminal "
+                   "(or `daimon install` for just the WezTerm bundle).")
 
 
 @main.command()
