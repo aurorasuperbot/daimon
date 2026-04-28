@@ -11,15 +11,35 @@ This module owns the detached spawn so that the very first
 sees the match animate; the agent's MCP tool returns immediately because
 spawning is best-effort and never blocks the response.
 
+Direct-WezTerm-spawn architecture (post-V1):
+
+When the bundled WezTerm is installed (the canonical user path), we
+spawn ``wezterm start -- daimon play --in-place`` DIRECTLY. The previous
+two-step chain — spawn ``python -m daimon.cli play``, let
+:func:`relaunch_in_bundled_terminal` ``os.execvpe`` into WezTerm — was
+fragile on Windows: a detached python process with DEVNULL'd stdio and
+``DETACHED_PROCESS`` set could not successfully ``execvpe`` into a
+WezTerm GUI binary; the chain died silently with no window, no PID
+liveness, no error in any log. Spawning the GUI binary directly with its
+own normal stdio (it allocates its own window/console) sidesteps the
+problem entirely. The bundled WezTerm is also our render-surface
+guarantee, so when we know it's there we want it directly anyway.
+
 Cross-platform detached-spawn semantics:
 
   * **POSIX** — ``Popen(..., start_new_session=True)`` puts the child in
     its own session+process group. Closing the parent terminal won't
     SIGHUP the HUD; SIGINT to the parent shell won't tear it down.
-  * **Windows** — ``CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS`` plus
-    ``close_fds=True``. The child gets its own console (which WezTerm
-    immediately replaces with its own window) and the parent process
-    can exit while the HUD keeps running.
+  * **Windows + bundled WezTerm** — ``CREATE_NEW_PROCESS_GROUP`` only
+    (NOT ``DETACHED_PROCESS``) so WezTerm-GUI inherits a console it can
+    immediately swap for its own window. Stdio is INHERITED (no
+    DEVNULL) — WezTerm needs the handles to bootstrap its own window
+    on Windows. ``close_fds=True`` still keeps the rest of the parent's
+    fds out of the child.
+  * **Windows headless fallback** (no bundled WezTerm) —
+    ``CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS`` + DEVNULL stdio.
+    The python intermediate runs but nobody sees the HUD; emit a hint
+    so the user runs ``daimon install`` and tries again.
 
 PID handling: we drop a PID file at ``<config>/play.pid`` so a second
 ``dm_match`` call doesn't double-spawn. Stale files (process gone) are
@@ -49,7 +69,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Tuple
 
 
 _OPTOUT_ENV = "DAIMON_NO_AUTO_HUD"
@@ -157,25 +177,63 @@ def is_play_running(pid_path: Optional[Path] = None) -> bool:
 # Spawn
 # ---------------------------------------------------------------------------
 
-def _build_spawn_command(state_path: Optional[Path] = None) -> List[str]:
-    """argv for the child process — invokes ``daimon play``.
+def _build_spawn_command(
+    state_path: Optional[Path] = None,
+) -> Tuple[List[str], bool]:
+    """Build argv for the child process and report whether it spawns WezTerm directly.
 
-    We don't shell out — the child is launched with the same Python
-    interpreter that's running us so the venv / frozen-binary case Just
-    Works without a PATH lookup. ``-m daimon.cli`` is the canonical
-    entry point on a source install; for frozen builds we use
-    ``sys.executable`` directly with a ``daimon`` argv0 so Click sees
-    the ``play`` subcommand.
+    Returns ``(argv, spawns_wezterm_directly)``.
+
+    When the bundled WezTerm is installed we spawn ``wezterm start --
+    daimon play --in-place`` directly — no python intermediate, no
+    fragile execvpe-into-a-detached-process chain. ``--in-place`` tells
+    the inner ``daimon play`` to skip its own auto-relaunch hook (which
+    would otherwise try to re-exec a SECOND WezTerm window).
+
+    When WezTerm isn't installed yet, fall back to the legacy
+    ``python -m daimon.cli play`` argv. The HUD will run but won't pop a
+    window — the user should run ``daimon install`` to bootstrap the
+    bundled terminal.
+
+    The ``spawns_wezterm_directly`` flag drives the Popen kwargs in
+    :func:`spawn_play_hud`: WezTerm-GUI needs inherited stdio + a
+    process-group split (no DETACHED_PROCESS), while the headless
+    fallback wants the full DEVNULL'd background-process treatment.
     """
-    argv: List[str]
+    inner: List[str]
     if getattr(sys, "frozen", False):
         # Frozen binary — daimon[.exe] is the executable, no -m needed.
-        argv = [sys.executable, "play"]
+        inner = [sys.executable, "play", "--in-place"]
     else:
-        argv = [sys.executable, "-m", "daimon.cli", "play"]
+        inner = [sys.executable, "-m", "daimon.cli", "play", "--in-place"]
     if state_path is not None:
-        argv.extend(["--state", str(state_path)])
-    return argv
+        inner.extend(["--state", str(state_path)])
+
+    # Bundled WezTerm available? Wrap the inner command in WezTerm's
+    # canonical launch argv so we get the locked render surface AND a
+    # real window directly from this spawn.
+    try:
+        from daimon.render.wezterm_bundle import (
+            build_launch_argv,
+            is_installed,
+            write_locked_config,
+        )
+    except ImportError:
+        return inner, False
+
+    if not is_installed():
+        return inner, False
+
+    # Refresh the locked Lua config so the new window picks up any
+    # daimon-engine upgrades since the last launch. Idempotent.
+    try:
+        write_locked_config()
+    except OSError:
+        # Config write failed — still try to launch; WezTerm will fall
+        # back to whatever's on disk (or its compiled defaults).
+        pass
+
+    return build_launch_argv(inner), True
 
 
 def spawn_play_hud(
@@ -218,34 +276,69 @@ def spawn_play_hud(
         # HUD already up — return the existing PID rather than spawn a duplicate.
         return read_play_pid(target_pid_path)
 
-    argv = _build_spawn_command(state_path)
+    argv, spawns_wezterm_directly = _build_spawn_command(state_path)
     child_env = os.environ.copy()
     if env_overrides:
         child_env.update({k: str(v) for k, v in env_overrides.items()})
+    # The inner ``daimon play`` we're spawning would otherwise re-exec
+    # itself into yet another WezTerm window via the auto-relaunch hook.
+    # When we're spawning the bundled terminal directly we already provide
+    # the window, and the inner argv already carries ``--in-place``; setting
+    # the env-var sentinel is belt-and-suspenders so any nested daimon CLI
+    # invocation (tests, hooks) skips the relaunch too.
+    if spawns_wezterm_directly:
+        child_env[_INSIDE_TERMINAL_ENV] = "1"
 
     try:
         if platform.system() == "Windows":
             CREATE_NEW_PROCESS_GROUP = 0x00000200
             DETACHED_PROCESS = 0x00000008
-            proc = subprocess.Popen(
-                argv,
-                creationflags=CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS,
-                close_fds=True,
-                env=child_env,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            if spawns_wezterm_directly:
+                # WezTerm-GUI is a windowed app; it allocates its own
+                # window/console. DETACHED_PROCESS would deny it the
+                # console handle it needs to bootstrap that window, so
+                # we use process-group split alone. Stdio is INHERITED
+                # (no DEVNULL) for the same reason.
+                proc = subprocess.Popen(
+                    argv,
+                    creationflags=CREATE_NEW_PROCESS_GROUP,
+                    close_fds=True,
+                    env=child_env,
+                )
+            else:
+                # Headless fallback — we're spawning a python process
+                # that will render to whatever terminal it inherits
+                # (probably none). Full background-process treatment.
+                proc = subprocess.Popen(
+                    argv,
+                    creationflags=CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS,
+                    close_fds=True,
+                    env=child_env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
         else:
-            proc = subprocess.Popen(
-                argv,
-                start_new_session=True,
-                close_fds=True,
-                env=child_env,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            if spawns_wezterm_directly:
+                # WezTerm on POSIX: same logic — let it inherit stdio
+                # so it can bootstrap its window. ``start_new_session``
+                # still detaches it from the parent's controlling tty.
+                proc = subprocess.Popen(
+                    argv,
+                    start_new_session=True,
+                    close_fds=True,
+                    env=child_env,
+                )
+            else:
+                proc = subprocess.Popen(
+                    argv,
+                    start_new_session=True,
+                    close_fds=True,
+                    env=child_env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
     except (OSError, ValueError):
         # Spawn failed (binary missing, env var weirdness on Windows,
         # /dev/null absent). Auto-spawn is best-effort — the agent's

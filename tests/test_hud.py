@@ -388,7 +388,7 @@ def test_playback_snapshot_log_tail_includes_current(sample_match):
 def test_render_frame_includes_opponent_and_player_names(sample_match):
     pb = MatchPlayback(match=sample_match)
     frame = pb.snapshot()
-    out = render_frame(frame, color=False)
+    out, _ = render_frame(frame, color=False)
     assert "Champion Lyra" in out         # opponent in title
     assert "santiago" in out               # player in lineup label
     assert "OPPONENT" in out
@@ -397,7 +397,7 @@ def test_render_frame_includes_opponent_and_player_names(sample_match):
 
 def test_render_frame_shows_status_and_speed(sample_match):
     pb = MatchPlayback(match=sample_match)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     assert "playing" in out
     assert "1.0×" in out
 
@@ -405,14 +405,14 @@ def test_render_frame_shows_status_and_speed(sample_match):
 def test_render_frame_marks_current_step_with_arrow(sample_match):
     pb = MatchPlayback(match=sample_match)
     pb.cursor = 2
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     # ▶ should appear once (the current-step marker in the log).
     assert "▶" in out
 
 
 def test_render_frame_shows_hp_bars_with_correct_widths(sample_match):
     pb = MatchPlayback(match=sample_match)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     # All cards full at start except player/0 (8/12), player/2 (6/13),
     # player/3 (6/6 — note hp_max=6 also). Look for the partial bars.
     # The HP bar is 10 chars; 8/12 → 7 filled. Just check structure.
@@ -423,17 +423,29 @@ def test_render_frame_shows_hp_bars_with_correct_widths(sample_match):
 
 def test_render_frame_strips_color_when_requested(sample_match):
     pb = MatchPlayback(match=sample_match)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     assert "\x1b[" not in out
-    out_color = render_frame(pb.snapshot(), color=True)
+    out_color, _ = render_frame(pb.snapshot(), color=True)
     assert "\x1b[" in out_color
 
 
-def test_render_frame_width_is_80_per_line(sample_match):
+def test_render_frame_width_is_constant_per_line(sample_match):
+    """Every rendered line must be exactly WIDTH cells wide.
+
+    The play HUD uses a fixed-width box (WIDTH cells, currently 148) so
+    the bundled WezTerm window — locked at 150×42 by render/wezterm.lua —
+    can paint the frame without horizontal scrolling. Any line that
+    deviates breaks the box-drawing characters and turns the layout into
+    a ragged mess.
+    """
+    from daimon.play.hud.render import WIDTH
+
     pb = MatchPlayback(match=sample_match)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     for line in out.split("\n"):
-        assert len(line) == 80, f"line not 80 cols: {len(line)} {line!r}"
+        assert len(line) == WIDTH, (
+            f"line not {WIDTH} cols: {len(line)} {line!r}"
+        )
 
 
 def test_render_idle_lists_recent_matches():
@@ -464,7 +476,7 @@ def _seek_to_phase(pb: MatchPlayback, phase: Phase) -> int:
 def test_render_frame_lineup_chrome_shows_match_starting(sample_match):
     pb = MatchPlayback(match=sample_match)
     _seek_to_phase(pb, Phase.LINEUP)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     assert "MATCH STARTING" in out
     # Banner replaces action log — no ⚔ glyph in the chrome band.
     assert "match starting" in out
@@ -473,7 +485,7 @@ def test_render_frame_lineup_chrome_shows_match_starting(sample_match):
 def test_render_frame_round_chrome_shows_round_banner(sample_match):
     pb = MatchPlayback(match=sample_match)
     _seek_to_phase(pb, Phase.ROUND_START)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     assert "ROUND 1" in out
     assert "round 1 begins" in out
 
@@ -481,7 +493,7 @@ def test_render_frame_round_chrome_shows_round_banner(sample_match):
 def test_render_frame_outcome_chrome_shows_winner(sample_match):
     pb = MatchPlayback(match=sample_match)
     _seek_to_phase(pb, Phase.OUTCOME)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     winner = sample_match.outcome.winner.value.upper()
     assert f"{winner} WINS" in out
 
@@ -493,7 +505,7 @@ def test_render_frame_outcome_chrome_draw_does_not_say_wins(sample_match):
     sample_match.outcome.winner = Side.DRAW
     pb = MatchPlayback(match=sample_match)
     _seek_to_phase(pb, Phase.OUTCOME)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     assert "═══ DRAW ═══" in out, out
     assert "DRAW WINS" not in out
     # Title bar at the top must also avoid "DRAW wins".
@@ -502,14 +514,22 @@ def test_render_frame_outcome_chrome_draw_does_not_say_wins(sample_match):
 
 
 def test_render_frame_chrome_width_invariant(sample_match):
-    """All chrome screens must hold the 80-col-per-line invariant."""
+    """All chrome screens must hold the WIDTH-col-per-line invariant.
+
+    The chrome banner sections (LINEUP / ROUND_START / OUTCOME) replace
+    the action-log band but must keep the rest of the box exactly the
+    same shape — otherwise the terminal layout reflows mid-match.
+    """
+    from daimon.play.hud.render import WIDTH
+
     pb = MatchPlayback(match=sample_match)
     for phase in (Phase.LINEUP, Phase.ROUND_START, Phase.OUTCOME):
         _seek_to_phase(pb, phase)
-        out = render_frame(pb.snapshot(), color=False)
+        out, _ = render_frame(pb.snapshot(), color=False)
         for line in out.split("\n"):
-            assert len(line) == 80, (
-                f"chrome line not 80 cols on {phase}: {len(line)} {line!r}"
+            assert len(line) == WIDTH, (
+                f"chrome line not {WIDTH} cols on {phase}: "
+                f"{len(line)} {line!r}"
             )
 
 
@@ -517,7 +537,7 @@ def test_render_frame_chrome_keeps_lineups_visible(sample_match):
     """Chrome replaces only the log band — both lineups still render."""
     pb = MatchPlayback(match=sample_match)
     _seek_to_phase(pb, Phase.ROUND_START)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     # Lineup labels still present.
     assert "OPPONENT" in out
     assert "PLAYER" in out
@@ -528,7 +548,7 @@ def test_render_frame_chrome_keeps_lineups_visible(sample_match):
 def test_render_frame_chrome_status_line_uses_phase_label(sample_match):
     pb = MatchPlayback(match=sample_match)
     _seek_to_phase(pb, Phase.LINEUP)
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     # Status bar substitutes "lineup" for the act-counter instead of "act 1/0".
     assert "lineup" in out
 
@@ -967,7 +987,7 @@ def test_render_color_flash_appears_on_actor(sample_match):
     pb = MatchPlayback(match=sample_match)
     while pb.timeline[pb.cursor].is_phase:
         pb.advance()
-    out = render_frame(pb.snapshot(), color=True)
+    out, _ = render_frame(pb.snapshot(), color=True)
     # Color flash for damage uses RED. The fixture's first action is a damage
     # hit from opponent → player, so RED escapes appear.
     assert "\x1b[31m" in out  # RED
@@ -977,7 +997,7 @@ def test_render_connection_arrows_present_for_targeted_action(sample_match):
     pb = MatchPlayback(match=sample_match)
     while pb.timeline[pb.cursor].is_phase:
         pb.advance()
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     # Connection arrows render as ▼/▲ on the dividers between lineups.
     assert "▼" in out or "▲" in out
 
@@ -985,7 +1005,7 @@ def test_render_connection_arrows_present_for_targeted_action(sample_match):
 def test_render_no_connection_arrows_for_phase_step(sample_match):
     pb = MatchPlayback(match=sample_match)
     # Cursor 0 = LINEUP; no animation.connection.
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     assert "▼" not in out and "▲" not in out
 
 
@@ -993,7 +1013,7 @@ def test_render_color_off_strips_animation_color_codes(sample_match):
     pb = MatchPlayback(match=sample_match)
     while pb.timeline[pb.cursor].is_phase:
         pb.advance()
-    out = render_frame(pb.snapshot(), color=False)
+    out, _ = render_frame(pb.snapshot(), color=False)
     assert "\x1b[" not in out
 
 

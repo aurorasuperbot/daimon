@@ -301,6 +301,10 @@ class TestDetachedFlags:
     ):
         if platform.system() != "Windows":
             pytest.skip("Windows-only flags")
+        # Force the headless fallback by pretending WezTerm isn't installed.
+        monkeypatch.setattr(
+            "daimon.render.wezterm_bundle.is_installed", lambda: False
+        )
         captured: Dict[str, Any] = {}
         monkeypatch.setattr(
             subprocess, "Popen",
@@ -314,6 +318,141 @@ class TestDetachedFlags:
         assert flags & DETACHED_PROCESS
         assert flags & CREATE_NEW_PROCESS_GROUP
         assert captured.get("close_fds") is True
+
+
+# ---------------------------------------------------------------------------
+# Terminal-direct spawn — when bundled WezTerm is installed we spawn IT
+# directly and skip the python intermediate that used to die silently on
+# Windows. The previous architecture
+# (spawn-python → execvpe-into-WezTerm-from-detached-process) was broken
+# because a detached python process with DEVNULL'd stdio cannot
+# successfully ``execvpe`` into a GUI WezTerm binary. Spawning the GUI
+# directly with inherited stdio fixes the chain.
+# ---------------------------------------------------------------------------
+
+class TestTerminalDirectSpawn:
+    def _patch_wezterm_installed(self, monkeypatch, *, installed: bool,
+                                  bin_path: str = "/fake/wezterm",
+                                  config_path: str = "/fake/wezterm.lua"):
+        """Pretend the bundled WezTerm is/isn't installed."""
+        monkeypatch.setattr(
+            "daimon.render.wezterm_bundle.is_installed", lambda: installed
+        )
+        monkeypatch.setattr(
+            "daimon.render.wezterm_bundle.write_locked_config",
+            lambda **kw: Path(config_path),
+        )
+        monkeypatch.setattr(
+            "daimon.render.wezterm_bundle.wezterm_bin",
+            lambda: Path(bin_path),
+        )
+        monkeypatch.setattr(
+            "daimon.render.wezterm_bundle.wezterm_config_path",
+            lambda: Path(config_path),
+        )
+
+    def test_argv_wraps_inner_command_in_wezterm_when_installed(
+        self, fake_config_dir, env_clean, tty_stdout, monkeypatch
+    ):
+        self._patch_wezterm_installed(monkeypatch, installed=True)
+        captured: List[Any] = []
+        monkeypatch.setattr(
+            subprocess, "Popen",
+            lambda args, **kw: captured.append({"args": list(args), "kwargs": kw})
+            or _FakeProc(42),
+        )
+        monkeypatch.delattr("sys.frozen", raising=False)
+        spawn.spawn_play_hud()
+        argv = captured[0]["args"]
+        # WezTerm binary is argv[0]; --config-file flag is the locked Lua;
+        # `start --` separates wezterm flags from the inner command.
+        assert argv[0] == "/fake/wezterm"
+        assert "--config-file" in argv
+        assert "start" in argv
+        # Inner command is the python -m daimon.cli play --in-place ...
+        assert "--in-place" in argv
+        assert "play" in argv
+
+    def test_terminal_spawn_inherits_stdio_no_devnull(
+        self, fake_config_dir, env_clean, tty_stdout, monkeypatch
+    ):
+        """WezTerm GUI needs the parent's console handle to bootstrap its
+        window — DEVNULL'd stdio breaks the launch on Windows."""
+        self._patch_wezterm_installed(monkeypatch, installed=True)
+        captured: Dict[str, Any] = {}
+        monkeypatch.setattr(
+            subprocess, "Popen",
+            lambda args, **kw: captured.update(kw) or _FakeProc(99),
+        )
+        monkeypatch.delattr("sys.frozen", raising=False)
+        spawn.spawn_play_hud()
+        # No stdio redirects when we're spawning WezTerm directly.
+        assert "stdin" not in captured
+        assert "stdout" not in captured
+        assert "stderr" not in captured
+
+    def test_windows_terminal_spawn_no_detached_process_flag(
+        self, fake_config_dir, env_clean, tty_stdout, monkeypatch
+    ):
+        """DETACHED_PROCESS denies the child a console handle — fatal for
+        WezTerm-GUI on Windows. Use process-group split alone."""
+        if platform.system() != "Windows":
+            pytest.skip("Windows-only flags")
+        self._patch_wezterm_installed(monkeypatch, installed=True)
+        captured: Dict[str, Any] = {}
+        monkeypatch.setattr(
+            subprocess, "Popen",
+            lambda args, **kw: captured.update(kw) or _FakeProc(1),
+        )
+        monkeypatch.delattr("sys.frozen", raising=False)
+        spawn.spawn_play_hud()
+        flags = captured.get("creationflags", 0)
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        assert not (flags & DETACHED_PROCESS), (
+            "DETACHED_PROCESS would deny WezTerm-GUI its console handle"
+        )
+        assert flags & CREATE_NEW_PROCESS_GROUP
+
+    def test_terminal_spawn_sets_inside_terminal_env(
+        self, fake_config_dir, env_clean, tty_stdout, monkeypatch
+    ):
+        """Belt-and-suspenders: even though the inner argv carries
+        --in-place, set DAIMON_INSIDE_TERMINAL=1 so any nested daimon
+        invocation also skips the auto-relaunch hook."""
+        self._patch_wezterm_installed(monkeypatch, installed=True)
+        captured: Dict[str, Any] = {}
+        monkeypatch.setattr(
+            subprocess, "Popen",
+            lambda args, **kw: captured.update(kw) or _FakeProc(1),
+        )
+        monkeypatch.delattr("sys.frozen", raising=False)
+        spawn.spawn_play_hud()
+        env = captured.get("env", {})
+        assert env.get("DAIMON_INSIDE_TERMINAL") == "1"
+
+    def test_headless_fallback_when_wezterm_missing(
+        self, fake_config_dir, env_clean, tty_stdout, monkeypatch
+    ):
+        """No bundle → fall back to python intermediate with full
+        DEVNULL'd stdio (the legacy headless path)."""
+        self._patch_wezterm_installed(monkeypatch, installed=False)
+        captured: Dict[str, Any] = {}
+        monkeypatch.setattr(
+            subprocess, "Popen",
+            lambda args, **kw: captured.update(args=list(args), **kw)
+            or _FakeProc(1),
+        )
+        monkeypatch.delattr("sys.frozen", raising=False)
+        spawn.spawn_play_hud()
+        argv = captured["args"]
+        # Inner python command directly.
+        assert argv[0] == sys.executable
+        assert argv[1:3] == ["-m", "daimon.cli"]
+        # Stdio IS DEVNULL'd in the headless path.
+        assert captured.get("stdin") is subprocess.DEVNULL
+        assert captured.get("stdout") is subprocess.DEVNULL
+        assert captured.get("stderr") is subprocess.DEVNULL
 
 
 # ---------------------------------------------------------------------------

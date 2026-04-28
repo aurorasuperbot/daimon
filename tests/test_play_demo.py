@@ -97,7 +97,7 @@ def test_demo_match_renders_without_error():
     match = build_demo_match()
     pb = MatchPlayback(match=match)
     for _ in range(len(pb.timeline)):
-        out = render_frame(pb.snapshot(), color=True)
+        out, _overlays = render_frame(pb.snapshot(), color=True)
         assert "║" in out
         assert "DAIMON" in out
         pb.advance()
@@ -109,7 +109,7 @@ def test_demo_match_monochrome_strips_all_ansi():
     pb = MatchPlayback(match=match)
     while pb.timeline[pb.cursor].is_phase:
         pb.advance()
-    out = render_frame(pb.snapshot(), color=False)
+    out, _overlays = render_frame(pb.snapshot(), color=False)
     assert "\x1b[" not in out
 
 

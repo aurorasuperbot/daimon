@@ -1,41 +1,59 @@
-"""ASCII renderer for the spectator HUD.
+"""Renderer for the spectator HUD — wide tile layout with KGP card art.
 
-Pure render: takes a ``Frame`` (or no frame, for IDLE), returns the full
-terminal screen as a single string with ANSI escapes. Owning loop diffs
-or just clears + writes — render itself does no I/O.
+Pure render: takes a ``Frame`` (or no frame, for IDLE), returns ``(screen,
+overlays)``. The owning loop diffs / KGP-paints — render itself does no I/O.
 
-Layout (80 cols × 24 rows is the design target; gracefully truncates wider):
+Layout (148 cols × ~36 rows; tile-based, mirrors ``shop_ui.render_frame``):
 
     ╔══════════════════════════════════════════════════════════════════════════════╗
-    ║                  DAIMON — Champion Lyra (Champion)                        ║
+    ║                  DAIMON — Champion Lyra (Champion)                        ...║
     ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  OPPONENT                                                                    ║
-    ║  [Voltc] HP: ████████░░ 11/14   [Bulw ] HP: █████░░░░░  6/10                ║
-    ║  [Storm] HP: ██████████  8/8    [Tide ] HP: ██████████  8/8                 ║
-    ║  [Mind ] HP: ██████████ 15/15   [Shell] HP: ██████████ 12/12                ║
+    ║  OPPONENT                                                                 ...║
+    ║  ┌────────────────────┐  ┌────────────────────┐  ... (6 tiles, art via KGP) ║
+    ║  │░░░ART░░░░░░░░░░░░░░│  │░░░ART░░░░░░░░░░░░░░│                            ║
+    ║  │  (KGP-painted PNG) │  │                    │                            ║
+    ║  │                    │  │                    │                            ║
+    ║  │                    │  │                    │                            ║
+    ║  │                    │  │                    │                            ║
+    ║  │                    │  │                    │                            ║
+    ║  └────────────────────┘  └────────────────────┘                            ║
+    ║   [Voltc]              [Bulw ]                                             ║
+    ║   HP: ██████████ 11/14  HP: █████░░░░░  6/10                               ║
+    ╠═══════════════▼═════════════════════════════════════════════════════════════╣
+    ║  → Voltcat Apex hits Blade Foxling for 7  (player/2: 13→6)                 ║
+    ║    └ trigger: Blade Foxling counters for 3  (opponent/0: 14→11)            ║
+    ╠═══════════════▲═════════════════════════════════════════════════════════════╣
+    ║  PLAYER (santiago)                                                         ║
+    ║  ┌────────────────────┐  ... (6 tiles)                                      ║
+    ...
     ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  → Voltcat Apex hits Blade Foxling for 7  (player/2: 13→6)                   ║
-    ║    └ trigger: Blade Foxling counters for 3  (opponent/0: 14→11)              ║
-    ║      Iron Boar attacks Bulwarthog for 4                                      ║
-    ║      Bulwarthog dies                                                         ║
-    ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║  PLAYER (santiago)                                                           ║
-    ║  [Glimm] HP: ██████░░░░  8/12   [Boar ] HP: ██████████ 14/14                ║
-    ║  [Fox L] HP: █████░░░░░  6/13   [Fox R] HP: ██████████  6/6                 ║
-    ║  [Anvil] HP: ██████████ 11/11   [Dash ] HP: ██████████ 13/13                ║
-    ╠══════════════════════════════════════════════════════════════════════════════╣
-    ║ R1 act 3/9 · step 7/53 · 1.0× · ▶ playing  │  [space]pause [→/←]step [q]quit ║
+    ║ R1 act 3/9 · step 7/53 · 1.0× · ▶ playing  │  [space]pause [→/←]step [q]quit║
     ╚══════════════════════════════════════════════════════════════════════════════╝
 
-Color: optional ANSI 256-color. Rendering is deterministic — same frame in,
-same string out. The app loop renders on every tick at most once.
+Card art is painted via Kitty Graphics Protocol overlays — the renderer
+returns blank cells where each tile's art region sits, plus a list of
+:class:`ImageOverlay` records carrying absolute frame coords + the PNG
+path. The owning HUD app calls :func:`paint_overlays_as_kgp` to stream
+the bitmaps; the screenshot pipeline pastes the same PNGs onto a canvas
+for design review. Both paths share the overlays — pixel parity by
+construction (same pattern as ``shop_ui``).
+
+Animation effects (color_flash, intent, glow, overlay_icon) compose into
+the per-tile ASCII captions so they stay visible even when the terminal
+can't paint KGP (e.g. ``--no-color`` regression-test mode). The card art
+itself is painted by KGP on top of the blank tile interior.
+
+Color: optional ANSI 256-color. Rendering is deterministic — same frame
+in, same string + overlays out. The app loop renders on every tick at
+most once.
 """
 
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional, Tuple
 
 from daimon.play.animator import AnimationSnapshot
+from daimon.play.art_render import RenderMode
 from daimon.play.hud.playback import (
     Frame,
     Phase,
@@ -45,14 +63,35 @@ from daimon.play.hud.playback import (
 )
 from daimon.play.primitives import CardEmission
 from daimon.play.schema import ActionKind, Match, Side
+from daimon.play.screenshot import ImageOverlay
+from daimon.play.tile import Tile, compose_row, overlays_for_row, render_tile
+from daimon.play.tui_style import pad_visible, visible_len
 
 
 # ---------------------------------------------------------------------------
 # Layout constants
 # ---------------------------------------------------------------------------
+#
+# WezTerm window (locked by daimon/render/wezterm.lua) is 150 cols × 42 rows.
+# The play HUD claims 148 cols (147 inner + 2 walls) so it sits comfortably
+# within the locked window with room for the bottom mining strip + a spare
+# row of breathing space.
+#
+# Per side: 6 cards × TILE_W=22 + 5 gaps × TILE_GAP=2 + 2× LEFT_PAD=2
+#   = 132 + 10 + 4 = 146 inner cells. The remaining 1 cell of slack pads
+# the trailing edge of each tile row.
+#
+# Tile shape: 1 (top border) + TILE_ART_H=7 (art) + 1 (bottom border)
+#   + 2 (caption rows) = 11 rows. Two side-tile rows (opp + player) plus
+# the chrome (title, dividers, log, status) totals ~36 rows.
 
-WIDTH = 80
-HP_BAR_LEN = 10
+WIDTH = 148
+TILE_W = 22                   # 1 left border + 20 inner + 1 right border
+TILE_ART_H = 7                # rows of art region inside the tile
+TILE_GAP = 2                  # blank cells between tiles in a row
+LEFT_PAD = 2                  # cells of left padding before the first tile
+
+HP_BAR_LEN = 10               # always 10 pips so a full bar reads "██████████"
 
 # ANSI helpers — kept tiny + escape-string-only so tests can assert on them.
 RESET = "\x1b[0m"
@@ -111,49 +150,85 @@ KIND_PREFIX = {
 # Frame builder
 # ---------------------------------------------------------------------------
 
-def render_frame(frame: Frame, *, color: bool = True) -> str:
-    """Build the full terminal screen for the given playback frame.
+def render_frame(
+    frame: Frame,
+    *,
+    color: bool = True,
+    width: int = WIDTH,
+) -> Tuple[str, List[ImageOverlay]]:
+    """Build the full terminal screen + KGP overlays for the playback frame.
 
-    `color=False` strips ANSI escapes — useful for tests + plain logs.
+    Returns ``(screen_string, overlays)``:
+      * ``screen_string`` is the ASCII frame with ANSI escapes (or no
+        escapes when ``color=False``). Tile art regions are painted as
+        blank cells; the captions below carry name/HP/animation state
+        so the layout reads even without KGP support.
+      * ``overlays`` is a list of :class:`ImageOverlay` records in
+        absolute frame coords. The owning HUD app calls
+        :func:`daimon.play.art_render.paint_overlays_as_kgp` on these to
+        stream PNG bytes via Kitty Graphics Protocol; the screenshot
+        pipeline pastes the same PNGs onto a PIL canvas for export.
 
-    Layout shape is constant (21 lines × 80 cols) regardless of whether the
-    current cursor sits on an action step or a chrome phase step. When the
-    cursor lands on a phase step (LINEUP / ROUND_START / OUTCOME), the
-    middle "log" band is replaced with a centered chrome banner; the rest
-    (title, lineups, status bar) stays intact.
+    Layout shape is constant (~36 lines × ``width`` cols) regardless of
+    whether the current cursor sits on an action step or a chrome phase
+    step. When the cursor lands on a phase step (LINEUP / ROUND_START /
+    OUTCOME), the middle "log" band is replaced with a centered chrome
+    banner; the rest (title, lineups, status bar) stays intact.
+
+    ``color=False`` strips ANSI escapes — useful for tests + plain logs.
     """
-    # Build divider arrows for the connection line, if any.
     top_arrows, bot_arrows = _connection_arrows(frame, color=color)
 
-    lines: list[str] = []
-    lines.append(_box_top())
-    lines.append(_title_line(frame, color=color))
-    lines.append(_divider())
-    lines.extend(_lineup_section(frame, side=Side.OPPONENT, color=color))
-    lines.append(_divider_with_arrows(top_arrows))
+    lines: List[str] = []
+    overlays: List[ImageOverlay] = []
+
+    lines.append(_box_top(width=width))
+    lines.append(_title_line(frame, color=color, width=width))
+    lines.append(_divider(width=width))
+
+    # Opponent lineup — row of 6 tiles painted via KGP overlays.
+    opp_lines, opp_overlays = _render_lineup_section(
+        frame, side=Side.OPPONENT, color=color,
+        width=width, base_row=len(lines),
+    )
+    lines.extend(opp_lines)
+    overlays.extend(opp_overlays)
+
+    lines.append(_divider_with_arrows(top_arrows, width=width))
+
     if frame.current_step is not None and frame.current_step.is_phase:
-        lines.extend(_chrome_section(frame, color=color))
+        lines.extend(_chrome_section(frame, color=color, width=width))
     else:
-        lines.extend(_log_section(frame, color=color))
-    lines.append(_divider_with_arrows(bot_arrows))
-    lines.extend(_lineup_section(frame, side=Side.PLAYER, color=color))
-    lines.append(_divider())
-    lines.append(_status_line(frame, color=color))
-    lines.append(_box_bottom())
-    return "\n".join(lines)
+        lines.extend(_log_section(frame, color=color, width=width))
+
+    lines.append(_divider_with_arrows(bot_arrows, width=width))
+
+    play_lines, play_overlays = _render_lineup_section(
+        frame, side=Side.PLAYER, color=color,
+        width=width, base_row=len(lines),
+    )
+    lines.extend(play_lines)
+    overlays.extend(play_overlays)
+
+    lines.append(_divider(width=width))
+    lines.append(_status_line(frame, color=color, width=width))
+    lines.append(_box_bottom(width=width))
+    return "\n".join(lines), overlays
 
 
-# Approximate card column positions inside the box for arrow overlay.
-# Each side renders 3 rows of 2 cells; even positions (0,2,4) sit on the left
-# cell, odd positions (1,3,5) sit on the right cell. The arrow column is
-# picked at the rough centre of each cell — exact pixel-accuracy isn't the
-# point, the goal is "actor → target across the grid" as a visible signal.
-_LEFT_CELL_COL = 8
-_RIGHT_CELL_COL = 40
-
+# ---------------------------------------------------------------------------
+# Connection arrows — overlaid on the dividers between lineups + log band.
+# Each card has its own arrow column at the centre of its tile.
+# ---------------------------------------------------------------------------
 
 def _arrow_col_for_position(position: int) -> int:
-    return _RIGHT_CELL_COL if (position % 2 == 1) else _LEFT_CELL_COL
+    """Column inside the divider's interior (0-indexed, excludes ╠) for the
+    centre of the tile at the given lineup ``position``.
+
+    Tile p sits at LEFT_PAD + p × (TILE_W + TILE_GAP). The arrow is
+    centred at + TILE_W // 2.
+    """
+    return LEFT_PAD + position * (TILE_W + TILE_GAP) + TILE_W // 2
 
 
 def _connection_arrows(
@@ -186,17 +261,19 @@ def _connection_arrows(
     return top, bot
 
 
-def _divider_with_arrows(arrows: list[tuple[int, str, str]]) -> str:
+def _divider_with_arrows(
+    arrows: list[tuple[int, str, str]], *, width: int = WIDTH,
+) -> str:
     """Render a divider with optional arrow overlays at given columns.
 
     ``arrows`` is a list of (col, glyph, ansi_escape) tuples. Columns are
     0-indexed within the divider's interior (i.e. excluding the corner
-    chars). The default divider line is ``═`` × (WIDTH-2); each overlay
+    chars). The default divider line is ``═`` × (width-2); each overlay
     replaces that column with the colored glyph.
     """
     if not arrows:
-        return _divider()
-    interior_len = WIDTH - 2
+        return _divider(width=width)
+    interior_len = width - 2
     cells = ["═"] * interior_len
     overlays: dict[int, str] = {}
     for col, glyph, ansi in arrows:
@@ -210,11 +287,16 @@ def _divider_with_arrows(arrows: list[tuple[int, str, str]]) -> str:
     return "".join(out)
 
 
+# ---------------------------------------------------------------------------
+# Idle screen + mining strip — unchanged contract, just wider box
+# ---------------------------------------------------------------------------
+
 def render_idle(
     *,
     recent: Iterable[str] = (),
     mine_ticks: Iterable[dict] = (),
     color: bool = True,
+    width: int = WIDTH,
 ) -> str:
     """Screen shown when no match is loaded. Lists last-rendered match ids
     and the most recent mining ticks (from ``mine_buffer.jsonl``).
@@ -224,36 +306,42 @@ def render_idle(
     section so the box layout stays predictable).
     """
     lines: list[str] = []
-    lines.append(_box_top())
-    lines.append(_centered("DAIMON — spectator HUD", color=color, bold=True))
-    lines.append(_divider())
-    lines.append(_centered("waiting for match…", color=color, dim=True))
+    lines.append(_box_top(width=width))
+    lines.append(_centered("DAIMON — spectator HUD", color=color,
+                           bold=True, width=width))
+    lines.append(_divider(width=width))
+    lines.append(_centered("waiting for match…", color=color,
+                           dim=True, width=width))
     lines.append(_centered("(claude can run a match via dm_match_npc, dm_match)",
-                           color=color, dim=True))
-    lines.append(_divider())
+                           color=color, dim=True, width=width))
+    lines.append(_divider(width=width))
     recent_l = list(recent)[:4]
     if recent_l:
-        lines.append(_left("  recent activity:", color=color, bold=True))
+        lines.append(_left("  recent activity:", color=color,
+                           bold=True, width=width))
         for r in recent_l:
-            lines.append(_left(f"    · {r}", color=color, dim=True))
+            lines.append(_left(f"    · {r}", color=color,
+                               dim=True, width=width))
     else:
-        lines.append(_left("  recent activity: (none yet)", color=color, dim=True))
-    lines.append(_divider())
+        lines.append(_left("  recent activity: (none yet)",
+                           color=color, dim=True, width=width))
+    lines.append(_divider(width=width))
     # Mining pane — chrome the agent's productive work even while no match
     # is loaded. Shows the last few ticks with running balance so Santiago
     # can tell at a glance "how much currency landed since I last looked."
     ticks_l = list(mine_ticks)[-6:]
     if ticks_l:
-        lines.append(_left("  ⛏ MINING (live):", color=color, bold=True))
+        lines.append(_left("  ⛏ MINING (live):", color=color,
+                           bold=True, width=width))
         for t in ticks_l:
             lines.append(_left("    " + _format_mine_tick(t, color=color),
-                               color=False))
+                               color=False, width=width))
     else:
         lines.append(_left("  ⛏ MINING (live): waiting for first tool call…",
-                           color=color, dim=True))
-    lines.append(_divider())
-    lines.append(_status_line_idle(color=color))
-    lines.append(_box_bottom())
+                           color=color, dim=True, width=width))
+    lines.append(_divider(width=width))
+    lines.append(_status_line_idle(color=color, width=width))
+    lines.append(_box_bottom(width=width))
     return "\n".join(lines)
 
 
@@ -261,10 +349,11 @@ def render_mining_strip(
     tick: Optional[dict] = None,
     *,
     color: bool = True,
+    width: int = WIDTH,
 ) -> str:
     """Compact 1-line mining ticker for the bottom of the match frame.
 
-    Returns a single line (no trailing newline) shaped to the same WIDTH
+    Returns a single line (no trailing newline) shaped to the same width
     as the box so it slots cleanly under the match frame. ``tick=None``
     renders an empty placeholder of the same width — keeps the terminal
     layout stable between mining states.
@@ -274,7 +363,7 @@ def render_mining_strip(
     else:
         body = " " + _format_mine_tick(tick, color=color)
     visible = _strip_ansi(body)
-    pad = max(0, WIDTH - len(visible))
+    pad = max(0, width - len(visible))
     if color:
         return DIM + body + RESET + " " * pad
     return body + " " * pad
@@ -328,71 +417,74 @@ def _format_mine_tick(tick: dict, *, color: bool) -> str:
 # Box-drawing primitives
 # ---------------------------------------------------------------------------
 
-def _box_top() -> str:
-    return "╔" + "═" * (WIDTH - 2) + "╗"
+def _box_top(*, width: int = WIDTH) -> str:
+    return "╔" + "═" * (width - 2) + "╗"
 
 
-def _box_bottom() -> str:
-    return "╚" + "═" * (WIDTH - 2) + "╝"
+def _box_bottom(*, width: int = WIDTH) -> str:
+    return "╚" + "═" * (width - 2) + "╝"
 
 
-def _divider() -> str:
-    return "╠" + "═" * (WIDTH - 2) + "╣"
+def _divider(*, width: int = WIDTH) -> str:
+    return "╠" + "═" * (width - 2) + "╣"
 
 
-def _blank() -> str:
-    return "║" + " " * (WIDTH - 2) + "║"
+def _blank(*, width: int = WIDTH) -> str:
+    return "║" + " " * (width - 2) + "║"
 
 
-def _frame_line(content: str) -> str:
+def _frame_line(content: str, *, width: int = WIDTH) -> str:
     """Pad/truncate ``content`` (visible-width) to fit between the box walls."""
-    visible = _strip_ansi(content)
-    pad = (WIDTH - 2) - len(visible)
+    visible_n = visible_len(content)
+    pad = (width - 2) - visible_n
     if pad < 0:
         # Truncate visible portion; ANSI inside will be passed through, which
         # is fine — terminals don't care about partial color codes if we
         # never strip an open without its close. We accept that cost and
         # truncate the raw string by visible width.
-        content = _truncate_visible(content, WIDTH - 2)
+        content = _truncate_visible(content, width - 2)
         pad = 0
     return "║" + content + " " * pad + "║"
 
 
-def _centered(text: str, *, color: bool, bold: bool = False, dim: bool = False) -> str:
+def _centered(text: str, *, color: bool, bold: bool = False,
+              dim: bool = False, width: int = WIDTH) -> str:
     visible = text
-    pad_each = max(0, ((WIDTH - 2) - len(visible)) // 2)
+    pad_each = max(0, ((width - 2) - len(visible)) // 2)
     body = " " * pad_each + text
     if color:
         if bold:
             body = BOLD + body + RESET
         elif dim:
             body = DIM + body + RESET
-    return _frame_line(body)
+    return _frame_line(body, width=width)
 
 
-def _left(text: str, *, color: bool, bold: bool = False, dim: bool = False) -> str:
+def _left(text: str, *, color: bool, bold: bool = False,
+          dim: bool = False, width: int = WIDTH) -> str:
     if color:
         if bold:
             text = BOLD + text + RESET
         elif dim:
             text = DIM + text + RESET
-    return _frame_line(text)
+    return _frame_line(text, width=width)
 
 
 # ---------------------------------------------------------------------------
 # Title + status
 # ---------------------------------------------------------------------------
 
-def _title_line(frame: Frame, *, color: bool) -> str:
+def _title_line(frame: Frame, *, color: bool, width: int = WIDTH) -> str:
     """Top banner — usually opponent name; swaps to phase label on chrome."""
     cur = frame.current_step
     if cur is not None and cur.is_phase:
         if cur.phase == Phase.LINEUP:
-            return _centered("DAIMON — match starting", color=color, bold=True)
+            return _centered("DAIMON — match starting",
+                             color=color, bold=True, width=width)
         if cur.phase == Phase.ROUND_START:
             return _centered(
                 f"DAIMON — round {cur.round_number} begins",
-                color=color, bold=True,
+                color=color, bold=True, width=width,
             )
         if cur.phase == Phase.OUTCOME:
             outcome = frame.match.outcome
@@ -402,16 +494,16 @@ def _title_line(frame: Frame, *, color: bool) -> str:
                 title = "DAIMON — draw"
             else:
                 title = f"DAIMON — {outcome.winner.value.upper()} wins"
-            return _centered(title, color=color, bold=True)
+            return _centered(title, color=color, bold=True, width=width)
     match = frame.match
     opp = match.participants.get("opponent")
     name = opp.name if opp else "opponent"
     rank = opp.rank if opp else "?"
     title = f"DAIMON — {name}  ({rank})"
-    return _centered(title, color=color, bold=True)
+    return _centered(title, color=color, bold=True, width=width)
 
 
-def _status_line(frame: Frame, *, color: bool) -> str:
+def _status_line(frame: Frame, *, color: bool, width: int = WIDTH) -> str:
     cur_step = frame.current_step
     if cur_step is None:
         round_no = "-"
@@ -448,19 +540,19 @@ def _status_line(frame: Frame, *, color: bool) -> str:
     # Compose with right-justified controls if there's room.
     visible_left = _strip_ansi(left)
     visible_right = _strip_ansi(right)
-    avail = (WIDTH - 2) - len(visible_left) - len(visible_right) - 1
+    avail = (width - 2) - len(visible_left) - len(visible_right) - 1
     if avail >= 1:
-        return _frame_line(left + " " * avail + " │ " + right)
-    return _frame_line(left)
+        return _frame_line(left + " " * avail + " │ " + right, width=width)
+    return _frame_line(left, width=width)
 
 
-def _status_line_idle(*, color: bool) -> str:
+def _status_line_idle(*, color: bool, width: int = WIDTH) -> str:
     left = " IDLE — no match loaded"
     right = "[q]quit  [n]demo  "
-    avail = (WIDTH - 2) - len(left) - len(right) - 1
+    avail = (width - 2) - len(left) - len(right) - 1
     if avail >= 1:
-        return _frame_line(left + " " * avail + " │ " + right)
-    return _frame_line(left)
+        return _frame_line(left + " " * avail + " │ " + right, width=width)
+    return _frame_line(left, width=width)
 
 
 def _speed_label(speed: float) -> str:
@@ -490,24 +582,59 @@ def _status_label(status: PlaybackStatus, *, color: bool) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Lineup section
+# Lineup section — tile rows with KGP-painted card art
 # ---------------------------------------------------------------------------
 
-def _lineup_section(frame: Frame, *, side: Side, color: bool) -> list[str]:
+def _render_lineup_section(
+    frame: Frame, *, side: Side, color: bool,
+    width: int, base_row: int,
+) -> Tuple[List[str], List[ImageOverlay]]:
+    """Render one side's label + tile row + KGP overlays.
+
+    Returns ``(lines, overlays)`` where overlays carry absolute frame
+    coordinates ready for :func:`paint_overlays_as_kgp`. ``base_row`` is
+    the absolute row in the full frame at which the LABEL line will sit;
+    the tile row begins at ``base_row + 1``.
+
+    The label is a single ASCII line ("OPPONENT" / "PLAYER (santiago)").
+    Each tile is 11 rows tall: 1 (top border) + TILE_ART_H (art region,
+    blank cells holding the KGP overlay) + 1 (bottom border) + 2 (caption
+    rows: name + HP bar). Animation effects (color_flash, intent, glow,
+    overlay_icon) are baked into the captions so a non-KGP fallback (e.g.
+    --no-color, screenshot text-only path) still reads the cause/effect.
+    """
     part = frame.match.participants.get(side.value)
     if part is None:
-        return [_left(f"  {side.value.upper()}  (missing)", color=color, dim=True)]
+        return ([_left(f"  {side.value.upper()}  (missing)",
+                       color=color, dim=True, width=width)], [])
 
     label = "OPPONENT" if side == Side.OPPONENT else f"PLAYER ({part.name})"
-    lines: list[str] = [_left(f"  {label}", color=color, bold=True)]
+    lines: List[str] = [_left(f"  {label}", color=color,
+                              bold=True, width=width)]
 
-    # Pair cards in rows of 2 — six cards = three rows.
     cards = sorted(part.loadout, key=lambda c: c.position)
-    for i in range(0, len(cards), 2):
-        row = cards[i:i + 2]
-        cells = [_card_cell(frame, side, c, color=color) for c in row]
-        lines.append(_left("  " + "   ".join(cells), color=color))
-    return lines
+    tiles = [_card_to_tile(frame, side, c, color=color) for c in cards]
+
+    composed = compose_row(tiles, gap=TILE_GAP, left_pad=LEFT_PAD)
+
+    # Wrap each composed row in the outer ║ walls + trailing pad.
+    inner_w = width - 2
+    for line in composed.lines:
+        line_visible = visible_len(line)
+        pad_n = max(0, inner_w - line_visible)
+        if line_visible > inner_w:
+            line = _truncate_visible(line, inner_w)
+            pad_n = 0
+        lines.append("║" + line + " " * pad_n + "║")
+
+    # Translate each tile's local overlay to absolute frame coords.
+    # The tile row's row-0 sits at base_row + 1 (the LABEL line is row 0,
+    # tiles start at row 1 within this section). base_col = 1 accounts
+    # for the left wall ║ (the composed row's columns are 0-based starting
+    # immediately to the right of that wall, with LEFT_PAD already baked
+    # in by compose_row).
+    overlays = overlays_for_row(composed, base_row=base_row + 1, base_col=1)
+    return lines, overlays
 
 
 def _emissions_for(frame: Frame, side: Side, position: int) -> list[CardEmission]:
@@ -522,38 +649,34 @@ def _emissions_for(frame: Frame, side: Side, position: int) -> list[CardEmission
     return frame.animation.for_card(side, position)
 
 
-def _card_cell(frame: Frame, side: Side, card, *, color: bool) -> str:
-    """Render one [Name] HP: ████░░░░ N/M cell, with active primitive effects.
+def _card_to_tile(frame: Frame, side: Side, card, *, color: bool) -> Tile:
+    """Build one card's :class:`Tile` (KGP art region + animation captions).
 
-    Layout slots (fixed width per cell, ~28 visible chars):
-      - Optional 1-char overlay icon prefix
-      - Optional ±1 col shake offset
-      - [Name] (5 chars, padded), color from element OR from active flash
-      - HP bar + numeric HP
-      - Optional bold/bright wrap on intent (telegraph) or persistent glow
+    Animation effects compose into the captions so the play HUD reads
+    cause/effect even on a no-KGP fallback path:
 
-    Effects compose:
-      shake → outer offset
-      intent → BOLD on the whole cell (including name)
-      color_flash → overrides name color (red/green/blue/yellow per kind)
+      shake → caption offset (deferred to V1.1 — terminal jitters poorly)
+      intent → BOLD on both captions
+      color_flash → name-color override (red on damage, green on heal, …)
       zap → element-color flash on name (cascade triggers)
-      glow → bright YELLOW border on the brackets
-      overlay_icon → 1-char prefix before the cell
+      glow → bold yellow brackets around the name
+      overlay_icon → 1-char prefix on the name caption
+
+    The KGP overlay points at the raw card art PNG resolved via
+    :func:`daimon.play.art_render.resolve_card_art` (lazy fetch on first
+    sight, pure cache hit thereafter — see :func:`prewarm_card_art`,
+    called from :func:`HudApp._load_match`). When art is missing on disk
+    the tile renders a placeholder block instead and emits no overlay.
     """
     cur_hp = frame.hp.get(side, card.position, default=card.hp)
-    bar = _hp_bar(cur_hp, card.hp_max, color=color)
-    name = (card.short_name or card.name or card.species)[:5]
-    elem_color = ELEMENT_COLOR.get(card.element.value, "") if color else ""
+    is_dead = cur_hp <= 0
 
-    # Always read emissions — color-only effects gate on `color`, but
-    # structural cues (overlay icons, shake offset) work in monochrome too,
-    # per acceptance criterion #3 in docs/animation_design.md.
+    # Read primitive emissions for this card.
     emissions = _emissions_for(frame, side, card.position)
     flash_color: Optional[str] = None
     intent_active = False
     glow_active = False
     overlay_icon: Optional[str] = None
-    shake_offset = 0
     for e in emissions:
         if color and e.kind == "color_flash" and e.color:
             flash_color = EMISSION_COLOR.get(e.color, "")
@@ -566,8 +689,9 @@ def _card_cell(frame: Frame, side: Side, card, *, color: bool) -> str:
             glow_active = True
         elif e.kind == "overlay_icon" and e.icon:
             overlay_icon = e.icon
-        elif e.kind == "shake":
-            shake_offset = int(e.extra.get("offset_cells", 0))
+
+    name = (card.short_name or card.name or card.species)[:7]
+    elem_color = ELEMENT_COLOR.get(card.element.value, "") if color else ""
 
     # Choose name color: flash > glow > element (so impact reads "now").
     if flash_color:
@@ -583,32 +707,37 @@ def _card_cell(frame: Frame, side: Side, card, *, color: bool) -> str:
         bracket_open = BOLD + YELLOW + "[" + RESET + name_color
         bracket_close = BOLD + YELLOW + "]" + RESET
 
-    name_str = (name_color + f"{bracket_open}{name:<5}{bracket_close}"
-                + (RESET if name_color else ""))
-    if cur_hp <= 0 and color:
-        # Strikethrough-ish for dead cards — overrides any flash.
-        name_str = GRAY + f"[{name:<5}]" + RESET
+    if is_dead and color:
+        name_text = GRAY + f"[{name}]" + RESET
+    else:
+        name_text = (name_color + f"{bracket_open}{name}{bracket_close}"
+                     + (RESET if name_color else ""))
 
-    hp_str = f"{cur_hp:>2}/{card.hp_max:<2}"
-    cell = f"{name_str} HP: {bar} {hp_str}"
-
-    # Overlay icon prefix (1-char) when active for this card.
+    # Caption row 1 — name (with optional 1-char overlay-icon prefix).
     if overlay_icon:
-        cell = f"{overlay_icon} {cell}"
+        cap1 = f"{overlay_icon} {name_text}"
+    else:
+        cap1 = name_text
 
-    # Shake — horizontal cell offset by ±1 char (subtle terminal "kick").
-    if shake_offset > 0:
-        cell = " " * shake_offset + cell
-    elif shake_offset < 0:
-        # Negative offset: drop a leading char from the cell. Best-effort —
-        # the cell starts with " " padding from `_left`, so this stays safe.
-        cell = cell[1:] if cell else cell
+    # Caption row 2 — HP bar (10 pips) + numeric HP.
+    bar = _hp_bar(cur_hp, card.hp_max, color=color)
+    hp_str = f"{cur_hp:>2}/{card.hp_max:<2}"
+    cap2 = f"HP: {bar} {hp_str}"
 
-    # Intent — bold the whole cell. Painted last so it wraps everything.
+    # Intent — bold both captions to telegraph upcoming impact.
     if intent_active and color:
-        cell = BOLD + cell + RESET
+        cap1 = BOLD + cap1 + RESET
+        cap2 = BOLD + cap2 + RESET
 
-    return cell
+    return render_tile(
+        card_id=card.species,
+        width=TILE_W,
+        art_h=TILE_ART_H,
+        caption_lines=(cap1, cap2),
+        dim=is_dead,
+        mode=RenderMode.OVERLAY_ONLY,
+        color=color,
+    )
 
 
 def _hp_bar(cur: int, mx: int, *, color: bool) -> str:
@@ -635,26 +764,31 @@ def _hp_bar(cur: int, mx: int, *, color: bool) -> str:
 LOG_ROWS = 5    # rows reserved for the action log
 
 
-def _log_section(frame: Frame, *, color: bool) -> list[str]:
+def _log_section(frame: Frame, *, color: bool, width: int = WIDTH) -> list[str]:
     if not frame.log_tail:
-        return [_blank() for _ in range(LOG_ROWS)]
+        return [_blank(width=width) for _ in range(LOG_ROWS)]
     # Build lines for each step in the tail; current step gets ▶ marker.
     items = list(frame.log_tail)
     # We want most-recent at the bottom, so leave items in chronological order.
-    rendered = [_log_line(s, is_current=(s.index == frame.cursor), color=color)
-                for s in items]
+    rendered = [
+        _log_line(s, is_current=(s.index == frame.cursor),
+                  color=color, width=width)
+        for s in items
+    ]
     # Pad the top with blanks if we have < LOG_ROWS items so the layout is stable.
     while len(rendered) < LOG_ROWS:
-        rendered.insert(0, _blank())
+        rendered.insert(0, _blank(width=width))
     # If we somehow have more (shouldn't, capped at LOG_TAIL_LEN), take last N.
     if len(rendered) > LOG_ROWS:
         rendered = rendered[-LOG_ROWS:]
     return rendered
 
 
-def _log_line(step: Step, *, is_current: bool, color: bool) -> str:
+def _log_line(step: Step, *, is_current: bool, color: bool,
+              width: int = WIDTH) -> str:
     if step.is_phase:
-        return _phase_log_line(step, is_current=is_current, color=color)
+        return _phase_log_line(step, is_current=is_current,
+                               color=color, width=width)
     indent = "  " + ("  " * step.depth)
     arrow = "▶" if is_current else " "
     glyph = KIND_PREFIX.get(step.action.kind, "·")
@@ -662,15 +796,16 @@ def _log_line(step: Step, *, is_current: bool, color: bool) -> str:
     side_marker = _side_marker(step.action.actor.side)
     line = f"{indent}{arrow} {glyph} {side_marker} {text}"
     if not color:
-        return _frame_line(line)
+        return _frame_line(line, width=width)
     if is_current:
         line = BOLD + line + RESET
     elif step.depth > 0:
         line = DIM + line + RESET
-    return _frame_line(line)
+    return _frame_line(line, width=width)
 
 
-def _phase_log_line(step: Step, *, is_current: bool, color: bool) -> str:
+def _phase_log_line(step: Step, *, is_current: bool, color: bool,
+                    width: int = WIDTH) -> str:
     """Compact in-log marker for chrome events (used when scrolled past)."""
     arrow = "▶" if is_current else " "
     if step.phase == Phase.LINEUP:
@@ -681,23 +816,23 @@ def _phase_log_line(step: Step, *, is_current: bool, color: bool) -> str:
         body = "═══ match concluded ═══"
     line = f"  {arrow}  {body}"
     if not color:
-        return _frame_line(line)
+        return _frame_line(line, width=width)
     if is_current:
         line = BOLD + CYAN + line + RESET
     else:
         line = CYAN + line + RESET
-    return _frame_line(line)
+    return _frame_line(line, width=width)
 
 
 # ---------------------------------------------------------------------------
 # Chrome section — replaces the log band when current step is a phase
 # ---------------------------------------------------------------------------
 
-def _chrome_section(frame: Frame, *, color: bool) -> list[str]:
+def _chrome_section(frame: Frame, *, color: bool, width: int = WIDTH) -> list[str]:
     """Centered banner shown when cursor sits on a phase step.
 
     Always produces exactly ``LOG_ROWS`` lines so the overall frame stays
-    a fixed 21-line height regardless of what the cursor is showing.
+    a fixed height regardless of what the cursor is showing.
     """
     cur = frame.current_step
     assert cur is not None and cur.is_phase
@@ -711,7 +846,9 @@ def _chrome_section(frame: Frame, *, color: bool) -> list[str]:
     while len(rows) < LOG_ROWS:
         rows.append("")
     rows = rows[:LOG_ROWS]
-    return [_centered(r, color=color, bold=(i == 0), dim=(i > 0 and not r.startswith("═")))
+    return [_centered(r, color=color, bold=(i == 0),
+                      dim=(i > 0 and not r.startswith("═")),
+                      width=width)
             for i, r in enumerate(rows)]
 
 

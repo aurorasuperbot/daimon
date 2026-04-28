@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Callable, Optional, TextIO
 
 from daimon.mining import buffer as _mine_buffer
+from daimon.play.art_render import paint_overlays_as_kgp, prewarm_card_art
 from daimon.play.hud.keyboard import Key, keyboard_reader_or_dummy
 from daimon.play.hud.playback import (
     END_COOLDOWN_MS,
@@ -380,6 +381,23 @@ class HudApp:
         )
         if not self.autoplay:
             self._playback.pause()
+        # Pre-warm card art for both loadouts so the first frame doesn't pay
+        # 12 sequential per-card tarball fetches inline. After this returns,
+        # render_frame's tile builder pulls every PNG from cache. Soft-fail
+        # by design — a card whose download errors falls back to a
+        # placeholder tile, the same path every cache miss already follows.
+        try:
+            card_ids: list[str] = []
+            for side_key in ("player", "opponent"):
+                part = match.participants.get(side_key)
+                if part is None:
+                    continue
+                for c in part.loadout:
+                    card_ids.append(c.species)
+            if card_ids:
+                prewarm_card_art(card_ids, workers=4)
+        except Exception as e:  # noqa: BLE001 — never let a prewarm hiccup kill HUD load
+            logger.warning("prewarm_card_art failed: %s", e)
         opp = match.participants.get("opponent")
         opp_name = opp.name if opp else "?"
         winner_value = match.outcome.winner.value
@@ -497,6 +515,11 @@ class HudApp:
             if ticks else None
         )
 
+        # Two-pass render: build the text screen + a list of KGP overlays
+        # (when the current view has card-art tiles). Idle screens carry no
+        # overlays; the match view returns a tuple from render_frame whose
+        # second element is the overlay list ready for paint_overlays_as_kgp.
+        overlays = []
         if self._playback is None:
             screen = render_idle(
                 recent=list(self._recent),
@@ -506,7 +529,7 @@ class HudApp:
             sig = ("idle", tuple(self._recent), last_tick_sig)
         else:
             frame = self._playback.snapshot()
-            frame_screen = render_frame(frame, color=self.color)
+            frame_screen, overlays = render_frame(frame, color=self.color)
             # Bottom-of-screen mining ticker — one extra row under the box.
             # Always painted (even with no ticks yet) so the terminal layout
             # height stays constant whether mining is active or quiet.
@@ -528,7 +551,12 @@ class HudApp:
             return
         self._last_rendered_signature = sig
         if self._is_tty():
-            self._safe_write(HOME + screen + "\n")
+            # KGP-paint the card-art bitmaps over the blank tile cells. On
+            # non-KGP terminals (none in our supported set — the launcher
+            # auto-relaunches into bundled WezTerm) the escapes degrade to
+            # noise; the text frame still reads.
+            kgp_paint = paint_overlays_as_kgp(overlays) if overlays else ""
+            self._safe_write(HOME + screen + kgp_paint + "\n")
         else:
             self._safe_write(screen + "\n")
         try:

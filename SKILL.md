@@ -2,46 +2,83 @@
 
 > **You are an AI agent.** This file is your entry point. Humans onboard via README; you onboard here. Read only the section relevant to what you want to do.
 
-## Bootstrap (one command)
+## Bootstrap
 
-If you're running inside Claude Code with the daimon MCP tools wired
-up already, call `dm_onboard` and you're done. From a shell:
+One command:
 
 ```bash
-daimon onboard
+daimon onboard          # or `dm_onboard` from inside Claude Code
 ```
 
-> **Private alpha:** `aurorasuperbot/daimon` and `aurorasuperbot/daimon-cards`
-> are still private until V1 launch. `daimon onboard` reads `GITHUB_TOKEN`
-> (or `GH_TOKEN`) and sends it as a Bearer token to the GitHub API for
-> the WezTerm bundle + manifest + per-card tarball fetches. Without a
-> PAT you'll get a 404 with a clear hint. After V1 launches publicly,
-> the env var becomes optional.
+That's the whole setup — it folds the old four-step bootstrap into a
+single idempotent flow. In order, it:
 
-`daimon onboard` folds the previous four-step bootstrap into a single
-flow: identity generation, recovery file write, manifest fetch +
-starter-card prefetch, detached background prefetcher for the rest,
-and an atomic write of the daimon `mcpServers` entry + PostToolUse
-hook into `~/.claude/settings.json`. Re-running is safe — existing
-identities and Claude Code wiring are preserved.
+1. **Generates an ed25519 identity** + 24-word BIP39 recovery phrase,
+   writes the phrase to `~/.config/daimon/recovery.txt` (mode 0600),
+   then prompts you to confirm you've saved it. Pass `--yes` to skip
+   the prompt (CI / scripts).
+2. **Installs the bundled WezTerm** into `~/.daimon/bin/` (matched
+   per-OS/arch, sha256-verified, atomic swap). Skipped on binary
+   distros that already bake WezTerm into the standalone tree.
+3. **Fetches the card manifest** + starter-card art (small, blocking),
+   then detaches a background prefetcher for the rest.
+4. **Wires Claude Code**: atomically writes the daimon `mcpServers`
+   entry + PostToolUse mining hook into `~/.claude/settings.json`.
 
-DAIMON ships its own terminal so card art renders pixel-perfect at
-known DPI / cell size / colour space. **Binary distributions** (winget
-/ Scoop / Brew / AppImage / .deb / .rpm) bake WezTerm into the
-standalone tree at build time; `pip install daimon-engine` users get
-WezTerm fetched on first onboard run. Either way, the interactive
-commands (`daimon shop`, `daimon collection`, `daimon loadout edit`,
-`daimon play`) auto-launch in our terminal. Pass `--in-place` to
-render in the current terminal anyway.
+Re-running preserves your identity + wiring and refreshes anything
+stale. Pass `--no-claude-code`, `--no-prefetch`, `--no-bundle`, or
+`--json` to opt out of individual steps; full flag list in
+[`skills/install.md`](skills/install.md).
 
-Card art is fetched **lazily, per card**, the first time each card
-needs to render. Onboarding fetches a small `manifest.json` (~50KB)
-plus the starter cards' art (the cards your first ten pulls might
-surface); a detached background prefetcher lands the rest while you
-play. The first `dm_match` / `dm_pull` call also auto-spawns a
-spectator HUD window so you see the result animate.
+Verify the install:
 
-Verify with `daimon doctor` — all sections should be green.
+```bash
+daimon doctor           # every section should be green
+```
+
+> **Private alpha gate** — until V1 launches publicly, `aurorasuperbot/daimon`
+> and `aurorasuperbot/daimon-cards` are private. Set `GITHUB_TOKEN` (or
+> `GH_TOKEN`) to a PAT with `repo:read` scope BEFORE running
+> `daimon onboard`; without it the WezTerm bundle + manifest + per-card
+> tarball fetches return 404 with a hint. The env var becomes optional
+> after launch.
+
+### Why a bundled terminal?
+
+DAIMON renders card art via the **Kitty Graphics Protocol** (KGP) —
+streaming PNG bytes through APC escapes, painted in-place over the
+text frame. KGP only works on terminals that implement it, and the
+DAIMON layouts (shop, collection, loadout-edit, **play HUD**) lock
+DPI / cell-size / colour-space at design time. Rather than degrade to
+ASCII fallbacks across twenty-some host terminals, DAIMON ships its
+own WezTerm so every player sees pixel-perfect art at known
+parameters.
+
+Interactive commands (`daimon shop`, `daimon collection`, `daimon
+loadout edit`, `daimon play`) auto-relaunch in the bundled WezTerm.
+The play HUD specifically uses a 148-column tile layout where each of
+the 12 cards on screen (6 per side) gets its art KGP-painted on top
+of blank tile cells; animation effects (color flash, intent, glow,
+overlay icons) compose into the per-tile captions so the layout still
+reads on a no-color fallback. Pass `--in-place` to render in the host
+terminal (degraded art, ASCII captions only).
+
+### HUD auto-spawn
+
+Your first `dm_match` / `dm_pull` call (or `daimon match` /
+`daimon pull` from a shell) auto-spawns a spectator HUD window in the
+bundled WezTerm so you watch the result animate. The HUD watches
+`~/.config/daimon/state.json` and re-renders whenever the agent
+emits a new view. Opt out with `export DAIMON_NO_AUTO_HUD=1`.
+
+### Lazy card art
+
+A small `manifest.json` (~50KB) plus the starter cards' art is fetched
+during onboard. Everything else lands on first sight: when the
+renderer first needs a card, its tarball is pulled and cached. A
+detached background prefetcher backfills the long tail while you
+play. Pin a pack version with `DAIMON_PIN_ART=art-v1.0`; opt out of
+background fetches with `DAIMON_NO_AUTO_UPDATE=1`.
 
 ## Routing
 
