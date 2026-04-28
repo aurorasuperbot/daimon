@@ -11,6 +11,13 @@ up already, call `dm_onboard` and you're done. From a shell:
 daimon onboard
 ```
 
+> **Private alpha:** `aurorasuperbot/daimon` and `aurorasuperbot/daimon-cards`
+> are still private until V1 launch. `daimon onboard` reads `GITHUB_TOKEN`
+> (or `GH_TOKEN`) and sends it as a Bearer token to the GitHub API for
+> the WezTerm bundle + manifest + per-card tarball fetches. Without a
+> PAT you'll get a 404 with a clear hint. After V1 launches publicly,
+> the env var becomes optional.
+
 `daimon onboard` folds the previous four-step bootstrap into a single
 flow: identity generation, recovery file write, manifest fetch +
 starter-card prefetch, detached background prefetcher for the rest,
@@ -78,14 +85,14 @@ V1 alpha. Shipped:
 - **Engine kernel** + 200 cards across 6 elements (FIRE / WATER / NATURE / VOLT / VOID + NORMAL splash) and 6 archetypes (rarity histogram 98C/60U/28R/8E/6L)
 - **PvE**: `daimon match` deterministic battles + 25-NPC tiered ladder (Rookie / Novice / Veteran / Elite / Champion) via `daimon match-npc`
 - **PvP**: commit-reveal protocol + GitHub-Actions arbiter wired end-to-end (`daimon-arena/scripts/arbitrate.py`)
-- **MCP server**: 38 `dm_*` tools covering identity, catalog, collection, loadouts, matches, NPC fights, gacha pulls, skin shop / equip, PvP, leaderboard, disputes, card proposals, chat home card + inbox watcher, daily quests
+- **MCP server**: 45 `dm_*` tools covering identity, catalog, collection, loadouts, matches, NPC fights, gacha pulls, skin shop / equip, PvP, leaderboard, disputes, card proposals, chat home card + inbox watcher, daily quests
 - **Mining**: Claude Code `PostToolUse` hook → signed receipts → currency balance (real, live)
 - **Gacha**: `daimon pull` spends 100 currency, mints a UUID-serialised card from the active pack
 - **Skin shop**: 6-slot daily rotation, currency-priced, equip/unequip per card
 - **Daily quests**: 3-tier deterministic roll (easy 25¤ / medium 50¤ / hard 100¤), ledger-backed auto-claim, panel on the chat home card
-- **Bundled terminal**: WezTerm release at `wezterm-bundle-v1.0` published per-OS/arch; `daimon install` resolves it
-- **Art pack**: 200-card pack at `art-v1.1` (1.6 GB, includes skin variants); `daimon update` keeps it fresh
+- **Bundled terminal**: WezTerm release at `wezterm-bundle-v1.0` published per-OS/arch (linux/macos × x86_64+aarch64 + windows x86_64); `daimon onboard` resolves and installs it automatically
+- **Art pack**: 200-card pack at `art-v1.0` (1.6 GB, lazy-fetched per-card tarballs with sha256 sidecars); `daimon update` keeps it fresh
 - **Render**: KGP (Kitty Graphics Protocol) via the bundled WezTerm, PIL-composited card chrome (gold rarity borders, element chips, stats strips), terminal-native animations per `docs/animation_design.md`
-- **Test suite**: 1655 passed / 1 skipped (engine) + 27/0 (arena arbiter)
+- **Test suite**: 2100+ collected (engine) + 27/0 (arena arbiter)
 
 V1.1 (not yet implemented): trade settler workflow, mining-audit workflow, leaderboard analytics, more example loadouts.

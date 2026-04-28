@@ -22,24 +22,53 @@ It folds the previous four-step bootstrap (`daimon install` →
 single interactive flow:
 
 1. Generate an ed25519 identity + 24-word BIP39 recovery mnemonic.
+   Recovery phrase is written to `~/.config/daimon/recovery.txt`
+   (mode 0600) **before** any log/print so a downstream crash can
+   never lose the mnemonic.
 2. Display the mnemonic and require you to type "I have saved my
-   recovery phrase" before continuing. The mnemonic is also written
-   to `~/.config/daimon/recovery.txt` (mode 0600) as a backstop.
-3. Fetch the card manifest + the starter cards' art (small, blocking).
+   recovery phrase" before continuing. (`--yes` skips the gate.)
+3. Resolve and install the matching `wezterm-bundle-v*` release
+   from `aurorasuperbot/daimon` GitHub Releases — picks the right
+   asset for your OS+arch (linux/macos × x86_64+aarch64 or
+   windows x86_64), sha256-verifies, atomic-extracts to
+   `~/.daimon/bin/`. Idempotent: re-runs skip the network when the
+   marker version matches.
+4. Fetch the card manifest + the starter cards' art (small, blocking).
    Spawn a detached background prefetcher for the rest of the cards.
-4. Atomically write the daimon `mcpServers` entry + PostToolUse
+5. Atomically write the daimon `mcpServers` entry + PostToolUse
    mining hook into `~/.claude/settings.json` (one read, one backup,
    one write).
 
-Verify with `daimon doctor`:
+> **Private alpha:** the engine + cards repos are private until
+> V1 launch. Set `GITHUB_TOKEN` (or `GH_TOKEN`) to a PAT with read
+> access before running `daimon onboard`, otherwise the manifest +
+> bundle fetches return 404 with a hint.
+
+Verify with `daimon doctor` — every section should be green:
 
 ```bash
 daimon doctor
 # == DAIMON doctor ==
-# [bundle]      embedded   (daimon-bundled-wezterm/)
-# [art]         art-v1.0   (12 cards cached, prefetcher pid 4242)
-# [identity]    yes        (~/.config/daimon/identity.key)
-# [claude code] wired      (~/.claude/settings.json — mcpServers.daimon, PostToolUse hook)
+#
+# [bundle]
+#   installed:  yes
+#   version:    wezterm-bundle-v1.0
+#   bin:        ~/.daimon/bin/wezterm
+#   config:     ~/.daimon/etc/wezterm.lua  (present)
+#
+# [art]
+#   installed:  art-v1.0
+#   pack dir:   ~/.daimon/art/v1_alpha
+#
+# [identity]
+#   generated:  yes
+#   key:        ~/.config/daimon/identity.key
+#   recovery:   present
+#
+# [claude code]
+#   settings:   ~/.claude/settings.json
+#   mcp entry:  wired
+#   mining hook: wired
 ```
 
 > **Note:** the PyPI distribution name is `daimon-engine` (the bare
@@ -59,6 +88,7 @@ ledger position is lost unless you have the mnemonic).
 ```bash
 daimon onboard --no-claude-code     # don't write to ~/.claude/settings.json
 daimon onboard --no-prefetch        # don't spawn the background card fetcher
+daimon onboard --no-bundle          # don't install the WezTerm bundle (art won't render)
 daimon onboard --yes                # skip the mnemonic confirmation gate (CI)
 daimon onboard --json               # emit the result envelope as JSON
 ```
