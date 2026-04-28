@@ -120,11 +120,49 @@ class HudApp:
 
     def __post_init__(self) -> None:
         self._resolved_state_path = resolve_state_path(self.state_path)
-        # Re-seed _recent from prior match/pull events in the mine buffer so
-        # restarting the HUD doesn't blank the "recent activity" pane. The
-        # buffer is the authoritative cross-session store for these events
-        # (publish.py mirrors every match/pull there).
+        # Force the sink to UTF-8 so the box-drawing chars / arrows / emoji
+        # in rendered frames don't crash on Windows where stdout defaults
+        # to cp1252. We try reconfigure() first (cheap, stays on the same
+        # underlying stream), then fall back to wrapping the raw buffer
+        # with a fresh UTF-8 TextIOWrapper. Last resort: leave the sink
+        # alone and let _safe_write fall back at write time.
+        sink = self.sink
+        if hasattr(sink, "reconfigure"):
+            try:
+                sink.reconfigure(encoding="utf-8")
+            except (OSError, ValueError):
+                buf = getattr(sink, "buffer", None)
+                if buf is not None:
+                    try:
+                        import io as _io
+                        self.sink = _io.TextIOWrapper(
+                            buf, encoding="utf-8", line_buffering=True
+                        )
+                    except (OSError, ValueError):
+                        pass
         self._reseed_recent_from_buffer()
+
+    def _safe_write(self, text: str) -> None:
+        """Write to ``self.sink`` with a UTF-8 byte fallback.
+
+        Last line of defense for Windows consoles where the TextIOWrapper
+        encoding can't be flipped via reconfigure (rare, but seen in
+        bundled-WezTerm subprocesses). A failed write would propagate as
+        a UnicodeEncodeError out of HudApp.run() and exit the HUD with
+        rc=1; the byte fallback keeps the loop alive even if a few glyphs
+        get mangled.
+        """
+        try:
+            self.sink.write(text)
+        except UnicodeEncodeError:
+            buf = getattr(self.sink, "buffer", None)
+            if buf is not None:
+                try:
+                    buf.write(text.encode("utf-8", errors="replace"))
+                    return
+                except OSError:
+                    pass
+            self.sink.write(text.encode("ascii", errors="replace").decode("ascii"))
 
     def _reseed_recent_from_buffer(self) -> None:
         """Populate ``_recent`` from the last match/pull entries in mine_buffer.
@@ -432,14 +470,14 @@ class HudApp:
     def _enter_screen(self) -> None:
         if not self._is_tty():
             return
-        self.sink.write(CURSOR_HIDE + CLEAR_SCREEN)
+        self._safe_write(CURSOR_HIDE + CLEAR_SCREEN)
         self.sink.flush()
 
     def _exit_screen(self) -> None:
         if not self._is_tty():
             return
         try:
-            self.sink.write(RESET_ATTRS + CURSOR_SHOW + "\n")
+            self._safe_write(RESET_ATTRS + CURSOR_SHOW + "\n")
             self.sink.flush()
         except Exception:
             pass
@@ -490,9 +528,9 @@ class HudApp:
             return
         self._last_rendered_signature = sig
         if self._is_tty():
-            self.sink.write(HOME + screen + "\n")
+            self._safe_write(HOME + screen + "\n")
         else:
-            self.sink.write(screen + "\n")
+            self._safe_write(screen + "\n")
         try:
             self.sink.flush()
         except Exception:
