@@ -162,12 +162,13 @@ def expected_checksum(pack_name: str = ART_PACK_NAME) -> Optional[str]:
     return digest.lower()
 
 
-def parse_art_version(tag: str) -> Optional[tuple[int, int]]:
-    """Parse ``art-vX.Y`` → ``(X, Y)``. Returns None on malformed input.
+def parse_version_tag(tag: str, prefix: str) -> Optional[tuple[int, int]]:
+    """Parse ``<prefix>X.Y`` → ``(X, Y)``. Returns None on malformed input.
 
-    Also accepts ``art-vX`` (interpreted as ``(X, 0)``) for forward-compat.
+    Also accepts ``<prefix>X`` as ``(X, 0)`` for forward-compat. Generic
+    over the prefix so it handles both art releases (``art-v``) and the
+    WezTerm bundle releases (``wezterm-bundle-v``).
     """
-    prefix = DEFAULT_ART_TAG_PREFIX  # "art-v"
     if not tag.startswith(prefix):
         return None
     rest = tag[len(prefix):]
@@ -178,6 +179,16 @@ def parse_art_version(tag: str) -> Optional[tuple[int, int]]:
         return major, minor
     except (ValueError, IndexError):
         return None
+
+
+def parse_art_version(tag: str) -> Optional[tuple[int, int]]:
+    """Parse ``art-vX.Y`` → ``(X, Y)``. Returns None on malformed input.
+
+    Thin wrapper preserved for back-compat — call sites that know they're
+    parsing art-pack tags can keep the bare name; call sites that need
+    bundle tags should call :func:`parse_version_tag` directly.
+    """
+    return parse_version_tag(tag, DEFAULT_ART_TAG_PREFIX)
 
 
 def art_repo() -> str:

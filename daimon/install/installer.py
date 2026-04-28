@@ -5,9 +5,10 @@ Implementation notes:
 * We share networking helpers with ``daimon.update.fetcher`` (auth header
   injection, octet-stream switch, sha256 streaming, progress bar). Anything
   that reads ``GITHUB_TOKEN`` / handles HTTPError lives there.
-* Releases live on ``aurorasuperbot/daimon-engine`` (same repo as the
-  Python package) under tag prefix ``wezterm-bundle-v``. Each release
-  ships per-OS/arch tarballs as assets, plus ``.sha256`` sidecars.
+* Releases live on ``aurorasuperbot/daimon`` (the engine repo —
+  ``daimon-engine`` is the PyPI distribution name, not the GitHub
+  repo) under tag prefix ``wezterm-bundle-v``. Each release ships
+  per-OS/arch tarballs as assets, plus ``.sha256`` sidecars.
 * Atomic install: stage tarball + extracted dir under ``cache/staging/``,
   then a single atomic rename into ``bin/``. Pre-existing ``bin/`` is
   shoved into ``bin.trash.<ts>/`` and removed after the swap succeeds —
@@ -53,7 +54,7 @@ from daimon.update.fetcher import (
 # Release coordinates
 # ---------------------------------------------------------------------------
 
-DEFAULT_BUNDLE_REPO = "aurorasuperbot/daimon-engine"
+DEFAULT_BUNDLE_REPO = "aurorasuperbot/daimon"
 DEFAULT_BUNDLE_TAG_PREFIX = "wezterm-bundle-v"
 
 CHUNK = 1 << 20  # 1 MiB read window for streaming downloads
@@ -157,7 +158,9 @@ def _resolve_release(version: Optional[str]) -> ReleaseInfo:
 
     try:
         if explicit and explicit not in ("latest", ""):
-            rel = gh_release_by_tag(repo, explicit, asset_name=asset)
+            rel = gh_release_by_tag(
+                repo, explicit, asset_name=asset, tag_prefix=tag_prefix
+            )
             if rel is None:
                 raise BundleInstallError(
                     f"no release {explicit!r} on {repo} (or asset "
@@ -170,7 +173,17 @@ def _resolve_release(version: Optional[str]) -> ReleaseInfo:
                 "The bundle hasn't shipped for this platform yet — "
                 "file an issue on daimon-engine or try DAIMON_PIN_BUNDLE.")
         return rel
-    except (HTTPError, URLError) as e:
+    except HTTPError as e:
+        if e.code == 404 and not (
+            os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        ):
+            raise BundleInstallError(
+                f"GitHub API 404 on {repo} while resolving WezTerm bundle "
+                "release. The repo is private — set GITHUB_TOKEN (or "
+                "GH_TOKEN) to a PAT with read access and retry."
+            ) from e
+        raise BundleInstallError(f"GitHub API error while resolving release: {e}") from e
+    except URLError as e:
         raise BundleInstallError(f"GitHub API error while resolving release: {e}") from e
 
 

@@ -30,6 +30,7 @@ from daimon.update.paths import (
     DEFAULT_ART_ASSET_NAME,
     DEFAULT_ART_TAG_PREFIX,
     parse_art_version,
+    parse_version_tag,
 )
 
 
@@ -89,11 +90,17 @@ def _gh_get(path: str) -> dict | list:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _to_release_info(rel: dict, asset_name: str) -> Optional[ReleaseInfo]:
+def _to_release_info(
+    rel: dict,
+    asset_name: str,
+    tag_prefix: str = DEFAULT_ART_TAG_PREFIX,
+) -> Optional[ReleaseInfo]:
     """Map a GH release JSON → ReleaseInfo, or None if the asset is missing.
 
     A release without our expected tarball asset is unusable (it might be
-    a doc-only release, a draft, etc.); skip it.
+    a doc-only release, a draft, etc.); skip it. ``tag_prefix`` lets the
+    bundle path (``wezterm-bundle-v``) parse its version correctly — the
+    art path keeps the default and is backwards-compatible.
     """
     tag = rel.get("tag_name", "")
     if not tag:
@@ -111,7 +118,7 @@ def _to_release_info(rel: dict, asset_name: str) -> Optional[ReleaseInfo]:
 
     return ReleaseInfo(
         tag=tag,
-        version=parse_art_version(tag),
+        version=parse_version_tag(tag, tag_prefix),
         published_at=rel.get("published_at") or "",
         asset_url=tarball.get("browser_download_url") or "",
         asset_api_url=tarball.get("url") or "",
@@ -151,7 +158,7 @@ def gh_latest_release(
         tag = rel.get("tag_name", "")
         if not tag.startswith(tag_prefix):
             continue
-        info = _to_release_info(rel, asset_name)
+        info = _to_release_info(rel, asset_name, tag_prefix=tag_prefix)
         if info and info.version is not None:
             candidates.append(info)
 
@@ -166,6 +173,7 @@ def gh_release_by_tag(
     repo: str,
     tag: str,
     asset_name: str = DEFAULT_ART_ASSET_NAME,
+    tag_prefix: str = DEFAULT_ART_TAG_PREFIX,
 ) -> Optional[ReleaseInfo]:
     """Fetch one release by its exact tag (e.g. for ``DAIMON_PIN_ART``).
 
@@ -180,7 +188,7 @@ def gh_release_by_tag(
         raise
     if not isinstance(payload, dict):
         return None
-    return _to_release_info(payload, asset_name)
+    return _to_release_info(payload, asset_name, tag_prefix=tag_prefix)
 
 
 __all__ = [

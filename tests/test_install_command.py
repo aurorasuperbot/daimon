@@ -156,7 +156,7 @@ def test_bundle_asset_name_explicit():
 
 
 def test_bundle_repo_default():
-    assert installer.bundle_repo() == "aurorasuperbot/daimon-engine"
+    assert installer.bundle_repo() == "aurorasuperbot/daimon"
 
 
 def test_bundle_repo_env_override(monkeypatch):

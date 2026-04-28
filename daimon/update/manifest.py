@@ -48,6 +48,7 @@ only ever reads.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Mapping, Optional
@@ -295,7 +296,17 @@ def _resolve_release(target_version: Optional[str], force: bool) -> api.ReleaseI
                     f"no compatible art-pack release with a "
                     f"{MANIFEST_ASSET_NAME!r} asset found on {repo}"
                 )
-    except (HTTPError, URLError) as e:
+    except HTTPError as e:
+        if e.code == 404 and not (
+            os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        ):
+            raise ArtUpdateError(
+                f"GitHub API 404 on {repo}. The art-pack repo is private — "
+                "set GITHUB_TOKEN (or GH_TOKEN) to a PAT with read access "
+                "and retry."
+            ) from e
+        raise ArtUpdateError(f"GitHub API error: {e}") from e
+    except URLError as e:
         raise ArtUpdateError(f"GitHub API error: {e}") from e
 
     if rel.version is None:

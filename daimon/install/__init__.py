@@ -12,7 +12,7 @@ What the installer does:
 
   1. Detects OS + architecture.
   2. Resolves the matching ``daimon-wezterm-{os}-{arch}.tar.gz`` from
-     the latest ``wezterm-bundle-v*`` release on ``aurorasuperbot/daimon-engine``.
+     the latest ``wezterm-bundle-v*`` release on ``aurorasuperbot/daimon``.
   3. Downloads the tarball + ``.sha256`` sidecar (streaming, with a
      progress bar).
   4. Verifies the digest before extraction.
