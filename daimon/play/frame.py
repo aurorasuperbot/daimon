@@ -1,7 +1,7 @@
 """BattleFrame — the computed renderable state at a specific point in time.
 
 Given a Match + timeline position (round_idx, action_idx, t_ms within the beat),
-produce a frame dict that any renderer (PIL, Textual, HTML) can paint.
+produce a frame dict that any renderer (PIL, daimon.ui, HTML) can paint.
 
 This is the seam between the *engine* (which produces Match JSON) and the
 *renderers* (which paint frames). All three render targets share this.

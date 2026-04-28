@@ -1,7 +1,7 @@
 """Animator — runs the primitive registry against an action at time t.
 
 The Animator is the seam between Match data and BattleFrame. It knows NOTHING
-about rendering (PIL, Textual, HTML); it only knows how to apply a list of
+about rendering (PIL, daimon.ui, HTML); it only knows how to apply a list of
 primitives to an action and collect their emissions.
 
 This is the extensibility contract promised in the locked spec (2026-04-22):

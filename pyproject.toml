@@ -25,15 +25,14 @@ dependencies = [
     "pydantic>=2.5",
     "cryptography>=42",          # ed25519 + signing
     "click>=8.1",                # CLI
-    "rich>=13.7",                # terminal output
-    "textual>=0.50",             # TUI
+    "rich>=13.7",                # markup → ANSI for the daimon.ui renderer
     "Pillow>=10.0",              # render harness
     "mnemonic>=0.20",            # BIP39
     "watchdog>=3.0",             # play.terminal state-file watcher
+    "mcp>=1.0",                  # FastMCP server (also imported by `daimon home` for dm_home)
 ]
 
 [project.optional-dependencies]
-mcp = ["mcp>=1.0"]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",

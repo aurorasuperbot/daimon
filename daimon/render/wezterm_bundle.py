@@ -332,6 +332,171 @@ def launch(command: List[str], *,
 
 
 # ---------------------------------------------------------------------------
+# Detached launcher — used by `daimon onboard` to auto-open the game session
+# at the end of setup. Two windows: one for the home menu, one for the
+# player's Claude Code agent (so the freshly-wired mining hook + MCP server
+# load on first tool call). Detached so onboard can return immediately and
+# the windows survive the parent process exit.
+#
+# We use TWO WINDOWS rather than tabs because the locked wezterm.lua disables
+# the tab bar (single-pane game UI by design — see daimon/render/wezterm.lua).
+# ---------------------------------------------------------------------------
+
+
+def _detach_creationflags() -> int:
+    """Windows: detach the spawned process so it survives parent exit AND
+    so subprocess.Popen doesn't need a console handle. No-op elsewhere."""
+    if sys.platform == "win32":
+        return (
+            subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
+            | subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+    return 0
+
+
+def daimon_invocation() -> List[str]:
+    """Return the argv prefix that re-invokes the daimon CLI in a child shell.
+
+    WezTerm spawns its child commands in a fresh shell that does NOT inherit
+    venv activation, so a bare ``["daimon", "menu"]`` argv fails with
+    "command not found" inside the spawned window. We resolve to an absolute
+    path here so spawn_game_session works regardless of how daimon was
+    installed (venv source-install, system pip, frozen Nuitka/PyInstaller
+    binary).
+
+    Resolution order:
+      1. **Frozen binary** (PyInstaller/Nuitka) → ``[sys.executable]``;
+         the binary IS daimon, just append the subcommand.
+      2. **Adjacent daimon[.exe]** next to ``sys.executable`` (typical venv
+         layout: ``Scripts/python.exe`` ↔ ``Scripts/daimon.exe``) → use it
+         directly so the process tree shows ``daimon``, not ``python``.
+      3. **Fallback** → ``[sys.executable, "-m", "daimon.cli"]``; works
+         anywhere daimon is importable, even when no entry-point script
+         is on disk.
+    """
+    if getattr(sys, "frozen", False) or hasattr(sys, "_MEIPASS"):
+        return [sys.executable]
+    py_dir = Path(sys.executable).parent
+    candidates = ["daimon.exe", "daimon"] if sys.platform == "win32" \
+        else ["daimon"]
+    for name in candidates:
+        cand = py_dir / name
+        if cand.is_file():
+            return [str(cand)]
+    return [sys.executable, "-m", "daimon.cli"]
+
+
+def _spawn_detached(argv: List[str], *,
+                    env: Optional[dict] = None) -> Optional[str]:
+    """Best-effort detached spawn. Returns None on success, error string on fail.
+
+    Caller is responsible for building argv (typically via build_launch_argv).
+    Errors are returned rather than raised so the caller can decide whether
+    to surface them — onboard's auto-launch is a nice-to-have, not load-bearing.
+    """
+    try:
+        subprocess.Popen(
+            argv,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            creationflags=_detach_creationflags(),
+            start_new_session=(sys.platform != "win32"),
+        )
+        return None
+    except OSError as e:
+        return f"spawn failed: {e}"
+
+
+def spawn_game_session(*,
+                       spawn_menu: bool = True,
+                       spawn_agent: bool = True,
+                       agent_bin: str = "claude",
+                       cwd: Optional[Path] = None,
+                       ) -> dict:
+    """Open a fresh DAIMON game session in two detached bundled-WezTerm windows.
+
+    Window 1 ("game terminal"): runs ``daimon menu`` — the player's home
+    dashboard. The bundled WezTerm gives KGP card art at locked DPI.
+
+    Window 2 ("agent terminal"): runs ``claude`` (Claude Code CLI). A fresh
+    process so the PostToolUse mining hook + dm_* MCP server wired by
+    onboard load on its first tool call. Skipped if ``agent_bin`` isn't on
+    PATH (returned in the result so the caller can hint the user).
+
+    Returns a dict::
+
+        {
+          "menu_spawned":  bool,
+          "agent_spawned": bool,
+          "menu_error":    Optional[str],
+          "agent_error":   Optional[str],
+          "wezterm_bin":   Optional[str],   # path actually used
+          "agent_bin":     Optional[str],   # resolved agent binary path
+        }
+
+    Detached: this function returns immediately. Both windows survive the
+    caller's exit. The locked wezterm.lua is rewritten before each spawn so
+    a daimon-engine upgrade always refreshes the on-disk config.
+    """
+    result: dict = {
+        "menu_spawned": False,
+        "agent_spawned": False,
+        "menu_error": None,
+        "agent_error": None,
+        "wezterm_bin": None,
+        "agent_bin": None,
+    }
+
+    if not is_installed():
+        msg = "bundled WezTerm not installed (run `daimon install`)"
+        if spawn_menu:
+            result["menu_error"] = msg
+        if spawn_agent:
+            result["agent_error"] = msg
+        return result
+
+    write_locked_config()
+    result["wezterm_bin"] = str(wezterm_bin())
+
+    env = dict(os.environ)
+    env[INSIDE_TERMINAL_ENV] = "1"
+
+    if spawn_menu:
+        # Resolve daimon to an absolute path — the WezTerm child shell does
+        # NOT inherit venv activation, so a bare "daimon" argv exits 1 with
+        # "command not found" and the window dies on launch.
+        menu_argv = build_launch_argv(
+            daimon_invocation() + ["menu"], cwd=cwd
+        )
+        err = _spawn_detached(menu_argv, env=env)
+        if err is None:
+            result["menu_spawned"] = True
+        else:
+            result["menu_error"] = err
+
+    if spawn_agent:
+        agent_path = shutil.which(agent_bin)
+        if not agent_path:
+            result["agent_error"] = (
+                f"`{agent_bin}` not found in PATH "
+                f"(install Claude Code, or pass --no-launch-agent)"
+            )
+        else:
+            result["agent_bin"] = agent_path
+            agent_argv = build_launch_argv([agent_path], cwd=cwd)
+            err = _spawn_detached(agent_argv, env=env)
+            if err is None:
+                result["agent_spawned"] = True
+            else:
+                result["agent_error"] = err
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Auto-relaunch — interactive TUI commands re-exec into our bundled WezTerm
 # so users always get the locked render surface, regardless of which
 # terminal they typed `daimon shop` from.

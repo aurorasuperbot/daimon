@@ -15,7 +15,7 @@ Forward-compatibility hooks (from V1 spec, retained):
   - `render_hints`    — optional view-layer knobs (reveal mode, pacing, profile)
   - `vis_overrides` on each action — override color/icon/log for weird cards
 
-Renderers (PIL, Textual, HTML) all consume Match unchanged.
+Renderers (PIL, daimon.ui, HTML) all consume Match unchanged.
 """
 
 from __future__ import annotations

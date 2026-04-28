@@ -8,7 +8,7 @@ V1 alpha scope:
   - `cli` — `daimon play-render` commands
 
 Future (V1.x):
-  - Textual TUI renderer — consumes the SAME BattleFrame + primitive registry
+  - daimon.ui TUI renderer — consumes the SAME BattleFrame + primitive registry
   - HTML replay exporter — ditto
   - File-watcher inbox dispatcher
 

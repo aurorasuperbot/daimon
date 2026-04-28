@@ -52,6 +52,10 @@ ART_PURE_COMMANDS = frozenset({
     # Onboarding fetches the manifest itself — don't let the legacy
     # ensure_art_available() preempt it.
     "onboard",
+    # Home dashboard — reads ledger + identity + dm_home, no art needed
+    # to render. Avoid blocking the player's first menu paint on a 900MB
+    # auto-fetch they didn't ask for.
+    "menu",
 })
 
 
@@ -150,9 +154,23 @@ def init(force: bool) -> None:
                    "Dockerfiles).")
 @click.option("--json", "as_json", is_flag=True,
               help="Emit the result envelope as JSON instead of human text.")
+@click.option("--no-launch", is_flag=True,
+              help="Don't auto-open the game session (menu + agent windows) "
+                   "at the end of onboard. Default behavior is to launch on "
+                   "fresh installs (when a new identity was generated this "
+                   "run); re-runs that preserve an existing identity skip "
+                   "the launch unless --launch is passed.")
+@click.option("--launch", "force_launch", is_flag=True,
+              help="Force the game session auto-launch even on a re-run. "
+                   "Useful after changing settings or the bundled WezTerm.")
+@click.option("--no-launch-agent", is_flag=True,
+              help="Launch the game terminal but skip the second window "
+                   "that spawns Claude Code. Useful when you don't have "
+                   "`claude` on PATH or want to start the agent yourself.")
 def onboard(force: bool, no_claude_code: bool, no_prefetch: bool,
             no_bundle: bool, settings_path: str | None, yes: bool,
-            as_json: bool) -> None:
+            as_json: bool, no_launch: bool, force_launch: bool,
+            no_launch_agent: bool) -> None:
     """One-shot first-run setup: identity + recovery + manifest + Claude Code.
 
     Folds the previous four-step bootstrap (``daimon install`` ->
@@ -260,11 +278,84 @@ def onboard(force: bool, no_claude_code: bool, no_prefetch: bool,
     if result.claude_code_error:
         click.echo(f"             error:    {result.claude_code_error}")
 
+    # Auto-launch the game session — opens two bundled-WezTerm windows:
+    # one with `daimon menu` (the player's home), one with `claude` (so the
+    # freshly-wired mining hook + MCP server load on first tool call).
+    # Only fires on a fresh install (new identity generated this run) by
+    # default — re-runs are silent unless --launch is passed.
+    fresh_install = result.identity_action == "generated"
+    should_launch = (
+        not no_launch
+        and (force_launch or fresh_install)
+        and not as_json
+    )
+    if should_launch:
+        from daimon.render.wezterm_bundle import spawn_game_session
+        click.echo()
+        click.echo("--- launching game session ---")
+        launch_result = spawn_game_session(
+            spawn_menu=True,
+            spawn_agent=not no_launch_agent and not no_claude_code,
+        )
+        if launch_result["menu_spawned"]:
+            click.echo("game terminal: opened (daimon menu)")
+        elif launch_result["menu_error"]:
+            click.echo(f"game terminal: skipped — {launch_result['menu_error']}")
+        if not no_launch_agent and not no_claude_code:
+            if launch_result["agent_spawned"]:
+                click.echo(
+                    f"agent terminal: opened (claude → "
+                    f"{launch_result['agent_bin']})"
+                )
+            elif launch_result["agent_error"]:
+                click.echo(
+                    f"agent terminal: skipped — {launch_result['agent_error']}"
+                )
+        click.echo()
+        click.echo(
+            "Switch to the new windows to start playing. This terminal "
+            "can now be closed."
+        )
+    elif not as_json and not no_launch and not fresh_install:
+        click.echo()
+        click.echo(
+            "hint: re-run skipped auto-launch (identity preserved). "
+            "Pass --launch to open a fresh game session anyway, or run "
+            "`daimon menu` to open the home screen here."
+        )
+
     # Non-zero exit if anything critical failed so scripts notice.
     if result.manifest_action == "failed" or \
             result.claude_code_action == "failed" or \
             result.bundle_action == "failed":
         sys.exit(1)
+
+
+@main.command()
+@click.option("--in-place", is_flag=True,
+              help="Render in the current terminal instead of auto-relaunching "
+                   "in the bundled WezTerm. Useful for debugging or when "
+                   "running the menu in a terminal multiplexer.")
+def menu(in_place: bool) -> None:
+    """Player home screen — live dashboard + one-key actions.
+
+    Built on the unified ``daimon.ui`` renderer: identity strip, hero CTA,
+    five focusable action cards (Pull / Match / Loadouts / Collection / Shop),
+    plus currency / daily quests / recent activity panels. Auto-refreshes
+    every few seconds so the balance ticks live as the mining hook in
+    another tab keeps adding receipts.
+
+    Navigation: arrow keys + Enter, mouse click on any card, or letter
+    hotkeys (P / M / L / C / S, plus D for doctor and Q to quit).
+    Activating a card suspends the menu, runs the matching ``daimon``
+    subcommand in-place, then redraws when the subcommand exits.
+
+    Auto-launched at the end of ``daimon onboard`` so first-time players
+    land here, but you can run it any time to come back to the dashboard.
+    """
+    _maybe_relaunch_in_terminal(in_place=in_place, sub_argv=["menu"])
+    from daimon.play.menu_ui import run_menu
+    run_menu()
 
 
 @main.command()

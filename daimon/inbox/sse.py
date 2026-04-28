@@ -13,7 +13,7 @@ we parse it inline with ``urllib.request`` + a line iterator.
 ## Why stdlib
 
 DAIMON's runtime deps are deliberately small (``pydantic``, ``click``,
-``rich``, ``textual``, ``Pillow``, ``mnemonic``, ``cryptography``,
+``rich``, ``Pillow``, ``mnemonic``, ``cryptography``,
 ``watchdog``). Adding ``httpx`` for one feature would push install
 size up for users who never run the watcher loop. ``urllib.request``
 is in stdlib and gets the job done.

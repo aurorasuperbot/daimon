@@ -7,13 +7,13 @@ NOT text boxes — they're full composed card images (same pipeline as the Plasm
 Lance proof) pasted onto the canvas, so every surface in the UI shows real
 cards with rarity tints, art, and frame decorations.
 
-This renderer is the marketing/screenshot path. The real Textual TUI will look
+This renderer is the marketing/screenshot path. The real daimon.ui TUI will look
 the same (same box-drawing chars, same color mapping, same primitives) but runs
 live in the player's terminal.
 
 Keep this renderer simple: no animation timeline, no interactivity — it paints
 ONE still frame. Animation is producing multiple frames at different t_ms and
-compositing into a GIF/video later (or just as the Textual widget redraws).
+compositing into a GIF/video later (or just as the daimon.ui widget redraws).
 
 Layout (80 cols × 27 rows, each cell CELL_W × CELL_H):
   row 0                top border + inline title (`┌──── DAIMON ... ────┐`)

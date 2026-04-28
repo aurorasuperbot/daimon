@@ -31,7 +31,7 @@ V1-alpha placeholder art:
   asked for. When real art lands per-card, callers stop passing it.
 
 Engineered to be replaceable:
-  Textual TUI and the HTML exporter will NOT reuse this PIL pipeline — they
+  daimon.ui TUI and the HTML exporter will NOT reuse this PIL pipeline — they
   have their own rendering backends. But the CardTileInfo dataclass and the
   rarity palette lookup (daimon.render.compose.palette_for) ARE shared. Treat
   this module as the PIL-specific renderer; the data model is portable.

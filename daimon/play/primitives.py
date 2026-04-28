@@ -2,7 +2,7 @@
 
 Architecture invariant (per locked spec, 2026-04-22):
 
-Renderers (PIL, Textual, HTML) all read the same BattleFrame. The *primitives*
+Renderers (PIL, daimon.ui, HTML) all read the same BattleFrame. The *primitives*
 tell the renderer what to paint on each card at time t — color flash, overlay
 icon, connection line, HP tick, plus the V1 expansion (intent telegraph, zap
 element pulse, shake, pulse, glow, hit-pause, sound cues).
