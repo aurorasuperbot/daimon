@@ -83,9 +83,46 @@ def _prefetch_lock_path() -> Path:
 
 
 def _pid_alive(pid: int) -> bool:
-    """Cheap liveness check. Mirrors ``daimon.play.spawn._pid_alive``."""
+    """Cheap liveness check. Mirrors ``daimon.play.spawn._pid_alive``.
+
+    Windows: ``os.kill(pid, 0)`` is NOT a portable "ping" — Python
+    forwards sig=0 to a kernel call that returns WinError 87 (invalid
+    parameter) even for live PIDs we own. Use the Win32 API directly:
+    ``OpenProcess(SYNCHRONIZE)`` succeeds iff the PID exists, and
+    ``GetExitCodeProcess`` distinguishes still-running from exited.
+    """
     if pid <= 0:
         return False
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        # GetExitCodeProcess needs at least PROCESS_QUERY_LIMITED_INFORMATION
+        # (Vista+); SYNCHRONIZE alone yields ERROR_ACCESS_DENIED.
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259  # ntstatus.STATUS_PENDING — process hasn't exited yet
+        kernel32 = ctypes.windll.kernel32
+        kernel32.OpenProcess.argtypes = [
+            wintypes.DWORD, wintypes.BOOL, wintypes.DWORD,
+        ]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = [
+            wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD),
+        ]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+        h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not h:
+            return False
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(h, ctypes.byref(code)):
+                return False
+            return code.value == STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(h)
+
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -93,7 +130,7 @@ def _pid_alive(pid: int) -> bool:
     except PermissionError:
         # Process exists but isn't ours — treat as alive (don't steal the lock).
         return True
-    except OSError:
+    except (OSError, SystemError):
         return False
     return True
 
