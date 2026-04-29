@@ -306,7 +306,20 @@ async def post_pull() -> Dict[str, Any]:
 
 @router.get("/art/{card_id}")
 def get_art(card_id: str) -> FileResponse:
+    """Serve a card's PNG. JIT-fetches via the lazy art pipeline if needed.
+
+    First request for a card_id triggers an in-process download from the
+    art-pack release (~50–500 KB). The 4-phase pull reveal animation is
+    >2s long, so the fetch lands well before the user sees the front of
+    the card. Subsequent requests are local-disk reads.
+
+    Returns 404 only when the manifest doesn't list this card OR the fetch
+    failed (network down, asset missing). Renderers fall through to a
+    placeholder block on 404.
+    """
     from daimon.cards import art_path_for
+    from daimon.update.lazy import ensure_art_for
+    ensure_art_for(card_id)  # noop if already cached; soft-fails on net err
     path = art_path_for(card_id)
     if path is None:
         raise HTTPException(status_code=404, detail=f"no art for card_id {card_id!r}")
