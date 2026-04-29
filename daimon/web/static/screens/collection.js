@@ -6,6 +6,7 @@
 // <dm-card>'s @scope CSS.
 
 import { backButton, el, fetchJSON } from "/screens/_dom.js";
+import { liveStore } from "/store.js";
 
 const PAGE_SIZE = 8;
 
@@ -108,16 +109,40 @@ function rerender(root) {
   ));
 }
 
+async function loadCollection() {
+  const payload = await fetchJSON("/api/collection");
+  state.rows = buildRows(payload);
+  // Preserve the selection across refetches if it's still owned;
+  // otherwise fall back to the first row so the detail pane isn't blank.
+  if (state.selected) {
+    const stillOwned = state.rows.find(r => r.card_id === state.selected.card_id);
+    state.selected = stillOwned || state.rows[0] || null;
+  } else if (state.rows.length > 0) {
+    state.selected = state.rows[0];
+  }
+}
+
 export async function render(root) {
   state = { rows: [], page: 0, selected: null };
   root.innerHTML = `<div class="loading">loading collection…</div>`;
   try {
-    const payload = await fetchJSON("/api/collection");
-    state.rows = buildRows(payload);
-    if (state.rows.length > 0) state.selected = state.rows[0];
+    await loadCollection();
   } catch (err) {
     root.innerHTML = `<div class="error">collection unreachable: ${err}</div>`;
     return;
   }
   rerender(root);
+
+  // Live: any pull or skin equip elsewhere refetches and repaints.
+  // Pulls add a new card_id (or bump the count of an existing one);
+  // skin equips swap the art served by /art/{id}, so the card store
+  // doesn't need to refetch payloads — but we still rerender to force
+  // <dm-card> elements to re-request the art URL. Cheap.
+  const unsubscribe = liveStore.subscribe((_s, frame) => {
+    if (!frame) return;
+    if (frame.kind === "pull" || frame.kind === "skin") {
+      loadCollection().then(() => rerender(root)).catch(() => {});
+    }
+  });
+  return unsubscribe;
 }

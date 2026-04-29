@@ -107,9 +107,15 @@ class SkinEquipBody(BaseModel):
 
 
 @router.post("/api/skin/equip")
-def post_skin_equip(body: SkinEquipBody) -> Dict[str, Any]:
+async def post_skin_equip(body: SkinEquipBody) -> Dict[str, Any]:
     from daimon.mcp.server import dm_skin_equip
-    return _call_tool(dm_skin_equip, card_id=body.card_id, skin_slug=body.skin_slug)
+    out = _call_tool(dm_skin_equip, card_id=body.card_id, skin_slug=body.skin_slug)
+    if "error" not in out:
+        await broadcaster.push({
+            "kind": "skin", "action": "equip",
+            "card_id": body.card_id, "skin_slug": body.skin_slug,
+        })
+    return out
 
 
 class SkinUnequipBody(BaseModel):
@@ -117,9 +123,15 @@ class SkinUnequipBody(BaseModel):
 
 
 @router.post("/api/skin/unequip")
-def post_skin_unequip(body: SkinUnequipBody) -> Dict[str, Any]:
+async def post_skin_unequip(body: SkinUnequipBody) -> Dict[str, Any]:
     from daimon.mcp.server import dm_skin_unequip
-    return _call_tool(dm_skin_unequip, card_id=body.card_id)
+    out = _call_tool(dm_skin_unequip, card_id=body.card_id)
+    if "error" not in out:
+        await broadcaster.push({
+            "kind": "skin", "action": "unequip",
+            "card_id": body.card_id,
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +242,7 @@ class LoadoutSaveBody(BaseModel):
 
 
 @router.post("/api/loadout/{name}")
-def post_loadout(name: str, body: LoadoutSaveBody) -> Dict[str, Any]:
+async def post_loadout(name: str, body: LoadoutSaveBody) -> Dict[str, Any]:
     from daimon.mcp.server import dm_loadout_save
     if body.card_ids is not None:
         loadout_payload = {"loadout_id": name, "loadout": body.card_ids}
@@ -241,11 +253,20 @@ def post_loadout(name: str, body: LoadoutSaveBody) -> Dict[str, Any]:
             status_code=400,
             detail="must provide either `card_ids` or `cards`",
         )
-    return _call_tool(dm_loadout_save, name=name, loadout=loadout_payload)
+    out = _call_tool(dm_loadout_save, name=name, loadout=loadout_payload)
+    if "error" not in out:
+        # Broadcast so any open `loadouts` screen (or anyone watching
+        # liveStore.seq.loadout) refetches and shows the new state.
+        await broadcaster.push({
+            "kind": "loadout",
+            "action": "save",
+            "name": out.get("name") or name,
+        })
+    return out
 
 
 @router.delete("/api/loadout/{name}")
-def delete_loadout(name: str) -> Dict[str, Any]:
+async def delete_loadout(name: str) -> Dict[str, Any]:
     from daimon.identity.keys import CONFIG_DIR
     from daimon.mcp.server import _validate_loadout_name
 
@@ -257,6 +278,11 @@ def delete_loadout(name: str) -> Dict[str, Any]:
     if not target.is_file():
         raise HTTPException(status_code=404, detail=f"unknown loadout {safe!r}")
     target.unlink()
+    await broadcaster.push({
+        "kind": "loadout",
+        "action": "delete",
+        "name": safe,
+    })
     return {"status": "ok", "deleted": safe}
 
 

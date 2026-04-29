@@ -151,19 +151,7 @@ function listenForBalance(payload) {
   });
 }
 
-export async function render(root) {
-  let payload;
-  try {
-    payload = await fetchJSON("/api/home");
-  } catch (err) {
-    root.innerHTML = `<div class="error">backend unreachable: ${err}</div>`;
-    return;
-  }
-  if (payload.error) {
-    root.innerHTML = `<div class="error">backend error: ${payload.error}</div>`;
-    return;
-  }
-
+function paint(root, payload) {
   root.innerHTML = "";
   const app = el("div", { class: "menu-app fade-in" },
     renderHeader(payload),
@@ -183,7 +171,45 @@ export async function render(root) {
     renderFooter(payload),
   );
   root.appendChild(app);
+}
 
-  const unsubscribe = listenForBalance(payload);
-  return unsubscribe;
+export async function render(root) {
+  let payload;
+  try {
+    payload = await fetchJSON("/api/home");
+  } catch (err) {
+    root.innerHTML = `<div class="error">backend unreachable: ${err}</div>`;
+    return;
+  }
+  if (payload.error) {
+    root.innerHTML = `<div class="error">backend error: ${payload.error}</div>`;
+    return;
+  }
+  paint(root, payload);
+
+  // Balance pill stays patched in-place by liveStore (cheap). Larger
+  // panels (quests progress, recent activity, hero card) need a full
+  // /api/home refetch — pull/match/purchase events change all three.
+  // We coalesce reloads with a 200ms debounce so a flurry of frames
+  // doesn't trigger a flurry of fetches.
+  let reloadTimer = null;
+  const unsubscribe = liveStore.subscribe((_s, frame) => {
+    // Always patch the balance pill (handled inside listenForBalance).
+    if (!frame) return;
+    if (["pull", "purchase", "match", "loadout"].includes(frame.kind)) {
+      if (reloadTimer) clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(async () => {
+        try {
+          const fresh = await fetchJSON("/api/home");
+          if (!fresh.error) paint(root, fresh);
+        } catch {}
+      }, 200);
+    }
+  });
+  const unBalance = listenForBalance(payload);
+  return () => {
+    if (reloadTimer) clearTimeout(reloadTimer);
+    unsubscribe();
+    unBalance();
+  };
 }

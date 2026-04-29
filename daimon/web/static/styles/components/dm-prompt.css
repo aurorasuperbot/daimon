@@ -1,0 +1,145 @@
+/* dm-prompt — text-input modal used wherever the app needs a name or
+ * short value. Replaces window.prompt() with a styled, in-game
+ * dialog. Built ad-hoc by `promptText()` in screens/_dom.js, appended
+ * to <body>, removed on resolve.
+ *
+ * Visual contract mirrors the dm-card detail modal: same dim+blur
+ * backdrop, same rise animation, same "click backdrop / press Escape
+ * to cancel" behaviour. The stage is a small card-shaped panel with
+ * an autofocused input + CONFIRM/CANCEL row.
+ */
+
+.dm-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(20px, 4vh, 60px);
+  background: rgba(5, 6, 14, 0.78);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  cursor: zoom-out;
+  animation: dm-prompt-fade var(--motion-base) var(--ease-soft);
+}
+
+.dm-prompt-stage {
+  width: min(420px, 92vw);
+  background: var(--bg-panel);
+  border: 1px solid color-mix(in srgb, var(--accent-deep) 60%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.6),
+    0 0 60px color-mix(in srgb, var(--accent-deep) 18%, transparent),
+    inset 0 0 0 1px rgba(255, 220, 120, 0.10);
+  padding: clamp(1.1rem, 3vh, 1.6rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  cursor: default;
+  animation: dm-prompt-rise var(--motion-base) var(--ease-snap);
+}
+
+.dm-prompt-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-size: clamp(0.95rem, 2.6vh, 1.2rem);
+  color: var(--accent-deep);
+  text-align: center;
+}
+
+.dm-prompt-label {
+  font-size: 0.85rem;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.dm-prompt-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 220, 120, 0.25);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  padding: 0.7rem 0.9rem;
+  outline: none;
+  transition: border-color 120ms var(--ease-soft),
+              box-shadow 120ms var(--ease-soft);
+}
+.dm-prompt-input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+.dm-prompt-input:focus {
+  border-color: var(--accent-deep);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-deep) 25%, transparent);
+}
+
+.dm-prompt-error {
+  font-size: 0.82rem;
+  color: #ff9a7a;
+  font-style: italic;
+  margin-top: -0.3rem;
+}
+.dm-prompt-error[hidden] { display: none; }
+
+.dm-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.dm-prompt-btn {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 120ms var(--ease-soft),
+              border-color 120ms var(--ease-soft),
+              transform 80ms var(--ease-snap);
+}
+.dm-prompt-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.dm-prompt-btn:active {
+  transform: translateY(1px);
+}
+.dm-prompt-btn.primary {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent-deep) 80%, white) 0%,
+    var(--accent-deep) 100%);
+  border-color: transparent;
+  color: #1a1206;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.20);
+}
+.dm-prompt-btn.primary:hover {
+  filter: brightness(1.08);
+}
+
+@keyframes dm-prompt-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes dm-prompt-rise {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-prompt-overlay,
+  .dm-prompt-stage {
+    animation: none;
+  }
+}

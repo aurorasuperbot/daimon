@@ -86,13 +86,16 @@ export const cardStore = {
 
 const _live = {
   balance: null,
-  // Future fields land here as the daemon learns more push kinds.
+  // Sequence number bumped every time we receive a frame of a given
+  // kind. Subscribers pin to a kind+seq tuple to detect "the agent
+  // did X behind my back; reload."
+  seq: { pull: 0, purchase: 0, loadout: 0, match: 0, skin: 0 },
 };
-const _liveSubs = new Set();    // (state) => void
+const _liveSubs = new Set();    // (state, frame) => void
 
-function _emitLive() {
+function _emitLive(frame) {
   for (const cb of _liveSubs) {
-    try { cb(_live); } catch (e) { console.error("liveStore sub", e); }
+    try { cb(_live, frame); } catch (e) { console.error("liveStore sub", e); }
   }
 }
 
@@ -102,7 +105,8 @@ export const liveStore = {
 
   /** Subscribe; returns unsubscribe. The callback fires once immediately
    *  with the current state so subscribers don't have to read .get()
-   *  separately right after subscribing. */
+   *  separately right after subscribing. The second argument (the
+   *  triggering frame) is omitted for the initial replay call. */
   subscribe(cb) {
     _liveSubs.add(cb);
     try { cb(_live); } catch (e) { console.error("liveStore initial", e); }
@@ -110,14 +114,27 @@ export const liveStore = {
   },
 
   /** Internal — called from the WS bootstrap. Not part of the public API
-   *  but exported to keep the wiring in one file for readability. */
-  _ingest(payload) {
+   *  but exported to keep the wiring in one file for readability.
+   *
+   *  Every frame may carry a `kind` ("pull" | "purchase" | "loadout" |
+   *  "match" | "skin") and a `balance`. The store advances the per-kind
+   *  sequence number so subscribers can react to specific agent actions
+   *  ("a pull happened — refetch the collection"), and updates `balance`
+   *  whenever a frame carries one. Subscribers see one fanout per frame
+   *  with the FRAME passed as the second argument so they can route
+   *  on `frame.kind` directly. */
+  _ingest(frame) {
     let changed = false;
-    if (typeof payload?.balance === "number" && payload.balance !== _live.balance) {
-      _live.balance = payload.balance;
+    if (typeof frame?.balance === "number" && frame.balance !== _live.balance) {
+      _live.balance = frame.balance;
       changed = true;
     }
-    if (changed) _emitLive();
+    const kind = frame?.kind;
+    if (kind && _live.seq[kind] !== undefined) {
+      _live.seq[kind] += 1;
+      changed = true;
+    }
+    if (changed) _emitLive(frame);
   },
 };
 

@@ -3,7 +3,8 @@
 // <dm-card>. Layout chrome stays in this screen; card visuals are
 // the primitive's responsibility.
 
-import { backButton, el, fetchJSON, postJSON } from "/screens/_dom.js";
+import { backButton, el, fetchJSON, postJSON, promptText } from "/screens/_dom.js";
+import { liveStore } from "/store.js";
 
 const LOADOUT_SIZE = 6;
 const CATALOG_PAGE_SIZE = 12;
@@ -78,8 +79,24 @@ async function deleteLoadout(name, root) {
 // editor view
 // ---------------------------------------------------------------------------
 
-function beginNewLoadout(root) {
-  const name = (window.prompt("Name this loadout:") || "").trim();
+async function beginNewLoadout(root) {
+  // Existing loadout names — the validate callback rejects collisions
+  // before the modal closes, so the user gets immediate feedback rather
+  // than a server-side 409 after they thought they were done.
+  const existing = new Set((state.loadouts || []).map(lo => lo.name));
+  const name = await promptText({
+    title: "NEW LOADOUT",
+    label: "Name this loadout:",
+    placeholder: "e.g. inferno_swarm",
+    confirmLabel: "CREATE",
+    validate: (v) => {
+      if (!v) return "name required";
+      if (!/^[A-Za-z0-9_\- ]+$/.test(v))
+        return "letters, digits, spaces, _ or - only";
+      if (existing.has(v)) return `loadout '${v}' already exists`;
+      return null;
+    },
+  });
   if (!name) return;
   state.editingName = name;
   state.slots = [];
@@ -256,4 +273,15 @@ export async function render(root) {
     return;
   }
   rerender(root);
+
+  // Refetch on agent-driven loadout writes. Stay in the editor if
+  // the user is mid-edit — only repaint the list view, since blowing
+  // away a half-typed editor would be hostile.
+  const unsubscribe = liveStore.subscribe((_s, frame) => {
+    if (frame?.kind !== "loadout") return;
+    loadList().then(() => {
+      if (state.view === "list") rerender(root);
+    }).catch(() => {});
+  });
+  return unsubscribe;
 }

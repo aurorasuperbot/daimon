@@ -121,16 +121,23 @@ export async function render(root) {
   rerender(root);
 
   // Live balance from purchases — patches the header pill in place.
-  const unsubscribe = liveStore.subscribe(s => {
-    if (typeof s.balance !== "number") return;
-    state.balance = s.balance;
-    const pill = document.getElementById("shop-balance");
-    if (pill) pill.textContent = `${s.balance}¤`;
-    // Buy button state depends on balance — repaint the detail pane.
-    const detail = root.querySelector(".shop-detail");
-    if (detail) {
-      const fresh = detailNode(root);
-      detail.replaceWith(fresh);
+  // ALSO listen for `kind: "purchase"` frames so an agent-driven buy
+  // (or a buy from another tab) refetches the shop and flips the
+  // bought slot to "sold" without a manual refresh.
+  const unsubscribe = liveStore.subscribe((s, frame) => {
+    if (typeof s.balance === "number") {
+      state.balance = s.balance;
+      const pill = document.getElementById("shop-balance");
+      if (pill) pill.textContent = `${s.balance}¤`;
+      const detail = root.querySelector(".shop-detail");
+      if (detail) {
+        const fresh = detailNode(root);
+        detail.replaceWith(fresh);
+      }
+    }
+    if (frame?.kind === "purchase") {
+      // Refetch — the slot rotation is unchanged but slot[i].sold flips.
+      load().then(() => rerender(root)).catch(() => {});
     }
   });
 
