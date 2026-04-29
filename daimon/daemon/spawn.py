@@ -24,34 +24,22 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
-from pathlib import Path
 from typing import Optional
 
+from daimon._winspawn import windowless_creationflags, windowless_python
 from daimon.bootstrap import daimon_home
 from daimon.daemon.lock import LockInfo, read_lock
-
-
-def _python_exe() -> str:
-    """Return the interpreter to spawn the daemon with.
-
-    On Windows, swap ``python.exe`` for ``pythonw.exe`` (sibling binary
-    in every CPython install) so the child has no console subsystem
-    attached. Falls back to ``sys.executable`` if pythonw isn't there.
-    """
-    if sys.platform != "win32":
-        return sys.executable
-    candidate = Path(sys.executable).with_name("pythonw.exe")
-    return str(candidate) if candidate.is_file() else sys.executable
 
 
 def _build_command() -> list[str]:
     """Return the argv the spawned child will exec.
 
-    Uses the GUI-subsystem Python on Windows (see :func:`_python_exe`)
-    so no console flashes during ``daimon menu``. Re-enters the CLI via
-    ``-m daimon.cli`` with the hidden ``_daemon_internal`` subcommand.
+    Uses the GUI-subsystem Python on Windows (see
+    :func:`daimon._winspawn.windowless_python`) so no console flashes
+    during ``daimon menu``. Re-enters the CLI via ``-m daimon.cli``
+    with the hidden ``_daemon_internal`` subcommand.
     """
-    return [_python_exe(), "-m", "daimon.cli", "_daemon_internal"]
+    return [windowless_python(), "-m", "daimon.cli", "_daemon_internal"]
 
 
 def _open_log() -> "subprocess._FILE":
@@ -84,12 +72,7 @@ def spawn_detached() -> subprocess.Popen:
         "close_fds": True,
     }
     if sys.platform == "win32":
-        # CREATE_NO_WINDOW=0x08000000, CREATE_NEW_PROCESS_GROUP=0x00000200.
-        # CREATE_NO_WINDOW is the right flag for our case: the child IS
-        # a long-running background process. DETACHED_PROCESS would also
-        # work but is documented as mutually exclusive with most child
-        # console-handle inheritance, which we don't want to depend on.
-        kwargs["creationflags"] = 0x08000000 | 0x00000200
+        kwargs["creationflags"] = windowless_creationflags()
     else:
         kwargs["start_new_session"] = True
     return subprocess.Popen(cmd, **kwargs)

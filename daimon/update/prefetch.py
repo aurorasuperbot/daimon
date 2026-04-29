@@ -53,6 +53,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Sequence
 
+from daimon._winspawn import windowless_creationflags, windowless_python
 from daimon.update.fetcher import ArtUpdateError
 from daimon.update.lazy import (
     cleanup_card_staging,
@@ -505,13 +506,14 @@ def spawn_prefetch_subprocess(
 
     try:
         proc = subprocess.Popen(
-            [sys.executable, "-m", "daimon.update.prefetch",
+            [windowless_python(), "-m", "daimon.update.prefetch",
              "--workers", str(workers)],
             stdin=devnull,
             stdout=log_fd,
             stderr=log_fd,
             close_fds=True,
             start_new_session=True,
+            creationflags=windowless_creationflags(),
             env=env,
         )
         return proc.pid

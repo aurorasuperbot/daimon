@@ -27,6 +27,8 @@ import shutil
 import subprocess
 from typing import Any, Dict, List, Optional
 
+from daimon._winspawn import windowless_creationflags
+
 # Default timeout per gh call. Raised slightly for `gh issue create` which
 # can be slow on first auth handshake but kept short enough that an MCP
 # tool never blocks the agent's chat indefinitely.
@@ -74,6 +76,7 @@ def _run(argv: List[str],
             text=True,
             timeout=timeout,
             check=False,
+            creationflags=windowless_creationflags(),
         )
     except subprocess.TimeoutExpired:
         return {

@@ -47,6 +47,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from daimon._winspawn import windowless_creationflags, windowless_python
 from daimon.update.paths import (
     ART_PACK_NAME,
     art_pack_dir,
@@ -195,12 +196,13 @@ def spawn_background_check() -> Optional[int]:
 
     try:
         proc = subprocess.Popen(
-            [sys.executable, "-m", "daimon.update", "--check"],
+            [windowless_python(), "-m", "daimon.update", "--check"],
             stdin=devnull,
             stdout=log_fd,
             stderr=log_fd,
             close_fds=True,
             start_new_session=True,
+            creationflags=windowless_creationflags(),
             env=os.environ.copy(),
         )
         return proc.pid
