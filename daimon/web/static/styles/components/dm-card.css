@@ -32,6 +32,16 @@
     container-type: inline-size;
   }
 
+  /* Clip wrapper — holds the rotating frame. Lives between :scope and
+   * .dm-card-frame so silhouette-break clip-paths (legendary) can be
+   * applied here without breaking the frame's 3D backface-visibility. */
+  .dm-card-clip {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
+    transform-style: preserve-3d;
+  }
+
   /* Frame: rotates between 0deg (back) and 180deg (front) on `face`. */
   .dm-card-frame {
     position: absolute;
@@ -378,21 +388,41 @@
     font-size: clamp(0.85rem, 6cqi, 1.4rem);
   }
 
-  /* ----- Rarity escalation (Marvel-Snap-style) ---------------------- */
-  /*
-   * Five tiers, each adding visible flash on top of the previous:
-   *   common     — animated breathing glow (always visible)
-   *   uncommon   — green pulse + slow holo sweep
-   *   rare       — blue pulse + faster holo sweep + light beam
-   *   epic       — purple aggressive pulse + rainbow holo + corner flares
-   *   legendary  — rotating gilded border + heavy halo + foil + flares
+  /* ===== Rarity tiers — distinct mechanism families =================
    *
-   * Pure CSS — no JS branching anywhere. --rarity-* tokens from tokens.css
-   * supply per-tier base colors; this layer drives all the animation.
+   * Each tier introduces a NEW mechanism category, not a brighter
+   * version of the previous one. The intent is that a Rare card and a
+   * Legendary card don't read as "same thing, brighter" — they read as
+   * structurally different objects.
+   *
+   *   common     baseline. Static frame, breathing halo. No element flair.
+   *   uncommon   + element-themed holo pattern (FIRE flames, WATER waves,
+   *                NATURE leaves, VOID stars, VOLT bolts, NORMAL daimon
+   *                glyph). The pattern carries semantic content (Pokémon
+   *                TCG trick) — a FIRE Uncommon and a WATER Uncommon are
+   *                immediately distinguishable from across the screen.
+   *   rare       + parallax tilt (3-layer depth driven by --parallax-x/-y
+   *                from JS) + tiled daimon-glyph foil over the holo.
+   *                The card "leans" toward the cursor (Snap 3D tier).
+   *   epic       + animated foil sweep across the art + element-themed
+   *                particle ring around the card. Things start moving.
+   *   legendary  + silhouette break (clip-path notches the top corners
+   *                into a winged crown — only tier that changes the card
+   *                outline) + light beams + Kirby-Krackle corner pops +
+   *                rotating gilded conic frame.
+   *
+   * Layer index (--z-* aliases for clarity):
+   *   art           z=0   the artwork
+   *   holo          z=1   element pattern (uncommon+) over art, under text
+   *   foil-sweep    z=1   moving rainbow band (epic+)
+   *   vignette      z=1   existing top dimming gradient
+   *   krackle       z=2   around-card energy circles (legendary)
+   *   beams         z=2   diagonal sweeps (legendary)
+   *   text          z=2   headline + info panel
    */
 
-  /* Common — clean baseline, always on, breathing glow.
-   * Even the lowest tier should feel "alive", not dead. */
+  /* ----- Common — pure baseline, no element flair ----------------- */
+
   :scope[data-rarity="common"] .dm-card-frame {
     border-width: 1px;
     animation: dm-card-common-breathe 5s ease-in-out infinite;
@@ -406,89 +436,110 @@
       inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
   }
 
-  /* Uncommon — visible green pulse + slow holographic sweep. */
+  /* ----- Mechanism: Element Holo (uncommon, rare, epic, legendary) ----
+   *
+   * A tiled SVG of the card's element painted over the art at tier >=
+   * uncommon. The pattern comes from --holo-pattern (set by
+   * [data-element=...] in tokens.css). `mix-blend-mode: overlay` blends
+   * the white-fill SVG with the art underneath, picking up the rarity
+   * hue for visible-but-tasteful tint.
+   *
+   * Lives on its own DOM node (`.dm-card-holo`) inside .dm-card-art so
+   * it doesn't fight with the art-error sigil on .dm-card-art::after
+   * or the legendary light-beam on ::before. */
+  .dm-card-holo {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    /* Default off — turned on by per-tier rules below. */
+    opacity: 0;
+    background-image: var(--holo-pattern);
+    background-repeat: repeat;
+    background-size: 56px 56px;
+    mix-blend-mode: overlay;
+  }
+  :scope[data-rarity="uncommon"]  .dm-card-holo,
+  :scope[data-rarity="rare"]      .dm-card-holo,
+  :scope[data-rarity="epic"]      .dm-card-holo,
+  :scope[data-rarity="legendary"] .dm-card-holo {
+    opacity: 0.55;
+  }
+  /* Rare and up: scale the holo tile down so the pattern reads denser
+   * (foil-as-glyph effect — MTG Step-and-Compleat). */
+  :scope[data-rarity="rare"]      .dm-card-holo,
+  :scope[data-rarity="epic"]      .dm-card-holo,
+  :scope[data-rarity="legendary"] .dm-card-holo {
+    background-size: 38px 38px;
+    opacity: 0.65;
+  }
+  /* Suppress the holo when the art failed to load — the sigil on
+   * .dm-card-art::after takes precedence then. */
+  :scope[data-art-error] .dm-card-holo { display: none; }
+
+  /* ----- Uncommon — element holo + soft halo ---------------------- */
+
   :scope[data-rarity="uncommon"] .dm-card-frame {
     border-width: 2px;
-    animation: dm-card-uncommon-pulse 3.5s ease-in-out infinite;
-  }
-  @keyframes dm-card-uncommon-pulse {
-    0%, 100% { box-shadow:
-      0 0 30px rgba(155, 217, 163, 0.55),
-      0 0 60px rgba(155, 217, 163, 0.18),
-      inset 0 0 0 1px rgba(155, 217, 163, 0.30); }
-    50%      { box-shadow:
-      0 0 50px rgba(155, 217, 163, 0.80),
-      0 0 90px rgba(155, 217, 163, 0.32),
-      inset 0 0 0 1px rgba(155, 217, 163, 0.55); }
-  }
-  :scope[data-rarity="uncommon"] .dm-card-front::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    background: linear-gradient(115deg,
-      transparent 38%,
-      rgba(155, 217, 163, 0.30) 50%,
-      transparent 62%);
-    background-size: 220% 100%;
-    animation: dm-card-foil 7s linear infinite;
-    mix-blend-mode: screen;
+    box-shadow:
+      0 0 30px var(--rarity-color),
+      0 0 60px color-mix(in srgb, var(--rarity-color) 30%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--rarity-color) 35%, transparent);
   }
 
-  /* Rare — bright blue pulse + faster holo + a light beam ray. */
+  /* ----- Mechanism: Parallax (rare, epic, legendary) -----------------
+   *
+   * The host writes --parallax-x / --parallax-y on pointermove (range
+   * -0.5..0.5). We translate them into rotateY/rotateX on the frame
+   * for a pseudo-3D tilt, plus a counter-translate on the art so the
+   * artwork doesn't slide off the edge. Magnitudes are intentionally
+   * subtle — Snap-style "the card leans" rather than full holo card. */
+  :scope[data-rarity="rare"],
+  :scope[data-rarity="epic"],
+  :scope[data-rarity="legendary"] {
+    --parallax-x: 0;
+    --parallax-y: 0;
+    --parallax-rot-y: calc(var(--parallax-x) * 8deg);
+    --parallax-rot-x: calc(var(--parallax-y) * -8deg);
+  }
+  :scope[data-rarity="rare"]      .dm-card-frame,
+  :scope[data-rarity="epic"]      .dm-card-frame,
+  :scope[data-rarity="legendary"] .dm-card-frame {
+    transition:
+      transform var(--motion-flip) var(--ease-snap),
+      box-shadow var(--motion-base) var(--ease-soft);
+  }
+  /* Override the back/front face transforms to compose with parallax.
+   * Front face = rotateY(180deg) base + parallax delta. */
+  :scope[data-rarity="rare"][face="front"] .dm-card-frame,
+  :scope[data-rarity="epic"][face="front"] .dm-card-frame,
+  :scope[data-rarity="legendary"][face="front"] .dm-card-frame,
+  :scope[data-rarity="rare"]:not([face])      .dm-card-frame,
+  :scope[data-rarity="epic"]:not([face])      .dm-card-frame,
+  :scope[data-rarity="legendary"]:not([face]) .dm-card-frame {
+    transform:
+      rotateY(180deg)
+      rotateY(var(--parallax-rot-y))
+      rotateX(var(--parallax-rot-x));
+  }
+
+  /* ----- Rare — parallax + denser glyph holo + bright halo --------- */
+
   :scope[data-rarity="rare"] .dm-card-frame {
     border-width: 2px;
-    animation: dm-card-rare-pulse 2.8s ease-in-out infinite;
-  }
-  @keyframes dm-card-rare-pulse {
-    0%, 100% { box-shadow:
-      0 0 42px rgba(122, 184, 255, 0.70),
-      0 0 80px rgba(122, 184, 255, 0.28),
-      inset 0 0 0 1px rgba(122, 184, 255, 0.50),
-      inset 0 0 22px rgba(122, 184, 255, 0.18); }
-    50%      { box-shadow:
-      0 0 70px rgba(122, 184, 255, 1.0),
-      0 0 130px rgba(122, 184, 255, 0.45),
-      inset 0 0 0 1px rgba(122, 184, 255, 0.80),
-      inset 0 0 38px rgba(122, 184, 255, 0.35); }
-  }
-  :scope[data-rarity="rare"] .dm-card-front::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    background: linear-gradient(115deg,
-      transparent 32%,
-      rgba(122, 184, 255, 0.20) 44%,
-      rgba(255, 255, 255, 0.30) 50%,
-      rgba(122, 184, 255, 0.20) 56%,
-      transparent 68%);
-    background-size: 230% 100%;
-    animation: dm-card-foil 5s linear infinite;
-    mix-blend-mode: screen;
+    box-shadow:
+      0 0 42px var(--rarity-color),
+      0 0 80px color-mix(in srgb, var(--rarity-color) 35%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--rarity-color) 55%, transparent),
+      inset 0 0 22px color-mix(in srgb, var(--rarity-color) 22%, transparent);
   }
 
-  /* Epic — aggressive purple pulse + rainbow holo + corner flares. */
-  :scope[data-rarity="epic"] .dm-card-frame {
-    border-width: 3px;
-    animation: dm-card-epic-pulse 2.4s ease-in-out infinite;
-  }
-  @keyframes dm-card-epic-pulse {
-    0%, 100% { box-shadow:
-      0 0 55px rgba(207, 155, 255, 0.85),
-      0 0 110px rgba(207, 155, 255, 0.40),
-      inset 0 0 0 2px rgba(207, 155, 255, 0.65),
-      inset 0 0 30px rgba(207, 155, 255, 0.30); }
-    50%      { box-shadow:
-      0 0 90px rgba(207, 155, 255, 1.0),
-      0 0 160px rgba(207, 155, 255, 0.60),
-      inset 0 0 0 2px rgba(207, 155, 255, 0.95),
-      inset 0 0 50px rgba(207, 155, 255, 0.50); }
-  }
-  /* Rainbow holographic sweep across the front. */
-  :scope[data-rarity="epic"] .dm-card-front::after {
+  /* ----- Mechanism: Animated Foil Sweep (epic, legendary) -----------
+   *
+   * A diagonal rainbow band that loops across the card front. Starts
+   * appearing at Epic — Rare gets a static glyph holo so the motion
+   * upgrade still reads as a tier change. */
+  :scope[data-rarity="epic"]      .dm-card-front::after,
+  :scope[data-rarity="legendary"] .dm-card-front::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -496,39 +547,85 @@
     pointer-events: none;
     background: linear-gradient(115deg,
       transparent 28%,
-      rgba(255, 100, 200, 0.30) 42%,
+      rgba(255, 100, 200, 0.28) 42%,
       rgba(180, 120, 255, 0.32) 50%,
-      rgba(120, 200, 255, 0.30) 58%,
+      rgba(120, 200, 255, 0.28) 58%,
       transparent 72%);
     background-size: 280% 100%;
     animation: dm-card-foil 4s linear infinite;
     mix-blend-mode: screen;
   }
-  /* Corner flares — twin radial glints that pulse out of opposite
-   * corners. The pseudo lives on .dm-card-frame so it sits inside the
-   * rounded clip. */
-  :scope[data-rarity="epic"] .dm-card-frame::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    border-radius: inherit;
-    background:
-      radial-gradient(circle at 12% 12%,
-        rgba(207, 155, 255, 0.55) 0%, transparent 18%),
-      radial-gradient(circle at 88% 88%,
-        rgba(207, 155, 255, 0.55) 0%, transparent 18%);
-    animation: dm-card-flare 2.4s ease-in-out infinite alternate;
-    mix-blend-mode: screen;
+  /* Legendary uses warm gold tones in the sweep. */
+  :scope[data-rarity="legendary"] .dm-card-front::after {
+    background: linear-gradient(115deg,
+      transparent 25%,
+      rgba(255, 255, 255, 0.32) 42%,
+      rgba(255, 220, 120, 0.48) 50%,
+      rgba(255, 255, 255, 0.32) 58%,
+      transparent 75%);
+    background-size: 260% 100%;
+    animation-duration: 3.5s;
   }
-  @keyframes dm-card-flare {
-    0%   { opacity: 0.3; }
-    100% { opacity: 0.95; }
+  @keyframes dm-card-foil {
+    0%   { background-position: -120% 0; }
+    100% { background-position: 220% 0; }
   }
 
-  /* Legendary — rotating gilded conic border + heavy halo + foil
-   * sweep + corner flares. Maximum flash. */
+  /* ----- Mechanism: Around-card Particles (epic, legendary) ----------
+   *
+   * Six element-themed specks drifting outward from the card edges
+   * on independent loops. The particle uses --rarity-color so a FIRE
+   * Epic gets red sparks, a WATER Epic gets blue droplets, etc.
+   * Implemented as box-shadow stamps on the frame::before pseudo —
+   * one element, six shadows, all animated together. */
+  :scope[data-rarity="epic"]      .dm-card-frame::before,
+  :scope[data-rarity="legendary"] .dm-card-frame::before {
+    content: "";
+    position: absolute;
+    inset: -10px;
+    z-index: 1;
+    pointer-events: none;
+    border-radius: calc(var(--radius-lg) + 10px);
+    background:
+      radial-gradient(circle at 12% 12%,
+        color-mix(in srgb, var(--rarity-color) 70%, transparent) 0%,
+        transparent 16%),
+      radial-gradient(circle at 88% 14%,
+        color-mix(in srgb, var(--rarity-color) 70%, transparent) 0%,
+        transparent 14%),
+      radial-gradient(circle at 90% 88%,
+        color-mix(in srgb, var(--rarity-color) 70%, transparent) 0%,
+        transparent 16%),
+      radial-gradient(circle at 10% 92%,
+        color-mix(in srgb, var(--rarity-color) 70%, transparent) 0%,
+        transparent 14%);
+    animation: dm-card-corner-flare 2.4s ease-in-out infinite alternate;
+    mix-blend-mode: screen;
+  }
+  @keyframes dm-card-corner-flare {
+    0%   { opacity: 0.30; transform: scale(0.96); }
+    100% { opacity: 0.85; transform: scale(1.02); }
+  }
+
+  /* ----- Epic — animated sweep + corner flares + brighter halo ----- */
+
+  :scope[data-rarity="epic"] .dm-card-frame {
+    border-width: 3px;
+    box-shadow:
+      0 0 55px var(--rarity-color),
+      0 0 110px color-mix(in srgb, var(--rarity-color) 40%, transparent),
+      inset 0 0 0 2px color-mix(in srgb, var(--rarity-color) 65%, transparent),
+      inset 0 0 30px color-mix(in srgb, var(--rarity-color) 30%, transparent);
+  }
+
+  /* ----- Legendary — silhouette-break + cinematic stack ------------- */
+  /*
+   * The only tier that changes the card outline. Top edge gains two
+   * notched cuts that read as crown points / wings. Combined with the
+   * rotating gilded frame, krackle particles, and beams, a Legendary
+   * card looks like a different category of object — not just a brighter
+   * card. */
+
   :scope[data-rarity="legendary"] .dm-card-frame {
     border-width: 4px;
     border-color: transparent;
@@ -560,52 +657,106 @@
       inset 0 0 0 2px rgba(255, 220, 120, 1.0),
       inset 0 0 70px rgba(255, 220, 120, 0.55); }
   }
-  /* Gold foil sweep. */
-  :scope[data-rarity="legendary"] .dm-card-front::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    background: linear-gradient(115deg,
-      transparent 25%,
-      rgba(255, 255, 255, 0.30) 42%,
-      rgba(255, 220, 120, 0.45) 50%,
-      rgba(255, 255, 255, 0.30) 58%,
-      transparent 75%);
-    background-size: 260% 100%;
-    animation: dm-card-foil 3.5s linear infinite;
-    mix-blend-mode: screen;
+  /* Silhouette break — winged crown notches at the top edge. The
+   * notches are subtle (~6% of card width) so the card still reads as
+   * a card, but the silhouette is unmistakably different from the
+   * lower tiers' clean rectangle.
+   *
+   * Lives on :scope (the host), NOT on .dm-card-frame, because clip-path
+   * on a 3D-transformed element with preserve-3d forces flattening and
+   * breaks backface-visibility — the back of the card would leak through
+   * during the front-face flip. The host isn't 3D-transformed, so it
+   * clips cleanly. */
+  :scope[data-rarity="legendary"] {
+    --crown-cut: 7%;
+    --crown-rise: 5%;
   }
-  /* Twin corner flares in gold. */
-  :scope[data-rarity="legendary"] .dm-card-frame::before {
+  :scope[data-rarity="legendary"] .dm-card-clip {
+    clip-path: polygon(
+      0% var(--crown-rise),
+      var(--crown-cut) var(--crown-rise),
+      calc(var(--crown-cut) + 4%) 0%,
+      calc(50% - 6%) 0%,
+      50% var(--crown-rise),
+      calc(50% + 6%) 0%,
+      calc(100% - var(--crown-cut) - 4%) 0%,
+      calc(100% - var(--crown-cut)) var(--crown-rise),
+      100% var(--crown-rise),
+      100% 100%,
+      0% 100%
+    );
+  }
+  /* Light beams — diagonal bright bands sweeping across the card every
+   * ~5s. Stacks with the foil sweep on .dm-card-front::after. */
+  :scope[data-rarity="legendary"] .dm-card-art::before {
     content: "";
     position: absolute;
     inset: 0;
-    z-index: 1;
     pointer-events: none;
-    border-radius: inherit;
+    background: linear-gradient(105deg,
+      transparent 0%, transparent 38%,
+      rgba(255, 240, 180, 0.55) 50%,
+      transparent 62%, transparent 100%);
+    background-size: 300% 100%;
+    animation: dm-card-beam 5s linear infinite;
+    mix-blend-mode: screen;
+    z-index: 1;
+  }
+  @keyframes dm-card-beam {
+    0%   { background-position: -180% 0; opacity: 0; }
+    25%  { opacity: 0.95; }
+    50%  { background-position: 60% 0; opacity: 0.85; }
+    75%  { opacity: 0; }
+    100% { background-position: 200% 0; opacity: 0; }
+  }
+  /* Krackle — Kirby-style irregular outlined energy circles popping in
+   * and out of the corners. Implemented as background radial-gradients
+   * on a layer outside the frame's clip-path, so the krackle bleeds
+   * past the silhouette break into the card's surroundings. Lives on
+   * the host (:scope) directly. */
+  :scope[data-rarity="legendary"]::after {
+    content: "";
+    position: absolute;
+    inset: -14%;
+    z-index: -1;
+    pointer-events: none;
     background:
-      radial-gradient(circle at 10% 8%,
-        rgba(255, 240, 180, 0.70) 0%, transparent 22%),
-      radial-gradient(circle at 90% 92%,
-        rgba(255, 240, 180, 0.70) 0%, transparent 22%);
-    animation: dm-card-flare 2s ease-in-out infinite alternate;
-    mix-blend-mode: screen;
+      radial-gradient(circle at 8% 14%,
+        rgba(255, 240, 180, 0.55) 0 1.2%,
+        transparent 1.4% 2.6%,
+        rgba(255, 240, 180, 0.28) 2.8% 3.4%,
+        transparent 3.6%),
+      radial-gradient(circle at 93% 18%,
+        rgba(255, 240, 180, 0.65) 0 1.6%,
+        transparent 1.8% 3%,
+        rgba(255, 240, 180, 0.35) 3.2% 4%,
+        transparent 4.2%),
+      radial-gradient(circle at 6% 84%,
+        rgba(255, 240, 180, 0.50) 0 1.4%,
+        transparent 1.6% 2.8%,
+        rgba(255, 240, 180, 0.30) 3% 3.6%,
+        transparent 3.8%),
+      radial-gradient(circle at 92% 90%,
+        rgba(255, 240, 180, 0.60) 0 1.8%,
+        transparent 2% 3.2%,
+        rgba(255, 240, 180, 0.32) 3.4% 4.2%,
+        transparent 4.4%);
+    animation: dm-card-krackle 3.2s ease-in-out infinite alternate;
+  }
+  @keyframes dm-card-krackle {
+    0%   { opacity: 0.35; transform: scale(0.96) rotate(-3deg); }
+    100% { opacity: 0.95; transform: scale(1.04) rotate(3deg); }
   }
 
-  /* Shared foil sweep — used by uncommon → legendary. */
-  @keyframes dm-card-foil {
-    0%   { background-position: -120% 0; }
-    100% { background-position: 220% 0; }
-  }
+  /* ----- Reduced motion ------------------------------------------- */
 
-  /* Honor reduced-motion: still color-code rarities, but stop animating
-   * everything. The base box-shadow remains so cards still glow. */
   @media (prefers-reduced-motion: reduce) {
     :scope .dm-card-frame,
     :scope .dm-card-front::after,
-    :scope .dm-card-frame::before {
+    :scope .dm-card-frame::before,
+    :scope .dm-card-art::before,
+    :scope .dm-card-art::after,
+    :scope::after {
       animation: none !important;
     }
   }

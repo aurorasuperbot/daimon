@@ -376,6 +376,35 @@ class GotoBody(BaseModel):
     params: Optional[List[str]] = None
 
 
+class EvalBody(BaseModel):
+    js: str
+
+
+@router.post("/api/_dev/eval")
+def post_dev_eval(body: EvalBody) -> Dict[str, Any]:
+    """Run an arbitrary JS expression in the live pywebview window.
+
+    Local-only debugging surface — bound to 127.0.0.1, no auth. Used by
+    the agent driver to inspect the rendered DOM (resolved CSS variables,
+    attribute values, computed styles) without manual devtools poking.
+    """
+    try:
+        import webview  # type: ignore[import-not-found]
+    except ImportError:
+        raise HTTPException(status_code=503, detail="pywebview unavailable")
+    windows = list(getattr(webview, "windows", []) or [])
+    if not windows:
+        raise HTTPException(status_code=503, detail="no pywebview window open")
+    try:
+        result = windows[0].evaluate_js(body.js)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"evaluate_js failed: {type(e).__name__}: {e}",
+        )
+    return {"result": result}
+
+
 @router.post("/api/_dev/goto")
 def post_dev_goto(body: GotoBody) -> Dict[str, Any]:
     """Navigate the live pywebview window to ``#<screen>[/<param>...]``.

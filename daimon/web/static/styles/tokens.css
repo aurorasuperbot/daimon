@@ -109,3 +109,38 @@
   --rarity-glow:    0 0 60px rgba(255, 220, 120, 0.55);
   --rarity-frame:   var(--rarity-color);
 }
+
+/* ----- Element-themed holo motifs ----------------------------------------
+ *
+ * Each element gets its own tile-able SVG motif, painted into the card's
+ * holo layer when the tier turns it on (uncommon and up). The fill is
+ * white at low opacity so a `mix-blend-mode: overlay` against the rarity
+ * hue produces a tinted stamp without authoring 5 colored variants.
+ *
+ * Pokémon TCG's "type-themed holo" trick — the rarity finish carries
+ * semantic content. A FIRE Rare and a WATER Rare are immediately
+ * distinguishable from across the screen, not just by aura color.
+ *
+ * Setting `data-element="FIRE"` (etc.) on any element pushes the right
+ * pattern into scope via --holo-pattern. Cards in NORMAL element fall
+ * back to a neutral 4-point star (used as the daimon glyph elsewhere).
+ */
+
+:root {
+  --holo-pattern-fire:   url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28' width='28' height='28'%3E%3Cpath d='M14 3 C 9 9, 16 11, 14 16 C 11 13, 7 18, 14 25 C 17 20, 21 18, 18 13 C 14 16, 17 9, 14 3 Z' fill='white' opacity='0.85'/%3E%3C/svg%3E");
+  --holo-pattern-water:  url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36' width='36' height='36'%3E%3Cpath d='M0 14 Q 9 4 18 14 T 36 14' fill='none' stroke='white' stroke-width='1.6' opacity='0.85'/%3E%3Cpath d='M0 26 Q 9 18 18 26 T 36 26' fill='none' stroke='white' stroke-width='1.6' opacity='0.85'/%3E%3C/svg%3E");
+  --holo-pattern-nature: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32'%3E%3Cpath d='M16 4 C 6 8 6 22 16 28 C 26 22 26 8 16 4 Z' fill='none' stroke='white' stroke-width='1.2' opacity='0.85'/%3E%3Cpath d='M16 4 L 16 28 M 16 12 L 22 9 M 16 12 L 10 9 M 16 18 L 23 15 M 16 18 L 9 15' stroke='white' stroke-width='0.8' opacity='0.7'/%3E%3C/svg%3E");
+  --holo-pattern-void:   url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36' width='36' height='36'%3E%3Cpath d='M18 4 L 19.5 16.5 L 32 18 L 19.5 19.5 L 18 32 L 16.5 19.5 L 4 18 L 16.5 16.5 Z' fill='white' opacity='0.85'/%3E%3Ccircle cx='6' cy='6' r='0.9' fill='white' opacity='0.95'/%3E%3Ccircle cx='30' cy='10' r='0.7' fill='white' opacity='0.85'/%3E%3Ccircle cx='28' cy='28' r='0.8' fill='white' opacity='0.9'/%3E%3Ccircle cx='8' cy='28' r='0.6' fill='white' opacity='0.75'/%3E%3C/svg%3E");
+  --holo-pattern-volt:   url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30' width='30' height='30'%3E%3Cpath d='M18 2 L 8 15 L 14 15 L 10 28 L 22 13 L 16 13 L 20 2 Z' fill='white' opacity='0.85'/%3E%3C/svg%3E");
+  --holo-pattern-normal: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32'%3E%3Cpath d='M16 5 L 17.5 14.5 L 27 16 L 17.5 17.5 L 16 27 L 14.5 17.5 L 5 16 L 14.5 14.5 Z' fill='white' opacity='0.85'/%3E%3C/svg%3E");
+
+  /* Default — overridden per data-element. */
+  --holo-pattern: var(--holo-pattern-normal);
+}
+
+[data-element="FIRE"]   { --holo-pattern: var(--holo-pattern-fire); }
+[data-element="WATER"]  { --holo-pattern: var(--holo-pattern-water); }
+[data-element="NATURE"] { --holo-pattern: var(--holo-pattern-nature); }
+[data-element="VOID"]   { --holo-pattern: var(--holo-pattern-void); }
+[data-element="VOLT"]   { --holo-pattern: var(--holo-pattern-volt); }
+[data-element="NORMAL"] { --holo-pattern: var(--holo-pattern-normal); }

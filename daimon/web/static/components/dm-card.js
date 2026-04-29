@@ -62,6 +62,13 @@ function buildShell(host) {
   artImg.addEventListener("load",  () => host.removeAttribute("data-art-error"));
   art.appendChild(artImg);
 
+  // Holo overlay — element-themed tiled motif painted over the art at
+  // tier >= uncommon. Empty by default; CSS fills it in based on
+  // [data-rarity] + [data-element] on the host. Lives in the art layer
+  // so it sits below the headline/info text.
+  const holo = el("div", "dm-card-holo");
+  art.appendChild(holo);
+
   const headline   = el("div", "dm-card-headline");
   const name       = el("div", "dm-card-name");
   const sub        = el("div", "dm-card-sub");
@@ -113,7 +120,16 @@ function buildShell(host) {
   frame.appendChild(back);
   frame.appendChild(front);
 
-  host.appendChild(frame);
+  // The clip wrapper holds the 3D-rotating frame. Silhouette-break
+  // (legendary's clip-path) lives on this wrapper instead of on the
+  // frame itself — clip-path on a 3D-transformed element with
+  // preserve-3d forces flattening and breaks backface-visibility.
+  // Around-card effects (krackle particles) live on :scope::after,
+  // OUTSIDE the wrapper, so they bleed past the silhouette cleanly.
+  const clip = el("div", "dm-card-clip");
+  clip.appendChild(frame);
+
+  host.appendChild(clip);
 
   return {
     frame, front, back,
@@ -192,6 +208,7 @@ class DMCard extends HTMLElement {
     syncSlots(r.moves,    0, () => el("li", "dm-card-move"));
     r.flavor.textContent = "";
     this.removeAttribute("data-rarity");
+    this.removeAttribute("data-element");
     this.removeAttribute("data-loaded");
   }
 
@@ -249,7 +266,47 @@ class DMCard extends HTMLElement {
     r.flavor.textContent = p.flavor || "";
 
     if (p.rarity) this.setAttribute("data-rarity", p.rarity);
+    if (p.element) this.setAttribute("data-element", p.element);
     this.setAttribute("data-loaded", "");
+
+    // Parallax: rare/epic/legendary lean toward the cursor on the front
+    // face. Single pointer listener per card; the CSS reads --parallax-x
+    // and --parallax-y to drive 3D rotations on each layer.
+    this._maybeAttachParallax();
+  }
+
+  /** Attach (or release) a pointer-driven parallax handler on the card.
+   *  Only tiers >= "rare" get parallax; common/uncommon stay flat. The
+   *  handler writes --parallax-x / --parallax-y (range -1..1) to the host
+   *  on pointermove, which the CSS consumes in transforms. Idle state
+   *  resets to 0 so cards don't lock at a tilted angle. */
+  _maybeAttachParallax() {
+    const PARALLAX_TIERS = new Set(["rare", "epic", "legendary"]);
+    const wanted = PARALLAX_TIERS.has(this.getAttribute("data-rarity") || "");
+    if (wanted && !this._parallaxHandlers) {
+      const onMove = (ev) => {
+        const r = this.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        const x = (ev.clientX - r.left) / r.width  - 0.5;
+        const y = (ev.clientY - r.top)  / r.height - 0.5;
+        this.style.setProperty("--parallax-x", x.toFixed(3));
+        this.style.setProperty("--parallax-y", y.toFixed(3));
+      };
+      const onLeave = () => {
+        this.style.setProperty("--parallax-x", "0");
+        this.style.setProperty("--parallax-y", "0");
+      };
+      this.addEventListener("pointermove", onMove);
+      this.addEventListener("pointerleave", onLeave);
+      this._parallaxHandlers = { onMove, onLeave };
+    } else if (!wanted && this._parallaxHandlers) {
+      const { onMove, onLeave } = this._parallaxHandlers;
+      this.removeEventListener("pointermove", onMove);
+      this.removeEventListener("pointerleave", onLeave);
+      this._parallaxHandlers = null;
+      this.style.removeProperty("--parallax-x");
+      this.style.removeProperty("--parallax-y");
+    }
   }
 
   _applyError(card_id, _err) {
