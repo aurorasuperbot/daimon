@@ -150,12 +150,13 @@ function buildShell(host) {
     statRefs[key] = val;
   }
 
-  // Variable-length lists — managed by syncSlots on update.
-  const abilities = el("div", "dm-card-abilities");
-  const triggers  = el("ul",  "dm-card-triggers");
-  const moves     = el("ul",  "dm-card-moves");
-  abilities.appendChild(triggers);
-  abilities.appendChild(moves);
+  // Unified ability list. Each row pairs ONE move (flavor name) with
+  // ONE trigger (the mechanic) by matching `when` — so "Wailing-River
+  // Spring" + "ON_BATTLE_START / APPLY_POISON" render as a single
+  // entry, not two disconnected lines. Triggers without a flavor move
+  // and moves without a mechanic still render, just with one half
+  // missing. See _buildAbilities below for the pairing logic.
+  const abilities = el("ul", "dm-card-abilities");
 
   // Rule line — only present on legendaries with a rule_change tag.
   // Holds the human-readable mutation description (e.g. "every heal
@@ -201,8 +202,102 @@ function buildShell(host) {
   return {
     frame, front, back,
     artImg, name, elementTxt, archetype,
-    statRefs, triggers, moves, rule, ruleTag, ruleText, flavor,
+    statRefs, abilities, rule, ruleTag, ruleText, flavor,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Ability rendering — translates the engine's enum-coded triggers into
+// readable English and pairs them with their flavor names.
+// ---------------------------------------------------------------------------
+
+/** Humanize a TriggerWhen tag for the small label on each ability row. */
+const _WHEN_LABEL = {
+  ON_BATTLE_START:        "battle start",
+  ON_ROUND_START:         "round start",
+  ON_ATTACK:              "on attack",
+  ON_TAKE_DAMAGE:         "when hit",
+  ON_DEATH:               "on death",
+  ON_ALLY_DEATH:          "on ally death",
+  ON_TURN_END:            "turn end",
+  ON_KILL:                "on kill",
+  ON_LOW_HP:              "low HP",
+  ON_OPENING_ATTACK:      "first attack",
+  ON_HEAL_RECEIVED:       "when healed",
+  ON_DAMAGE_TAKEN:        "when damaged",
+  ON_EXTRA_ACTION_GRANTED:"extra action",
+};
+function whenLabel(when) {
+  if (!when) return "";
+  if (_WHEN_LABEL[when]) return _WHEN_LABEL[when];
+  if (when.startsWith("RULE_CHANGE_")) return "passive (rule)";
+  // Fallback: lowercase + spaces.
+  return when.replace(/^ON_/, "on ").replace(/_/g, " ").toLowerCase();
+}
+
+/** Humanize a TargetFilter into a noun phrase. */
+const _TARGET_LABEL = {
+  SELF:              "self",
+  ALL_ALLIES:        "all allies",
+  ALL_ENEMIES:       "all enemies",
+  LOWEST_HP_ENEMY:   "lowest-HP enemy",
+  HIGHEST_HP_ENEMY:  "highest-HP enemy",
+  RANDOM_ENEMY:      "random enemy",
+  RANDOM_ALLY:       "random ally",
+};
+function targetLabel(t) {
+  return _TARGET_LABEL[t] || (t || "").toLowerCase().replace(/_/g, " ");
+}
+
+/** Translate one (op, target, value) tuple into one English sentence.
+ *  Verb-leading where natural so the row reads as an instruction. */
+function effectSentence(trig) {
+  if (!trig) return "";
+  const op = trig.op;
+  const tgt = targetLabel(trig.target);
+  const v = trig.value;
+  switch (op) {
+    case "DAMAGE":             return `deal ${v} damage to ${tgt}`;
+    case "HEAL":               return `heal ${tgt} for ${v}`;
+    case "BUFF_ATK":           return `+${v} ATK on ${tgt}`;
+    case "DEBUFF_ATK":         return `−${v} ATK on ${tgt}`;
+    case "BUFF_DEF":           return `+${v} DEF on ${tgt}`;
+    case "DEBUFF_DEF":         return `−${v} DEF on ${tgt}`;
+    case "BUFF_SPD":           return `+${v} SPD on ${tgt}`;
+    case "ADD_SHIELD":         return `shield ${tgt} for ${v}`;
+    case "APPLY_BURN":         return `burn ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
+    case "APPLY_POISON":       return `poison ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
+    case "APPLY_STUN":         return `stun ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
+    case "APPLY_SILENCE":      return `silence ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
+    case "APPLY_TAUNT":        return `taunt ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
+    case "LIFESTEAL":          return `lifesteal — heal half of damage dealt`;
+    case "APPLY_BURN_STACK":   return `+${v} burn stack on ${tgt}`;
+    case "THORNS":             return `thorns ${v} on self`;
+    case "GRANT_EXTRA_ACTION": return `grant extra action to ${tgt}`;
+    case "SACRIFICE_SELF":     return `sacrifice self`;
+  }
+  // Unknown op — fall back to the raw enum so it's still legible.
+  return `${(op || "").toLowerCase()} ${tgt} ${v}`.trim();
+}
+
+/** Pair triggers with moves by `when`. Returns one row per ability:
+ *    {name, when, trigger}
+ *  - moves with a matching trigger absorb that trigger's mechanic
+ *  - extra triggers (no flavor name) get rendered with name=null
+ *  - extra moves (no matching trigger) get a row with trigger=null
+ *    (just the flavor name + when tag, no body) */
+function buildAbilities(triggerArr, moveArr) {
+  const rows = [];
+  const pool = (triggerArr || []).slice();
+  for (const m of (moveArr || [])) {
+    const idx = pool.findIndex(t => t.when === m.when);
+    const trig = idx >= 0 ? pool.splice(idx, 1)[0] : null;
+    rows.push({ name: m.name || null, when: m.when, trigger: trig });
+  }
+  for (const t of pool) {
+    rows.push({ name: null, when: t.when, trigger: t });
+  }
+  return rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,8 +378,7 @@ class DMCard extends HTMLElement {
     r.elementTxt.textContent = "";
     r.archetype.textContent = "";
     for (const v of Object.values(r.statRefs)) v.textContent = "—";
-    syncSlots(r.triggers, 0, () => el("li", "dm-card-trigger"));
-    syncSlots(r.moves,    0, () => el("li", "dm-card-move"));
+    syncSlots(r.abilities, 0, () => el("li", "dm-card-ability"));
     r.rule.setAttribute("hidden", "");
     r.ruleTag.textContent = "";
     r.ruleText.textContent = "";
@@ -312,37 +406,45 @@ class DMCard extends HTMLElement {
     r.statRefs.hp.textContent  = String(p.hp  ?? "—");
     r.statRefs.spd.textContent = String(p.spd ?? "—");
 
-    // Triggers — passive abilities. Cards usually have 0-2.
+    // Abilities — pair each move with the trigger of the same `when`.
+    // Each row reads as: flavor name (top) + when tag (top right) +
+    // mechanic in plain English (bottom). Cards usually have 1–3.
     const triggerArr = Array.isArray(p.triggers) ? p.triggers : [];
-    syncSlots(r.triggers, triggerArr.length, () => {
-      const li  = el("li",   "dm-card-trigger");
-      const tag = el("span", "dm-card-trigger-when");
-      const op  = el("span", "dm-card-trigger-op");
-      li.appendChild(tag);
-      li.appendChild(op);
-      return li;
-    });
-    triggerArr.forEach((t, i) => {
-      const li = r.triggers.children[i];
-      li.children[0].textContent = (t.when || "").replace(/_/g, " ");
-      const opTxt = [t.op, t.target, t.value].filter(x => x !== undefined && x !== null && x !== "").join(" ");
-      li.children[1].textContent = opTxt.replace(/_/g, " ").toLowerCase();
-    });
+    const moveArr    = Array.isArray(p.moves)    ? p.moves    : [];
+    const abilityRows = buildAbilities(triggerArr, moveArr);
 
-    // Moves — active abilities.
-    const moveArr = Array.isArray(p.moves) ? p.moves : [];
-    syncSlots(r.moves, moveArr.length, () => {
-      const li = el("li", "dm-card-move");
-      const nm = el("span", "dm-card-move-name");
-      const wn = el("span", "dm-card-move-when");
-      li.appendChild(nm);
-      li.appendChild(wn);
+    syncSlots(r.abilities, abilityRows.length, () => {
+      const li     = el("li",   "dm-card-ability");
+      const head   = el("div",  "dm-card-ability-head");
+      const nm     = el("span", "dm-card-ability-name");
+      const tag    = el("span", "dm-card-ability-when");
+      const body   = el("div",  "dm-card-ability-body");
+      head.appendChild(nm);
+      head.appendChild(tag);
+      li.appendChild(head);
+      li.appendChild(body);
       return li;
     });
-    moveArr.forEach((m, i) => {
-      const li = r.moves.children[i];
-      li.children[0].textContent = m.name || "";
-      li.children[1].textContent = (m.when || "").replace(/_/g, " ").toLowerCase();
+    abilityRows.forEach((a, i) => {
+      const li     = r.abilities.children[i];
+      const [head, body] = li.children;
+      const [nameEl, tagEl] = head.children;
+      // No flavor name → fall back to the when label as the headline
+      // so the row still has a top line.
+      if (a.name) {
+        nameEl.textContent = a.name;
+        tagEl.textContent  = whenLabel(a.when);
+        tagEl.removeAttribute("hidden");
+      } else {
+        nameEl.textContent = whenLabel(a.when).toUpperCase();
+        tagEl.textContent  = "";
+        tagEl.setAttribute("hidden", "");
+      }
+      body.textContent = effectSentence(a.trigger);
+      // Hide the body line entirely when there's no mechanic to show
+      // (move without a matching trigger) so the row is just one line.
+      if (body.textContent) body.removeAttribute("hidden");
+      else                  body.setAttribute("hidden", "");
     });
 
     // Rule-change description (legendary mutations only). The opaque

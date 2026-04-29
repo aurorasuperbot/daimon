@@ -189,10 +189,9 @@
   .dm-card-archetype,
   .dm-card-stat-label,
   .dm-card-stat-value,
-  .dm-card-trigger-when,
-  .dm-card-trigger-op,
-  .dm-card-move-name,
-  .dm-card-move-when,
+  .dm-card-ability-name,
+  .dm-card-ability-when,
+  .dm-card-ability-body,
   .dm-card-rule-tag,
   .dm-card-rule-text,
   .dm-card-flavor {
@@ -285,55 +284,64 @@
     line-height: 1.1;
   }
 
-  /* Abilities (triggers + moves). */
+  /* Abilities — one row per ability, pairing a move's flavor name with
+   * its trigger's mechanic. Layout per row:
+   *   [name] ────────────────── [when tag]
+   *   [mechanic in plain English]
+   * The name acts as the headline; the tag in the top-right grounds
+   * the player ("when does this fire?"); the body explains what
+   * happens. Rows without a flavor name fall back to using the when
+   * tag as the headline. Rows without a mechanic hide the body line. */
   .dm-card-abilities {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    overflow: hidden;
-  }
-  .dm-card-triggers,
-  .dm-card-moves {
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
+    overflow: hidden;
   }
-  .dm-card-trigger,
-  .dm-card-move {
-    font-size: clamp(0.7rem, 2.6cqi, 0.9rem);
+  .dm-card-ability {
+    font-size: clamp(0.72rem, 2.6cqi, 0.9rem);
     line-height: 1.3;
-    padding: 4px 7px;
+    padding: 5px 8px;
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
     border-left: 2px solid var(--rarity-color);
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.5em;
+    flex-direction: column;
+    gap: 2px;
   }
-  .dm-card-move { border-left-color: var(--accent); }
-  .dm-card-trigger-when,
-  .dm-card-move-when {
-    font-family: var(--font-mono);
-    font-size: 0.85em;
-    color: #ffdc78;          /* event tags = bright accent */
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    flex-shrink: 0;
+  .dm-card-ability-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6em;
+  }
+  .dm-card-ability-name {
+    color: #ffffff;
     font-weight: 700;
+    overflow-wrap: anywhere;
+    flex: 1 1 auto;
+    min-width: 0;
   }
-  .dm-card-trigger-op {
+  .dm-card-ability-when {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    color: #ffdc78;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    flex-shrink: 0;
+    opacity: 0.92;
+  }
+  .dm-card-ability-when[hidden] { display: none; }
+  .dm-card-ability-body {
     color: #ffffff;
     font-style: italic;
+    opacity: 0.88;
     overflow-wrap: anywhere;
   }
-  .dm-card-move-name {
-    color: #ffffff;
-    font-weight: 700;
-    overflow-wrap: anywhere;
-  }
+  .dm-card-ability-body[hidden] { display: none; }
 
   /* Legendary rule-change row — "RULE L3 · every heal trickles +1 to
    * all allies". Visually distinct from triggers and moves: a single
