@@ -171,6 +171,11 @@ function applyError(refs, msg) {
 // ---------------------------------------------------------------------------
 
 export async function render(root) {
+  // The router primes root with `<div class="loading">` before awaiting
+  // us — every other screen replaces that, so do the same. Without
+  // this, the loading glyph stacks under the pull-screen because we
+  // append rather than reset.
+  root.innerHTML = "";
   const refs = {};
   const screen = buildScreen(refs);
   root.appendChild(screen);
