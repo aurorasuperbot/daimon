@@ -39,10 +39,25 @@
     font-weight: 700;
     letter-spacing: 0.05em;
   }
+  .menu-identity .handle.handle-empty {
+    color: var(--text-dim);
+    font-style: italic;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .menu-identity .rank-line {
+    font-size: 0.85rem;
+  }
+  .menu-identity .rank-line.rank-empty {
+    color: var(--text-dim);
+    font-style: italic;
+    font-size: 0.78rem;
+  }
   .menu-identity .pubkey {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--text-dim);
+    opacity: 0.55;
   }
 
   /* ---------- Body ---------- */
@@ -179,12 +194,71 @@
     border-bottom: 1px dashed rgba(95, 95, 95, 0.2);
     padding: 0.25rem 0;
   }
-  .panel li.complete { color: var(--success); }
-  .panel li .reward { font-weight: 700; color: var(--accent); }
+  .panel li.complete .quest-title { color: var(--success); }
+  .panel li.claimed { opacity: 0.55; }
+  .panel li .reward { font-weight: 700; color: var(--accent); flex-shrink: 0; }
+  .panel li .quest-title { flex: 1; }
+  .panel li .quest-progress {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-right: 0.5rem;
+    flex-shrink: 0;
+  }
   .panel .empty {
     color: var(--text-dim);
     font-style: italic;
     font-size: 0.85rem;
+  }
+
+  /* Activity rows: pull = rarity-colored dot + card name + rarity tag.
+   * Match = W/L badge + opponent + outcome tag. The dot reads
+   * --rarity-color from the [data-rarity] attribute set on the row. */
+  .panel li.activity-pull,
+  .panel li.activity-match {
+    gap: var(--gap-tight);
+  }
+  .activity-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--rarity-color, var(--text-dim));
+    box-shadow: 0 0 8px var(--rarity-color, transparent);
+    flex-shrink: 0;
+  }
+  .activity-badge {
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+  .activity-match.win  .activity-badge { background: rgba(155, 217, 163, 0.18); color: var(--success); }
+  .activity-match.loss .activity-badge { background: rgba(255, 138, 122, 0.18); color: #ff9a7a; }
+  .activity-match.draw .activity-badge { background: rgba(255, 220, 120, 0.18); color: var(--accent); }
+  .activity-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .activity-tag {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .activity-pull[data-rarity="rare"]      .activity-tag,
+  .activity-pull[data-rarity="epic"]      .activity-tag,
+  .activity-pull[data-rarity="legendary"] .activity-tag {
+    color: var(--rarity-color);
   }
 
   /* Hero card placeholder — used when no NPC is recommended.
@@ -211,11 +285,35 @@
   .menu-footer {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     color: var(--text-dim);
     font-size: 0.75rem;
     border-top: 1px solid var(--border-rest);
     padding-top: var(--gap-tight);
     letter-spacing: 0.1em;
+  }
+  .footer-stats {
+    display: flex;
+    gap: var(--gap-loose);
+    align-items: center;
+  }
+  .footer-stat {
+    font-family: var(--font-mono);
+    letter-spacing: 0;
+    text-transform: lowercase;
+    color: var(--text-dim);
+  }
+  .footer-stat.verified {
+    color: var(--success);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-size: 0.65rem;
+  }
+  .footer-stat.unverified {
+    color: #ff9a7a;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-size: 0.65rem;
   }
 
 }

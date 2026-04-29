@@ -9,7 +9,7 @@
 
 import { go } from "/app.js";
 import { el, fetchJSON } from "/screens/_dom.js";
-import { liveStore } from "/store.js";
+import { liveStore, cardStore } from "/store.js";
 
 const PULL_COST = 100;
 
@@ -26,15 +26,38 @@ function shortPubkey(hex) {
   return `${hex.slice(0, 6)}…${hex.slice(-4)}`;
 }
 
+/** Title-case a card_id slug like "sunscale_serpent" → "Sunscale Serpent". */
+function prettyId(id) {
+  if (!id) return "?";
+  return id.split("_")
+    .map(w => w ? w[0].toUpperCase() + w.slice(1) : w)
+    .join(" ");
+}
+
 function renderHeader(payload) {
   const ident = payload.identity || {};
   const rank  = payload.rank || {};
+
+  // Identity line: handle if registered, otherwise a soft placeholder.
+  const handleNode = ident.handle
+    ? el("div", { class: "handle" }, ident.handle)
+    : el("div", { class: "handle handle-empty" }, "unregistered");
+
+  // Rank line: show real rank only when the player is on the leaderboard.
+  // Otherwise surface the server-supplied note ("play one to enter…")
+  // instead of the cosmetically broken "Rookie #? of 0".
+  const onLadder = rank.rank != null && (rank.total_players ?? 0) > 0;
+  const rankNode = onLadder
+    ? el("div", { class: "rank-line" },
+        `${rank.tier || "Rookie"} · #${rank.rank} of ${rank.total_players}`)
+    : el("div", { class: "rank-line rank-empty" },
+        rank.note || "play a match to enter the leaderboard");
+
   return el("header", { class: "menu-header" },
     el("h1", { class: "menu-title" }, "DAIMON"),
     el("div", { class: "menu-identity" },
-      el("div", { class: "handle" }, ident.handle || "<unregistered>"),
-      el("div", null,
-        `${rank.tier || "Rookie"} #${rank.rank ?? "?"} of ${rank.total_players ?? "?"}`),
+      handleNode,
+      rankNode,
       el("div", { class: "pubkey" }, shortPubkey(ident.pubkey_hex)),
     ),
   );
@@ -75,29 +98,76 @@ function renderQuestsPanel(payload) {
     el("h2", null, "DAILY QUESTS"),
     quests.length === 0
       ? el("div", { class: "empty" }, "no quests rolled yet")
-      : el("ul", null, ...quests.map(q =>
-          el("li", { class: q.complete ? "complete" : "" },
-            el("span", null, q.title),
+      : el("ul", null, ...quests.map(q => {
+          const showProgress =
+            !q.complete && Number.isFinite(q.target) && q.target > 1;
+          const cls =
+            (q.complete ? "complete " : "") + (q.claimed ? "claimed" : "");
+          return el("li", { class: cls.trim() },
+            el("span", { class: "quest-title" }, q.title),
+            showProgress
+              ? el("span", { class: "quest-progress" },
+                  `${q.progress ?? 0}/${q.target}`)
+              : null,
             el("span", { class: "reward" },
               q.claimed ? "✓" : `+${q.reward}¤`),
-          ),
-        )),
+          );
+        })),
   );
 }
 
+/** Recent activity panel — interleaves matches + pulls newest-first.
+ *  Pulls show the card display name (resolved async via cardStore) with
+ *  a rarity-colored dot. Matches show W/L badge + opponent. */
 function renderActivityPanel(payload) {
-  const matches = (payload.recent_matches || []).slice(0, 4);
-  const pulls   = (payload.recent_pulls   || []).slice(0, 4);
-  const items = [];
-  for (const m of matches) items.push(`vs ${m.opponent || "?"} — ${m.outcome || "?"}`);
-  for (const p of pulls)   items.push(`pulled ${p.card_id || "?"} (${p.rarity || "?"})`);
+  const events = [];
+  for (const m of (payload.recent_matches || [])) {
+    events.push({ kind: "match", ts: m.ts, opponent: m.opponent, outcome: m.outcome });
+  }
+  for (const p of (payload.recent_pulls || [])) {
+    events.push({ kind: "pull", ts: p.ts, card_id: p.card_id, rarity: p.rarity });
+  }
+  events.sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
+  const items = events.slice(0, 6);
+
+  if (!items.length) {
+    return el("section", { class: "panel" },
+      el("h2", null, "RECENT ACTIVITY"),
+      el("div", { class: "empty" }, "no activity yet — try a pull"),
+    );
+  }
+
+  const ul = el("ul", null);
+  for (const ev of items) {
+    if (ev.kind === "pull") {
+      const txt = el("span", { class: "activity-text" },
+        `pulled ${prettyId(ev.card_id)}`);
+      const li = el("li", { class: "activity-pull", "data-rarity": ev.rarity || "" },
+        el("span", { class: "activity-dot" }),
+        txt,
+        el("span", { class: "activity-tag" }, ev.rarity || ""),
+      );
+      // Resolve display name once cardStore resolves; soft-fail to slug.
+      cardStore.get(ev.card_id)
+        .then(p => { if (p?.name) txt.textContent = `pulled ${p.name}`; })
+        .catch(() => {});
+      ul.append(li);
+    } else {
+      const win = (ev.outcome || "").toLowerCase().startsWith("w");
+      const draw = (ev.outcome || "").toLowerCase().startsWith("d");
+      const badge = win ? "W" : draw ? "—" : "L";
+      const cls = win ? "win" : draw ? "draw" : "loss";
+      const li = el("li", { class: `activity-match ${cls}` },
+        el("span", { class: "activity-badge" }, badge),
+        el("span", { class: "activity-text" }, `vs ${ev.opponent || "?"}`),
+        el("span", { class: "activity-tag" }, ev.outcome || ""),
+      );
+      ul.append(li);
+    }
+  }
   return el("section", { class: "panel" },
     el("h2", null, "RECENT ACTIVITY"),
-    items.length === 0
-      ? el("div", { class: "empty" }, "no activity yet — try a pull")
-      : el("ul", null, ...items.map(text =>
-          el("li", null, el("span", null, text)),
-        )),
+    ul,
   );
 }
 
@@ -116,10 +186,27 @@ function renderHero(payload) {
 }
 
 function renderFooter(payload) {
-  const ver = payload.identity?.version || "";
+  const ver   = payload.identity?.version || "";
+  const stats = payload.stats || {};
+  // Right-aligned stats give the bottom strip a real reason to exist:
+  // collection size + total mined + verified-ledger badge.
+  const right = el("span", { class: "footer-stats" });
+  if (stats.pull_count != null) {
+    right.append(el("span", { class: "footer-stat" },
+      `${stats.pull_count} pulls`));
+  }
+  if (stats.total_mined != null) {
+    right.append(el("span", { class: "footer-stat" },
+      `${stats.total_mined.toLocaleString()}¤ mined`));
+  }
+  if (stats.verified === true) {
+    right.append(el("span", { class: "footer-stat verified" }, "ledger ok"));
+  } else if (stats.verified === false) {
+    right.append(el("span", { class: "footer-stat unverified" }, "ledger ?"));
+  }
   return el("footer", { class: "menu-footer" },
     el("span", null, "DAIMON" + (ver ? ` v${ver}` : "")),
-    el("span", null, "press button to play"),
+    right,
   );
 }
 
