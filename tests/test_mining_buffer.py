@@ -35,7 +35,7 @@ def test_append_writes_one_line(buffer_path):
     assert written["balance_after"] == 42
     assert written["tool"] == "Edit"
     # File contains exactly one valid JSON line.
-    text = buffer_path.read_text()
+    text = buffer_path.read_text(encoding="utf-8")
     assert text.endswith("\n")
     assert text.count("\n") == 1
     parsed = json.loads(text.strip())

@@ -2,11 +2,12 @@
 
 Open-source agentic-first autobattler. **Loadout vs loadout deterministic combat.** No hand, no draws, no mulligan. Built so AI agents can play, mine, trade, and tournament without a centralized server.
 
-> **Status:** v0.1 alpha — engine kernel + 12 mechanical test cards. Not yet playable.
+> **Status:** v2.0 alpha — engine kernel + 200-card v1_alpha catalog + native pywebview UI.
 
 ## What it is
 
 - **Engine** — pure-math 6-slot autobattler. 5 rounds. Integer math only. Engine **never reads card text** (prompt-injection immune).
+- **UI** — pywebview window (OS native: Edge WebView2 / WKWebView / GTK WebKit) backed by FastAPI on `127.0.0.1`. No bundled Chromium, no terminal magic.
 - **Mining** — agents earn currency from real productive work (`PostToolUse` hook). 100 currency = 1 gacha pull. Working *is* playing.
 - **Identity** — ed25519 keys (math) + GitHub OAuth binding (social). BIP39 mnemonic recovery.
 - **PvP** — async via GitHub Actions arbiter. Issues = state. Commit-reveal protocol.
@@ -16,7 +17,7 @@ Open-source agentic-first autobattler. **Loadout vs loadout deterministic combat
 
 | Repo | Role | Writers |
 |---|---|---|
-| `aurorasuperbot/daimon` | engine library | humans (PR) |
+| `aurorasuperbot/daimon` | engine library + web UI | humans (PR) |
 | `aurorasuperbot/daimon-cards` | card definitions + art | humans (CODEOWNERS PR) |
 | `aurorasuperbot/daimon-arena` | public match/trade state | bot only |
 | `ghcr.io/aurorasuperbot/daimon-cardpacks` | versioned signed card packs | humans (release) |
@@ -28,29 +29,31 @@ You're an AI? Start at [`SKILL.md`](./SKILL.md) — that's the router.
 ## For humans
 
 ```bash
-# Install via your OS package manager (recommended) — WezTerm is
-# bundled into the binary at build time, no separate download:
-brew install aurorasuperbot/daimon/daimon       # macOS / Linuxbrew
-winget install aurorasuperbot.daimon            # Windows
-scoop install daimon                            # Windows (Scoop bucket)
-# .deb / .rpm / AppImage on the GitHub Releases page.
-
-# Or: source install (fetches WezTerm on first onboard run):
-pip install daimon-engine
-
-# One-shot setup — identity, recovery file, manifest, Claude Code wiring:
-daimon onboard
-
-# Play:
-daimon pull               # spend currency on a gacha pull
-daimon match <opponent>   # challenge someone
+uv tool install daimon-engine    # if uv is missing, see "Bootstrap uv" below
+daimon menu               # opens the game window; returns immediately
 ```
 
-> The PyPI distribution name is `daimon-engine` (the bare `daimon`
-> is taken on PyPI). The CLI command is still `daimon` (with `dmn` as
-> a short alias). Inside Claude Code, agents call `dm_onboard`,
-> `dm_pull`, `dm_match`, etc. through the bundled MCP server —
-> see [`SKILL.md`](./SKILL.md).
+That's the install. First `daimon menu` silently mints your identity, downloads the card art pack (~50 MB, one-time), wires the Claude Code MCP server + mining hook, and spawns the window.
+
+Headless ops are still available for agents:
+
+```bash
+daimon pull --json              # spend currency on a gacha pull
+daimon mine status --json       # check balance + recent receipts
+daimon match <npc_id> --json    # resolve a match against an NPC
+```
+
+### Bootstrap uv (only if uv is missing)
+
+```bash
+# Mac / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+> The PyPI distribution name is `daimon-engine` (the bare `daimon` is taken on PyPI). The CLI command is `daimon` (`dmn` short alias). Inside Claude Code, agents call `dm_pull`, `dm_match`, etc. through the bundled MCP server — see [`SKILL.md`](./SKILL.md).
 
 ## License
 

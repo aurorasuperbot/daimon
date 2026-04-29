@@ -97,7 +97,7 @@ class TestWriteState:
     def test_written_content_is_valid_json(self, tmp_path):
         p = tmp_path / "state.json"
         write_state("pull", {"rarity": "legendary"}, state_path=p)
-        body = json.loads(p.read_text())
+        body = json.loads(p.read_text(encoding="utf-8"))
         assert body["view"] == "pull"
         assert body["data"]["rarity"] == "legendary"
         assert body["schema_version"] == SCHEMA_VERSION
@@ -118,7 +118,7 @@ class TestWriteState:
         p = tmp_path / "state.json"
         gs = write_state("match", {}, id="my_explicit_id", state_path=p)
         assert gs.id == "my_explicit_id"
-        body = json.loads(p.read_text())
+        body = json.loads(p.read_text(encoding="utf-8"))
         assert body["id"] == "my_explicit_id"
 
     def test_auto_id_when_omitted(self, tmp_path):
@@ -153,7 +153,7 @@ class TestWriteState:
         p = tmp_path / "state.json"
         write_state("match", {"n": 1}, id="id_1", state_path=p)
         write_state("pull",  {"n": 2}, id="id_2", state_path=p)
-        body = json.loads(p.read_text())
+        body = json.loads(p.read_text(encoding="utf-8"))
         assert body["view"] == "pull"
         assert body["data"] == {"n": 2}
         assert body["id"] == "id_2"

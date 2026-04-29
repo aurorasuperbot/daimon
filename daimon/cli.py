@@ -1,8 +1,9 @@
-"""daimon CLI — `daimon init`, `daimon match`, `daimon mine`, `daimon pull`.
+"""daimon CLI — text commands for identity, mining, matches, pulls, shop, etc.
 
-V1 alpha: only `init`, `version`, `verify` are wired up. The rest are stubs
-that print a "not yet implemented" message and exit nonzero, so scripts can
-detect feature gaps.
+Post-refactor (2026-04-28): the interactive terminal UIs (menu / play /
+play-render / play-demo / shop TUI / collection TUI / loadout edit / render-png)
+were removed in the pywebview migration. The animated game lives in
+``daimon-app`` (the webview); this CLI is the pure data surface.
 
 ## Auto-update integration
 
@@ -41,52 +42,12 @@ from daimon import __version__
 
 
 # Subcommands that don't need art on disk — skipped by the auto-fetch hook.
-# Keep this list short and explicit; defaulting to "fetch" is the safer
-# behavior for an end-user CLI.
 ART_PURE_COMMANDS = frozenset({
-    "init", "whoami", "update", "mine", "npcs",
-    # Pure-local browsers — never touch art binaries:
-    "collection", "catalog", "loadout",
-    # Bundle bootstrap — needs network but not the art pack itself:
-    "install", "doctor", "recover",
-    # Onboarding fetches the manifest itself — don't let the legacy
-    # ensure_art_available() preempt it.
-    "onboard",
-    # Home dashboard — reads ledger + identity + dm_home, no art needed
-    # to render. Avoid blocking the player's first menu paint on a 900MB
-    # auto-fetch they didn't ask for.
-    "menu",
+    "init", "whoami", "recover", "update", "mine", "npcs",
+    "collection", "catalog", "loadout", "home",
+    # Window commands fetch art lazily on demand from inside the daemon.
+    "menu", "_daemon_internal",
 })
-
-
-def _maybe_relaunch_in_terminal(*, in_place: bool, sub_argv: list[str]) -> None:
-    """Re-exec the current command inside DAIMON's bundled WezTerm.
-
-    Called by interactive TUI commands (``play`` / ``shop`` / ``collection`` /
-    ``loadout edit``) immediately before they launch their TUI. If the
-    relaunch happens, this function never returns — ``os.execvpe`` replaces
-    the process. Otherwise it returns and the caller proceeds in-place.
-
-    The ``--in-place`` flag on each command suppresses the relaunch entirely,
-    for users (or agents) who explicitly want to render in their current
-    terminal.
-
-    When the bundle isn't installed, prints a one-line hint pointing at
-    ``daimon install`` but does NOT abort — the in-place TUI still works
-    (degraded), it just won't render card art crisply.
-    """
-    if in_place:
-        return
-    from daimon.render.wezterm_bundle import (
-        relaunch_in_bundled_terminal,
-        should_relaunch_in_bundled_terminal,
-    )
-    ok, reason = should_relaunch_in_bundled_terminal()
-    if ok:
-        relaunch_in_bundled_terminal(["daimon", *sub_argv])
-        return  # unreachable on success; defensive
-    if reason:
-        click.echo(f"hint: {reason}", err=True)
 
 
 @click.group()
@@ -94,6 +55,10 @@ def _maybe_relaunch_in_terminal(*, in_place: bool, sub_argv: list[str]) -> None:
 @click.pass_context
 def main(ctx: click.Context) -> None:
     """DAIMON — agentic-first autobattler."""
+    # Silent first-run bootstrap (idempotent — see daimon/bootstrap.py).
+    from daimon.bootstrap import ensure_bootstrapped
+    ensure_bootstrapped()
+
     sub = ctx.invoked_subcommand
     if sub and sub not in ART_PURE_COMMANDS:
         from daimon.update import ArtUpdateError, ensure_art_available
@@ -107,6 +72,48 @@ def main(ctx: click.Context) -> None:
                 err=True,
             )
             sys.exit(2)
+
+
+@main.command("menu")
+def menu() -> None:
+    """Open the DAIMON game window. Returns to your shell immediately.
+
+    If a daemon is already running, prints its URL and exits 0 — only one
+    window can be open at a time. Closing the window stops the daemon.
+    """
+    from daimon.daemon.lock import alive_lock
+    from daimon.daemon.spawn import spawn_detached, wait_for_lock
+
+    info = alive_lock()
+    if info is not None:
+        click.echo(
+            f"daimon already running (pid {info.pid}) at "
+            f"http://127.0.0.1:{info.port}/"
+        )
+        return
+
+    spawn_detached()
+    info = wait_for_lock(timeout_s=5.0)
+    if info is None:
+        click.echo(
+            "error: daemon failed to start within 5s. Check "
+            "~/.daimon/log/ for details.",
+            err=True,
+        )
+        sys.exit(1)
+    click.echo(f"daimon running at http://127.0.0.1:{info.port}/ (pid {info.pid})")
+
+
+@main.command("_daemon_internal", hidden=True)
+def _daemon_internal() -> None:
+    """Hidden entry — long-running daemon process.
+
+    NOT for end users. Spawned by ``daimon menu`` via
+    :func:`daimon.daemon.spawn.spawn_detached`. Blocks on the pywebview
+    event loop until the window is closed.
+    """
+    from daimon.daemon.entry import run
+    sys.exit(run())
 
 
 @main.command()
@@ -136,229 +143,6 @@ def init(force: bool) -> None:
 
 
 @main.command()
-@click.option("--force", is_flag=True,
-              help="Overwrite an existing identity (DESTRUCTIVE).")
-@click.option("--no-claude-code", is_flag=True,
-              help="Skip the Claude Code wiring step (no MCP entry, no "
-                   "PostToolUse hook).")
-@click.option("--no-prefetch", is_flag=True,
-              help="Don't spawn the background card prefetcher.")
-@click.option("--no-bundle", is_flag=True,
-              help="Don't install the WezTerm bundle. Card art will not "
-                   "render until you run `daimon install` separately.")
-@click.option("--settings", "settings_path", default=None,
-              help="Override the Claude Code settings.json path.")
-@click.option("--yes", is_flag=True,
-              help="Skip the 'I have saved my recovery phrase' confirmation "
-                   "gate. Use only if you're scripting onboarding (CI, "
-                   "Dockerfiles).")
-@click.option("--json", "as_json", is_flag=True,
-              help="Emit the result envelope as JSON instead of human text.")
-@click.option("--no-launch", is_flag=True,
-              help="Don't auto-open the game session (menu + agent windows) "
-                   "at the end of onboard. Default behavior is to launch on "
-                   "fresh installs (when a new identity was generated this "
-                   "run); re-runs that preserve an existing identity skip "
-                   "the launch unless --launch is passed.")
-@click.option("--launch", "force_launch", is_flag=True,
-              help="Force the game session auto-launch even on a re-run. "
-                   "Useful after changing settings or the bundled WezTerm.")
-@click.option("--no-launch-agent", is_flag=True,
-              help="Launch the game terminal but skip the second window "
-                   "that spawns Claude Code. Useful when you don't have "
-                   "`claude` on PATH or want to start the agent yourself.")
-def onboard(force: bool, no_claude_code: bool, no_prefetch: bool,
-            no_bundle: bool, settings_path: str | None, yes: bool,
-            as_json: bool, no_launch: bool, force_launch: bool,
-            no_launch_agent: bool) -> None:
-    """One-shot first-run setup: identity + recovery + manifest + Claude Code.
-
-    Folds the previous four-step bootstrap (``daimon install`` ->
-    ``daimon init`` -> ``daimon mine install-hook`` -> MCP wiring) into
-    a single interactive flow:
-
-      1. Generate ed25519 identity + 24-word BIP39 mnemonic (skipped if
-         one already exists, unless ``--force``).
-      2. Display the mnemonic and require the user to type
-         ``I have saved my recovery phrase`` before continuing. The
-         mnemonic is also written to ``~/.config/daimon/recovery.txt``
-         (mode 0600) as a backstop. Skip the gate with ``--yes``.
-      3. Fetch the card manifest + the starter cards' art (small,
-         blocking). Spawn a detached background prefetcher for the rest.
-      4. Atomically write the daimon ``mcpServers`` entry + PostToolUse
-         hook into ``~/.claude/settings.json`` (one read, one backup,
-         one write).
-
-    Re-running is safe: existing identities and Claude Code wiring are
-    preserved, an existing manifest is refreshed, and missing cards are
-    fetched. Only ``--force`` is destructive — it overwrites the
-    identity (and any unsigned local collection along with it).
-    """
-    import json as _json
-    from pathlib import Path as _Path
-    from daimon.onboard import run_onboard
-
-    def _confirm(mnemonic: str) -> bool:
-        if yes:
-            return True
-        click.echo()
-        click.echo(
-            "RECOVERY MNEMONIC — write this down NOW. We will never show it "
-            "again:"
-        )
-        click.echo()
-        words = mnemonic.split()
-        for i in range(0, len(words), 4):
-            chunk = words[i:i + 4]
-            click.echo("  " + "  ".join(
-                f"{i+j+1:>2}. {w:<10}" for j, w in enumerate(chunk)
-            ))
-        click.echo()
-        click.echo(
-            "If you lose this mnemonic AND your identity.key file, your "
-            "collection is unrecoverable."
-        )
-        click.echo(
-            "A copy was also saved to ~/.config/daimon/recovery.txt "
-            "(mode 0600)."
-        )
-        click.echo()
-        phrase = click.prompt(
-            "Type 'I have saved my recovery phrase' to continue",
-            type=str,
-            default="",
-            show_default=False,
-        )
-        return phrase.strip().lower() == "i have saved my recovery phrase"
-
-    log_fn: "Callable[[str], None]" = (
-        (lambda _msg: None) if as_json else click.echo
-    )
-
-    settings_override = _Path(settings_path) if settings_path else None
-    result = run_onboard(
-        force_identity=force,
-        confirm_mnemonic=_confirm,
-        wire_claude_code=not no_claude_code,
-        settings_path=settings_override,
-        spawn_prefetch=not no_prefetch,
-        install_bundle=not no_bundle,
-        log=log_fn,
-    )
-
-    if as_json:
-        click.echo(_json.dumps(result.to_dict(), indent=2))
-        return
-
-    # Human summary at the end so the user has a single line to look at.
-    click.echo()
-    click.echo("--- onboard summary ---")
-    click.echo(f"identity:    {result.identity_action} "
-               f"({result.pubkey_hex[:16]}…)")
-    if result.recovery_path:
-        click.echo(f"recovery:    {result.recovery_path}")
-    click.echo(f"bundle:      {result.bundle_action}"
-               + (f" ({result.bundle_version})" if result.bundle_version
-                  else ""))
-    if result.bundle_error:
-        click.echo(f"             error: {result.bundle_error}")
-    click.echo(f"manifest:    {result.manifest_action}"
-               + (f" ({result.manifest_version})" if result.manifest_version
-                  else ""))
-    if result.manifest_error:
-        click.echo(f"             error: {result.manifest_error}")
-    if result.starter_fetched or result.starter_failed:
-        click.echo(f"starters:    {len(result.starter_fetched)} ok, "
-                   f"{len(result.starter_failed)} failed")
-    if result.prefetch_pid:
-        click.echo(f"prefetch:    pid {result.prefetch_pid}")
-    click.echo(f"claude-code: {result.claude_code_action}")
-    if result.claude_code_settings:
-        click.echo(f"             settings: {result.claude_code_settings}")
-    if result.claude_code_error:
-        click.echo(f"             error:    {result.claude_code_error}")
-
-    # Auto-launch the game session — opens two bundled-WezTerm windows:
-    # one with `daimon menu` (the player's home), one with `claude` (so the
-    # freshly-wired mining hook + MCP server load on first tool call).
-    # Only fires on a fresh install (new identity generated this run) by
-    # default — re-runs are silent unless --launch is passed.
-    fresh_install = result.identity_action == "generated"
-    should_launch = (
-        not no_launch
-        and (force_launch or fresh_install)
-        and not as_json
-    )
-    if should_launch:
-        from daimon.render.wezterm_bundle import spawn_game_session
-        click.echo()
-        click.echo("--- launching game session ---")
-        launch_result = spawn_game_session(
-            spawn_menu=True,
-            spawn_agent=not no_launch_agent and not no_claude_code,
-        )
-        if launch_result["menu_spawned"]:
-            click.echo("game terminal: opened (daimon menu)")
-        elif launch_result["menu_error"]:
-            click.echo(f"game terminal: skipped — {launch_result['menu_error']}")
-        if not no_launch_agent and not no_claude_code:
-            if launch_result["agent_spawned"]:
-                click.echo(
-                    f"agent terminal: opened (claude → "
-                    f"{launch_result['agent_bin']})"
-                )
-            elif launch_result["agent_error"]:
-                click.echo(
-                    f"agent terminal: skipped — {launch_result['agent_error']}"
-                )
-        click.echo()
-        click.echo(
-            "Switch to the new windows to start playing. This terminal "
-            "can now be closed."
-        )
-    elif not as_json and not no_launch and not fresh_install:
-        click.echo()
-        click.echo(
-            "hint: re-run skipped auto-launch (identity preserved). "
-            "Pass --launch to open a fresh game session anyway, or run "
-            "`daimon menu` to open the home screen here."
-        )
-
-    # Non-zero exit if anything critical failed so scripts notice.
-    if result.manifest_action == "failed" or \
-            result.claude_code_action == "failed" or \
-            result.bundle_action == "failed":
-        sys.exit(1)
-
-
-@main.command()
-@click.option("--in-place", is_flag=True,
-              help="Render in the current terminal instead of auto-relaunching "
-                   "in the bundled WezTerm. Useful for debugging or when "
-                   "running the menu in a terminal multiplexer.")
-def menu(in_place: bool) -> None:
-    """Player home screen — live dashboard + one-key actions.
-
-    Built on the unified ``daimon.ui`` renderer: identity strip, hero CTA,
-    five focusable action cards (Pull / Match / Loadouts / Collection / Shop),
-    plus currency / daily quests / recent activity panels. Auto-refreshes
-    every few seconds so the balance ticks live as the mining hook in
-    another tab keeps adding receipts.
-
-    Navigation: arrow keys + Enter, mouse click on any card, or letter
-    hotkeys (P / M / L / C / S, plus D for doctor and Q to quit).
-    Activating a card suspends the menu, runs the matching ``daimon``
-    subcommand in-place, then redraws when the subcommand exits.
-
-    Auto-launched at the end of ``daimon onboard`` so first-time players
-    land here, but you can run it any time to come back to the dashboard.
-    """
-    _maybe_relaunch_in_terminal(in_place=in_place, sub_argv=["menu"])
-    from daimon.play.menu_ui import run_menu
-    run_menu()
-
-
-@main.command()
 @click.option("--mnemonic", "mnemonic_arg", default=None,
               help="The 24-word BIP39 mnemonic. If omitted, prompts on stdin "
                    "(safer — won't appear in shell history).")
@@ -379,8 +163,6 @@ def recover(mnemonic_arg: str | None, force: bool) -> None:
     from daimon.identity.keys import PRIVATE_KEY_PATH
 
     if mnemonic_arg is None:
-        # Prompt without echoing — keeps the mnemonic out of shell history
-        # and `ps` listings. Click's hide_input handles terminal echo.
         mnemonic_arg = click.prompt(
             "Enter your 24-word recovery mnemonic",
             hide_input=True,
@@ -400,7 +182,6 @@ def recover(mnemonic_arg: str | None, force: bool) -> None:
     try:
         identity = restore_from_mnemonic(mnemonic, force=force)
     except ValueError as e:
-        # BIP39 checksum failure — mnemonic is invalid before any write.
         click.echo(f"error: {e}", err=True)
         sys.exit(2)
     except FileExistsError as e:
@@ -411,182 +192,6 @@ def recover(mnemonic_arg: str | None, force: bool) -> None:
     click.echo("Identity restored from mnemonic.\n")
     click.echo(f"  pubkey:  {identity.pubkey_hex}")
     click.echo(f"  stored:  {PRIVATE_KEY_PATH} (mode 0600)")
-
-
-@main.command()
-@click.option("--version", "version", default=None,
-              help="Pin to a specific bundle release tag (e.g. wezterm-bundle-v1.0). "
-                   "Defaults to latest. Honors $DAIMON_PIN_BUNDLE.")
-@click.option("--force", is_flag=True,
-              help="Re-download and re-install even if marker matches.")
-@click.option("--no-smoke-test", is_flag=True,
-              help="Skip the post-install `wezterm --version` check (CI only).")
-def install(version: str | None, force: bool, no_smoke_test: bool) -> None:
-    """Bootstrap the DAIMON game terminal (one-time setup after `pip install`).
-
-    Downloads the matching WezTerm bundle for this OS+architecture from the
-    aurorasuperbot/daimon GitHub Releases, verifies sha256, extracts
-    to ``~/.daimon/bin/``, and writes the locked render config to
-    ``~/.daimon/etc/wezterm.lua``.
-
-    DAIMON ships its own terminal so card art renders pixel-perfect at known
-    DPI / cell size / colour space. This is non-optional — the card-art
-    pipeline (Kitty Graphics Protocol) requires WezTerm.
-
-    Idempotent: re-running with the same release tag is a no-op (skips the
-    download). Pass ``--force`` to re-fetch.
-    """
-    from daimon.install import BundleInstallError, install_bundle
-
-    try:
-        report = install_bundle(
-            version=version,
-            force=force,
-            verify_smoke_test=not no_smoke_test,
-        )
-    except BundleInstallError as e:
-        click.echo(f"error: {e}", err=True)
-        sys.exit(2)
-
-    if report.skipped_download:
-        click.echo(f"daimon: bundle {report.tag} already installed "
-                   f"(re-run with --force to re-fetch).")
-    else:
-        click.echo(f"daimon: installed {report.tag} → {report.bin_dir}")
-        click.echo(f"        sha256: {report.sha256}")
-    click.echo(f"        config: {report.config_path}")
-    if report.smoke_test:
-        click.echo(f"        wezterm: {report.smoke_test}")
-
-
-@main.command()
-@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
-def doctor(as_json: bool) -> None:
-    """Diagnostic check — bundle install state, paths, versions, env vars.
-
-    Reports:
-      * Whether the WezTerm bundle is installed and what version.
-      * Whether the locked Lua config is on disk.
-      * Whether the art pack is on disk and what version.
-      * Whether identity has been generated.
-      * Resolved paths (so users can see where ``--rm -rf`` would go).
-    """
-    import json as _json
-
-    from daimon.identity.keys import CONFIG_DIR, PRIVATE_KEY_PATH
-    from daimon.render.wezterm_bundle import status_summary
-    from daimon.update.paths import (
-        ART_PACK_NAME,
-        art_pack_dir,
-        art_root,
-        current_version,
-    )
-
-    bundle = status_summary()
-    art = {
-        "art_root": str(art_root()),
-        "art_pack_dir": str(art_pack_dir()),
-        "art_pack_name": ART_PACK_NAME,
-        "installed_version": current_version(),
-    }
-    identity_present = PRIVATE_KEY_PATH.is_file()
-    recovery_present = (CONFIG_DIR / "recovery.txt").is_file()
-    identity = {
-        "config_dir": str(CONFIG_DIR),
-        "key_path": str(PRIVATE_KEY_PATH),
-        "key_present": identity_present,
-        "recovery_present": recovery_present,
-    }
-    # Claude Code wiring status — read settings.json and check for the
-    # daimon mcpServers entry + the PostToolUse hook with _owner=daimon.
-    claude_code: dict = {"settings_path": None, "mcp_present": False,
-                         "hook_present": False}
-    try:
-        from daimon.mining.installer import DEFAULT_SETTINGS_PATH
-        import json as _json2
-        claude_code["settings_path"] = str(DEFAULT_SETTINGS_PATH)
-        if DEFAULT_SETTINGS_PATH.is_file():
-            try:
-                _data = _json2.loads(
-                    DEFAULT_SETTINGS_PATH.read_text(encoding="utf-8")
-                )
-                claude_code["mcp_present"] = (
-                    "daimon" in (_data.get("mcpServers") or {})
-                )
-                claude_code["hook_present"] = any(
-                    h.get("_owner") == "daimon"
-                    for h in (_data.get("hooks") or {}).get("PostToolUse", [])
-                )
-            except (OSError, ValueError):
-                pass
-    except ImportError:
-        pass
-    env = {
-        k: os.environ.get(k)
-        for k in (
-            "DAIMON_HOME",
-            "DAIMON_ART_DIR",
-            "DAIMON_ART_REPO",
-            "DAIMON_BUNDLE_REPO",
-            "DAIMON_PIN_ART",
-            "DAIMON_PIN_BUNDLE",
-            "DAIMON_NO_AUTO_UPDATE",
-            "GITHUB_TOKEN",
-            "XDG_DATA_HOME",
-            "XDG_CONFIG_HOME",
-        )
-        if os.environ.get(k) is not None
-    }
-    # Mask the token if present.
-    if "GITHUB_TOKEN" in env:
-        tok = env["GITHUB_TOKEN"] or ""
-        env["GITHUB_TOKEN"] = (tok[:4] + "…" + tok[-4:]) if len(tok) > 8 else "set"
-
-    if as_json:
-        click.echo(_json.dumps({
-            "bundle": bundle,
-            "art": art,
-            "identity": identity,
-            "claude_code": claude_code,
-            "env": env,
-        }, indent=2))
-        return
-
-    click.echo("== DAIMON doctor ==\n")
-    click.echo("[bundle]")
-    click.echo(f"  installed:  {'yes' if bundle['is_installed'] else 'no'}")
-    click.echo(f"  version:    {bundle['installed_version'] or '(none)'}")
-    click.echo(f"  bin:        {bundle['wezterm_bin']}")
-    click.echo(f"  config:     {bundle['wezterm_config']}"
-               f"  {'(present)' if bundle['config_present'] else '(MISSING)'}")
-    click.echo()
-    click.echo("[art]")
-    click.echo(f"  installed:  {art['installed_version'] or '(none)'}")
-    click.echo(f"  pack dir:   {art['art_pack_dir']}")
-    click.echo()
-    click.echo("[identity]")
-    click.echo(f"  generated:  {'yes' if identity_present else 'no'}")
-    click.echo(f"  key:        {identity['key_path']}")
-    click.echo(f"  recovery:   {'present' if recovery_present else 'MISSING'}")
-    click.echo()
-    click.echo("[claude code]")
-    if claude_code["settings_path"]:
-        click.echo(f"  settings:   {claude_code['settings_path']}")
-        click.echo(f"  mcp entry:  "
-                   f"{'wired' if claude_code['mcp_present'] else 'missing'}")
-        click.echo(f"  mining hook:"
-                   f" {'wired' if claude_code['hook_present'] else 'missing'}")
-    else:
-        click.echo("  settings:   (mining installer unavailable)")
-    if env:
-        click.echo()
-        click.echo("[env]")
-        for k, v in sorted(env.items()):
-            click.echo(f"  {k}={v}")
-    if not bundle["is_installed"]:
-        click.echo()
-        click.echo("hint: run `daimon onboard` to bootstrap the game terminal "
-                   "(or `daimon install` for just the WezTerm bundle).")
 
 
 @main.command()
@@ -602,43 +207,11 @@ def whoami() -> None:
 
 
 @main.command()
-@click.option("--message", "as_message", is_flag=True,
-              help="Print only the :::html fenced block (for piping into a "
-                   "chat-reply tool). Mutually exclusive with --html / --json.")
-@click.option("--html", "as_html", is_flag=True,
-              help="Print only the raw HTML (no fence). Mutually exclusive "
-                   "with --message / --json.")
 @click.option("--json", "as_json", is_flag=True,
-              help="Print the full dm_home payload as JSON. Mutually exclusive "
-                   "with --message / --html.")
-def home(as_message: bool, as_html: bool, as_json: bool) -> None:
-    """Render the chat home card.
-
-    Default: prints a human-readable summary AND the ready-to-post
-    ``:::html`` message — useful when you're inspecting the card from
-    a terminal.
-
-    With ``--message``: prints only the ``:::html`` block, suitable for
-    piping into the webapp-channel reply tool. With ``--html``: prints
-    only the raw HTML (no fence). With ``--json``: prints the full
-    ``dm_home`` payload as JSON for further processing.
-    """
-    flags = sum([as_message, as_html, as_json])
-    if flags > 1:
-        click.echo(
-            "error: --message, --html, --json are mutually exclusive.",
-            err=True,
-        )
-        sys.exit(2)
-
-    # We import the MCP tool's underlying function rather than dm_home_card
-    # itself so we don't pay the FastMCP wrapper overhead — the CLI shouldn't
-    # depend on the MCP framework being importable.
+              help="Print the full dm_home payload as JSON.")
+def home(as_json: bool) -> None:
+    """Print a human-readable home dashboard (identity, balance, pulls, next NPC)."""
     from daimon.mcp.server import dm_home as _dm_home
-    from daimon.play.home_card import (
-        render_home_card,
-        render_home_card_message,
-    )
 
     payload = _dm_home()
 
@@ -646,14 +219,7 @@ def home(as_message: bool, as_html: bool, as_json: bool) -> None:
         import json as _json
         click.echo(_json.dumps(payload, indent=2, ensure_ascii=False))
         return
-    if as_message:
-        click.echo(render_home_card_message(payload))
-        return
-    if as_html:
-        click.echo(render_home_card(payload))
-        return
 
-    # Default: human-readable summary + copy-pasteable message.
     if payload.get("error") == "no_identity":
         click.echo("error: no identity yet. Run `daimon init` to bootstrap.",
                    err=True)
@@ -663,7 +229,7 @@ def home(as_message: bool, as_html: bool, as_json: bool) -> None:
     pull = payload.get("pull", {})
     rec = payload.get("recommended_npc")
 
-    click.echo("DAIMON home card:")
+    click.echo("DAIMON home:")
     click.echo(f"  handle:    {payload['identity'].get('handle') or '<unregistered>'}")
     click.echo(f"  tier:      {rank.get('tier','Rookie')} "
                f"#{rank.get('rank','?')} of {rank.get('total_players','?')}")
@@ -676,11 +242,6 @@ def home(as_message: bool, as_html: bool, as_json: bool) -> None:
         click.echo(f"  next play: {rec.get('name')} ({rec.get('reason','')})")
     else:
         click.echo("  next play: all NPC tiers cleared (PvP pending V1)")
-    click.echo()
-    click.echo("To post the rich card to the webapp chat, pipe the message "
-               "below into your chat-reply tool:")
-    click.echo()
-    click.echo(render_home_card_message(payload))
 
 
 @main.command()
@@ -688,14 +249,12 @@ def home(as_message: bool, as_html: bool, as_json: bool) -> None:
 @click.argument("loadout_b")
 @click.option("--seed", default=None, help="Hex-encoded 32-byte seed (default: random).")
 def match(loadout_a: str, loadout_b: str, seed: str | None) -> None:
-    """Resolve a match between two loadout JSON files. (V1 alpha — basic output.)
+    """Resolve a match between two loadout JSON files.
 
     Both files may be in any supported shape: bare list, ``{"cards":[...]}``,
     or showcase format (``{"loadout_id":..., "loadout":["card_id",...]}``).
     See ``daimon.loadouts.load_loadout_file`` for the format matrix.
     """
-    import os
-
     from daimon.engine import resolve_match
     from daimon.loadouts import load_loadout_file
     from daimon.play.publish import publish_match_state
@@ -709,8 +268,6 @@ def match(loadout_a: str, loadout_b: str, seed: str | None) -> None:
     seed_bytes = bytes.fromhex(seed) if seed else os.urandom(32)
     result = resolve_match(a, b, seed_bytes)
 
-    # Publish to state.json so `daimon play` (if running) animates this match.
-    # Mirrors the dm_match MCP side-effect — keeps the two surfaces in lockstep.
     state_id = publish_match_state(
         result=result, loadout_a=a, loadout_b=b,
         a_raw=a_raw, b_raw=b_raw,
@@ -724,85 +281,6 @@ def match(loadout_a: str, loadout_b: str, seed: str | None) -> None:
     click.echo(f"rounds:   {len(result.rounds)}")
     if state_id:
         click.echo(f"state_id: {state_id}")
-
-
-@main.command("play")
-@click.option("--state", "state_path", default=None,
-              help="Override state.json path (default: ~/.config/daimon/state.json or $DAIMON_STATE).")
-@click.option("--no-color", is_flag=True, help="Disable ANSI color output.")
-@click.option("--no-input", is_flag=True,
-              help="Disable keyboard input (CI / pipes).")
-@click.option("--paused", is_flag=True,
-              help="Start each match paused instead of auto-playing.")
-@click.option("--tick-ms", default=50, type=int,
-              help="Loop tick interval in ms (default: 50 = 20 Hz).")
-@click.option("--in-place", is_flag=True,
-              help="Render in the current terminal instead of auto-launching "
-                   "DAIMON's bundled WezTerm.")
-def play(state_path: str | None, no_color: bool, no_input: bool,
-         paused: bool, tick_ms: int, in_place: bool) -> None:
-    """Spectator HUD — watch matches play out live in this terminal.
-
-    Opens a long-lived ASCII window that watches state.json for new match
-    payloads, then walks through them action-by-action with playback
-    controls:
-
-      space    pause / resume
-      → / ←    step forward / back
-      ↑ / ↓    speed up / down (0.25x .. 4x)
-      r        restart current match
-      n        skip to end (reveal outcome)
-      q / esc  quit
-
-    Idle screen shows a list of recently-seen matches. Quit any time with q.
-    """
-    # Auto-launch in our bundled WezTerm so card art renders pixel-perfect.
-    # Forwards the flags so the relaunched window picks them up.
-    forward: list[str] = ["play"]
-    if state_path:
-        forward.extend(["--state", state_path])
-    if no_color:
-        forward.append("--no-color")
-    if no_input:
-        forward.append("--no-input")
-    if paused:
-        forward.append("--paused")
-    if tick_ms != 50:
-        forward.extend(["--tick-ms", str(tick_ms)])
-    forward.append("--in-place")  # the relaunched child runs in-place
-    _maybe_relaunch_in_terminal(in_place=in_place, sub_argv=forward)
-
-    from daimon.play.hud import run_play
-
-    rc = run_play(
-        state_path=state_path,
-        color=not no_color,
-        autoplay=not paused,
-        no_input=no_input,
-        tick_ms=tick_ms,
-    )
-    sys.exit(rc)
-
-
-@main.command("play-demo")
-@click.option("--no-color", is_flag=True, help="Disable ANSI color output.")
-@click.option("--fps", default=20, type=int, help="Frames per second (default: 20).")
-@click.option("--max-seconds", default=30, type=int,
-              help="Cap on demo duration in seconds (default: 30).")
-def play_demo(no_color: bool, fps: int, max_seconds: int) -> None:
-    """Animation showcase — render a synthetic match exercising every primitive.
-
-    Synthesises a hand-crafted Match with damage / heavy-hit / buff / heal /
-    shield / KO actions plus a cascade trigger, then renders it through the
-    spectator HUD. Hits acceptance criterion #4 from animation_design.md
-    ("daimon play demo showcases every primitive in under 30 seconds").
-
-    Ctrl-C exits cleanly.
-    """
-    from daimon.play.demo import run_demo
-
-    rc = run_demo(color=not no_color, fps=fps, max_seconds=max_seconds)
-    sys.exit(rc)
 
 
 @main.command("npcs")
@@ -867,19 +345,7 @@ def npcs(tier: str | None, as_json: bool) -> None:
               help="Print per-round HP totals after the result.")
 def match_npc(loadout_path: str, npc_id: str, seed: str | None,
               show_rounds: bool) -> None:
-    """Play your loadout JSON file against a named NPC opponent.
-
-    The loadout file may be in any supported shape: bare list,
-    ``{"cards":[...]}``, or showcase format
-    (``{"loadout_id":..., "loadout":["card_id",...]}``). See
-    ``daimon.loadouts.load_loadout_file`` for the format matrix.
-
-    Example:
-        daimon match-npc my_team.json sparring_sam --seed 0...
-        daimon match-npc daimon/loadouts/showcase/showcase_l1_inferno_burnstack.json sparring_sam
-    """
-    import os
-
+    """Play your loadout JSON file against a named NPC opponent."""
     from daimon.engine import resolve_match
     from daimon.loadouts import load_loadout_file
     from daimon.npcs import get_npc, npc_loadout
@@ -909,8 +375,6 @@ def match_npc(loadout_path: str, npc_id: str, seed: str | None,
     seed_bytes = bytes.fromhex(seed) if seed else os.urandom(32)
     result = resolve_match(a, b, seed_bytes)
 
-    # Publish to state.json — same payload shape as dm_match_npc's MCP
-    # side-effect, so a `daimon play` HUD watching state.json picks it up.
     state_id = publish_match_state(
         result=result, loadout_a=a, loadout_b=b,
         a_raw=a_raw, b_raw=list(b_raw),
@@ -934,38 +398,6 @@ def match_npc(loadout_path: str, npc_id: str, seed: str | None,
         for r in result.rounds:
             click.echo(f"  round {r.round_number}: you={r.side_a_hp_total:4}  "
                        f"opp={r.side_b_hp_total:4}  ({len(r.actions)} actions)")
-
-
-@main.command()
-@click.argument("card_path")
-@click.option("--art-root", default=None,
-              help="Directory containing art files referenced by _render_only.art (default: card file's dir).")
-@click.option("--out", default=None, help="Output PNG path (default: <card>.png next to source).")
-def render(card_path: str, art_root: str | None, out: str | None) -> None:
-    """Render a card from its JSON definition to a PNG.
-
-    The legacy --terminal / --tier flags (chafa cascade + hybrid renderer)
-    were retired in Phase E along with the half-block fallback. DAIMON now
-    ships its own bundled WezTerm; in-terminal card rendering goes through
-    the Kitty Graphics Protocol painter (see ``daimon/play/art_render.py``
-    and ``daimon/render/kgp.py``). For rich live displays use the
-    interactive TUIs: ``daimon shop``, ``daimon collection``,
-    ``daimon loadout edit <name>``.
-    """
-    import json
-    from pathlib import Path
-
-    p = Path(card_path)
-    if not p.exists():
-        click.echo(f"error: {p} not found", err=True)
-        sys.exit(1)
-    pack = json.loads(p.read_text())
-
-    from daimon.render import compose_card_from_pack_dict
-    out_path = Path(out) if out else p.with_suffix(".png")
-    art_dir = Path(art_root) if art_root else p.parent
-    written = compose_card_from_pack_dict(pack, art_dir, out_path)
-    click.echo(f"wrote: {written}")
 
 
 @main.group()
@@ -1152,8 +584,6 @@ def pull(seed: str | None, catalog: str | None, as_json: bool) -> None:
         click.echo(f"error: {e}", err=True)
         sys.exit(3)
 
-    # Publish to state.json — same payload shape as dm_pull's MCP side-effect,
-    # so a `daimon play` HUD picks up the gacha reveal animation.
     from daimon.play.publish import publish_pull_state
     state_id = publish_pull_state(receipt_dict=receipt.to_dict())
 
@@ -1177,68 +607,6 @@ def pull(seed: str | None, catalog: str | None, as_json: bool) -> None:
         click.echo(f"  state_id:      {state_id}")
 
 
-@main.command("play-render")
-@click.option("--state", "state_path", default=None,
-              help="Override state file path (default: ~/.config/daimon/state.json).")
-@click.option("--renders", "renders_dir", default=None,
-              help="Override render output dir (default: ~/.config/daimon/renders).")
-@click.option("--once", is_flag=True,
-              help="Render current state once and exit (for dev loops / smoke tests).")
-def play_render(state_path: str | None, renders_dir: str | None, once: bool) -> None:
-    """Background PNG renderer — game-terminal frame producer.
-
-    Companion to the spectator HUD (`daimon play`). This command is the
-    single reader of state.json that produces PNG frames + manifest under
-    the renders dir for downstream image-capable viewers (WezTerm slideshow,
-    HTML replay, GIF stitch).
-
-    Watches ``state.json`` and dispatches each new state (by its ``view``
-    field) to a renderer that writes a PNG under the renders dir. Dedupes by
-    the state's ``id`` so restarts don't re-render a frame that was already
-    shown.
-
-    Agent-facing MCP tools (``dm_match``, ``dm_pull``, etc.) write to the
-    state file as a side effect; this process is the only reader.
-
-    With ``--once``: render whatever's currently in state.json and exit.
-    Without it: block in the watcher loop until Ctrl-C.
-    """
-    import signal
-    from pathlib import Path
-
-    from daimon.play.terminal import GameTerminal
-
-    sp = Path(state_path) if state_path else None
-    rd = Path(renders_dir) if renders_dir else None
-
-    term = GameTerminal(state_path=sp, renders_dir=rd)
-
-    if once:
-        result = term.dispatch_once()
-        click.echo(f"action:   {result.action}")
-        if result.state is not None:
-            click.echo(f"view:     {result.state.view}")
-            click.echo(f"state_id: {result.state.id}")
-        if result.out_path is not None:
-            click.echo(f"wrote:    {result.out_path}")
-        if result.error:
-            click.echo(f"error:    {result.error}", err=True)
-            sys.exit(1)
-        return
-
-    click.echo(f"daimon play-render  —  state: {term.state_path}")
-    click.echo(f"                         renders: {term.renders_dir}")
-    click.echo("press Ctrl-C to quit.")
-    click.echo()
-
-    signal.signal(signal.SIGINT, lambda *_: term.stop())
-    signal.signal(signal.SIGTERM, lambda *_: term.stop())
-
-    term.start()
-    term.wait()
-    click.echo("\nbye.")
-
-
 @main.command()
 @click.option("--check", is_flag=True,
               help="Only check + report — don't install. Honors 24h rate-limit.")
@@ -1257,17 +625,6 @@ def update(check: bool, force: bool, version_tag: str | None) -> None:
       daimon update --check            # report status, no install
       daimon update --version art-v1.0 # install a specific version
       daimon update --force            # re-install even if up-to-date
-
-    Path layout:
-      \b
-      ~/.daimon/art/v1_alpha/             # live pack
-      ~/.daimon/cache/staging/            # download scratch
-      ~/.daimon/cache/last_check.json     # rate-limit state
-      ~/.daimon/cache/update.log          # background-check log
-
-    Override the root via ``DAIMON_ART_DIR``. Pin a version via
-    ``DAIMON_PIN_ART``. Disable auto-fetch entirely via
-    ``DAIMON_NO_AUTO_UPDATE=1``.
     """
     from daimon.update import (
         ArtUpdateError,
@@ -1282,7 +639,6 @@ def update(check: bool, force: bool, version_tag: str | None) -> None:
     before = current_version()
 
     if check:
-        # Status-only path — no download.
         repo = art_repo()
         target = version_tag or pinned_version()
         try:
@@ -1338,23 +694,13 @@ def _format_secs(secs: int) -> str:
 @click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
 @click.option("--slot", "slot_idx", default=None, type=int,
               help="Show details for one slot only.")
-@click.option("--no-tui", "no_tui", is_flag=True,
-              help="Skip the interactive TUI; print a plain text listing.")
-@click.option("--in-place", is_flag=True,
-              help="Render in the current terminal instead of auto-launching "
-                   "DAIMON's bundled WezTerm.")
 @click.pass_context
-def shop(ctx: click.Context, as_json: bool, slot_idx: int | None,
-         no_tui: bool, in_place: bool) -> None:
+def shop(ctx: click.Context, as_json: bool, slot_idx: int | None) -> None:
     """Browse today's 6-slot skin shop. Refreshes daily at 00:00 UTC.
-
-    By default launches an interactive TUI (←→ select, ENTER buy, R refresh,
-    Q quit) when stdout is a TTY. ``--no-tui`` and ``--json`` produce a plain
-    text dump suitable for agents and pipes.
 
     \b
     Subcommands:
-      daimon shop                  interactive TUI (or text dump if --no-tui)
+      daimon shop                  text dump
       daimon shop --slot N         detail one slot
       daimon shop buy <slot|key>   purchase by index or 'card_id/skin_slug'
       daimon shop refresh-status   seconds until next rotation
@@ -1364,23 +710,6 @@ def shop(ctx: click.Context, as_json: bool, slot_idx: int | None,
     import json as _json
 
     from daimon.shop import get_shop_state
-
-    # Interactive TUI is the default when running in a real terminal.
-    # ``--json`` / ``--slot`` / ``--no-tui`` all opt out so agents and
-    # pipelines get deterministic text. Non-TTY stdout (e.g. captured by
-    # an agent) also auto-falls-back to the text dump so we never write
-    # raw escape codes into a log file.
-    want_tui = (not as_json
-                and not no_tui
-                and slot_idx is None
-                and sys.stdout.isatty())
-    if want_tui:
-        # Auto-launch in our bundled WezTerm — TUI only relaunches because
-        # the text/JSON paths don't need pixel-perfect art rendering.
-        _maybe_relaunch_in_terminal(in_place=in_place,
-                                    sub_argv=["shop", "--in-place"])
-        from daimon.play.shop_ui import run_shop_tui
-        sys.exit(run_shop_tui())
 
     try:
         state = get_shop_state()
@@ -1423,8 +752,6 @@ def shop(ctx: click.Context, as_json: bool, slot_idx: int | None,
                    "the art-pack has no skin variants installed yet.)")
         return
     for s in state.slots:
-        # Slots stay in place all day; sold ones show [OWNED] in the cost
-        # column instead of the ¤ price so the layout doesn't shift.
         cost_col = "[OWNED]" if s.sold else f"{s.cost:>4} ¤"
         click.echo(
             f"  [{s.index}] {s.listing.card_id:24s}  "
@@ -1453,7 +780,6 @@ def shop_buy(selector: str, as_json: bool) -> None:
         purchase_slot,
     )
 
-    # Normalize: bare digit → int; otherwise pass the string through.
     sel: str | int = int(selector) if selector.isdigit() else selector
 
     try:
@@ -1579,9 +905,6 @@ def skin_unequip_cmd(card_id: str) -> None:
 # `daimon collection` — owned cards (mirrors dm_collection MCP tool)
 # ---------------------------------------------------------------------------
 
-# Rarity ordering used everywhere in the collection / catalog views. Matches
-# the catalog manifest weights — keeps display consistent with `daimon
-# catalog list` output.
 _RARITY_ORDER = ("common", "uncommon", "rare", "epic", "legendary")
 
 
@@ -1589,7 +912,7 @@ def _rarity_sort_key(r: str) -> int:
     try:
         return _RARITY_ORDER.index(r)
     except ValueError:
-        return len(_RARITY_ORDER)  # unknown rarities sort last
+        return len(_RARITY_ORDER)
 
 
 @main.command("collection")
@@ -1598,45 +921,18 @@ def _rarity_sort_key(r: str) -> int:
               help="Filter to one rarity (common/uncommon/rare/epic/legendary).")
 @click.option("--card", default=None,
               help="Filter to one card_id (shows every serial of that card).")
-@click.option("--no-tui", "no_tui", is_flag=True,
-              help="Skip the interactive TUI; print a plain text listing.")
-@click.option("--in-place", is_flag=True,
-              help="Render in the current terminal instead of auto-launching "
-                   "DAIMON's bundled WezTerm.")
-def collection(as_json: bool, rarity: str | None, card: str | None,
-               no_tui: bool, in_place: bool) -> None:
-    """Browse cards owned by this identity.
-
-    By default launches an interactive TUI (↑↓ select, S sort, F rarity-filter,
-    E element-filter, Q quit) when stdout is a TTY. ``--no-tui``, ``--json``,
-    or any explicit ``--rarity`` / ``--card`` filter flag falls back to a
-    plain text dump suitable for agents and pipes.
+def collection(as_json: bool, rarity: str | None, card: str | None) -> None:
+    """Browse cards owned by this identity (text dump).
 
     Example:
-      daimon collection                       interactive TUI
-      daimon collection --no-tui              plain text dump
-      daimon collection --rarity legendary    text dump filtered to legendaries
-      daimon collection --card magma_tyrant   text dump for one card_id
+      daimon collection                       full text dump
+      daimon collection --rarity legendary    filter to legendaries
+      daimon collection --card magma_tyrant   one card_id
       daimon collection --json                JSON dump
     """
     import json as _json
 
     from daimon.collection import list_serials
-
-    # Interactive TUI is the default when running in a real terminal AND no
-    # explicit filter / output-format flag is set. Filters force text dump
-    # so the user gets exactly what they asked for.
-    want_tui = (not as_json
-                and not no_tui
-                and rarity is None
-                and card is None
-                and sys.stdout.isatty())
-    if want_tui:
-        # Auto-launch in our bundled WezTerm for the same reason as shop.
-        _maybe_relaunch_in_terminal(in_place=in_place,
-                                    sub_argv=["collection", "--in-place"])
-        from daimon.play.collection_ui import run_collection_tui
-        sys.exit(run_collection_tui())
 
     serials = list_serials()
     if rarity:
@@ -1644,8 +940,6 @@ def collection(as_json: bool, rarity: str | None, card: str | None,
     if card:
         serials = [s for s in serials if s.get("card_id") == card]
 
-    # Group by card_id for the human-readable view; rarity rollup lives at
-    # the top so a quick glance shows pull-luck distribution.
     by_card: dict[str, list[dict]] = {}
     rarity_counts: dict[str, int] = {}
     for s in serials:
@@ -1679,8 +973,6 @@ def collection(as_json: bool, rarity: str | None, card: str | None,
     click.echo()
     for cid in sorted(by_card.keys()):
         rows = by_card[cid]
-        # Rarity is identical across serials of the same card_id, so just
-        # take the first row's value.
         r = rows[0].get("rarity", "?")
         click.echo(f"  {cid:28s}  x{len(rows):<3}  {r}")
 
@@ -1975,13 +1267,9 @@ def catalog_compare(card_a: str, card_b: str, expansion: str | None,
 # `daimon loadout` — saved-team CRUD (mirrors dm_loadout_* MCP tools)
 # ---------------------------------------------------------------------------
 
-# Same path the MCP tools use — single source of truth lives in mcp.server.
-# Re-import here at use time (lazy) to avoid pulling in the whole MCP module
-# at CLI startup.
-
 @main.group("loadout")
 def loadout_group() -> None:
-    """Save / load / list / validate / scaffold / edit loadouts.
+    """Save / load / list / validate / scaffold loadouts.
 
     \b
     Subcommands:
@@ -1990,7 +1278,6 @@ def loadout_group() -> None:
       daimon loadout load <name>           print a saved loadout JSON
       daimon loadout validate <path>       check a file's shape + cards
       daimon loadout new                   print a starter showcase template
-      daimon loadout edit <name>           interactive split-pane editor
 
     Saved loadouts live at ``~/.config/daimon/loadouts/<name>.json`` and are
     addressable by name in ``daimon loadout load`` / future arena flows.
@@ -1998,7 +1285,7 @@ def loadout_group() -> None:
     """
 
 
-def _loadouts_dir() -> "Path":
+def _loadouts_dir():
     """Return the canonical loadouts directory (mirrors mcp.server)."""
     from pathlib import Path
 
@@ -2055,16 +1342,7 @@ def loadout_list(as_json: bool) -> None:
 @click.argument("loadout_path")
 @click.argument("name")
 def loadout_save(loadout_path: str, name: str) -> None:
-    """Save a loadout file under ``name`` for future use.
-
-    The file is validated through the unified loader (accepts bare list,
-    {"cards":[...]}, or showcase format) before being written. Showcase
-    files are resolved through the catalog and saved as the full
-    stat-block form so subsequent ``daimon match`` calls don't need the
-    catalog at runtime.
-
-    Names are restricted to ``[A-Za-z0-9_-]`` (1-48 chars).
-    """
+    """Save a loadout file under ``name`` for future use."""
     import json as _json
 
     from daimon.loadouts import load_loadout_file
@@ -2178,17 +1456,7 @@ def loadout_validate(loadout_path: str, as_json: bool) -> None:
 @click.option("--catalog", default=None,
               help="Catalog id to draw card_ids from (default: v1_alpha).")
 def loadout_new(out: str | None, catalog: str | None) -> None:
-    """Print a starter loadout template (showcase format).
-
-    Picks the first 6 catalog cards as a placeholder skeleton — edit the
-    ``loadout`` array with your chosen ``card_id``\\s, then save with::
-
-        daimon loadout save <file> <name>
-
-    or play directly::
-
-        daimon match-npc <file> sparring_sam
-    """
+    """Print a starter loadout template (showcase format)."""
     import json as _json
     from pathlib import Path
 
@@ -2206,7 +1474,6 @@ def loadout_new(out: str | None, catalog: str | None) -> None:
                    f"({len(cat.cards)}); cannot scaffold a loadout.", err=True)
         sys.exit(1)
 
-    # Take the first 6 cards in catalog order — a placeholder, not balanced.
     template = {
         "loadout_id": "my_loadout",
         "name": "My Loadout",
@@ -2231,60 +1498,6 @@ def loadout_new(out: str | None, catalog: str | None) -> None:
         return
 
     click.echo(text, nl=False)
-
-
-@loadout_group.command("edit")
-@click.argument("name")
-@click.option("--catalog", "catalog_id", default="v1_alpha",
-              help="Catalog id to draw cards from (default: v1_alpha).")
-@click.option("--no-tui", "no_tui", is_flag=True,
-              help="Refuse to launch the TUI (returns 2). For non-TTY agents.")
-@click.option("--in-place", is_flag=True,
-              help="Render in the current terminal instead of auto-launching "
-                   "DAIMON's bundled WezTerm.")
-def loadout_edit(name: str, catalog_id: str, no_tui: bool, in_place: bool) -> None:
-    """Open the interactive split-pane loadout editor for ``name``.
-
-    Catalog appears on the left, your 6-slot team on the right. Live
-    validation against engine.Loadout (TEAM_SIZE=6, ≤2 same-species).
-
-    \b
-    Keys:
-      ↑/↓             move cursor in focused pane
-      TAB / ←→        swap focus between CATALOG and LOADOUT
-      ENTER / +       add cursor card to first empty slot
-      -               drop the cursor's loadout slot
-      s               save and exit (refuses if invalid)
-      q / ESC         quit without saving
-
-    The saved file lives at ``~/.config/daimon/loadouts/<name>.json`` —
-    the same path used by ``daimon loadout load`` / ``daimon match-npc``.
-    A missing file is created from an empty 6-slot template.
-    """
-    if no_tui:
-        click.echo(
-            "error: `loadout edit` requires an interactive TTY. "
-            "Use `daimon loadout new` + `daimon loadout save` instead.",
-            err=True,
-        )
-        sys.exit(2)
-    if not sys.stdout.isatty():
-        click.echo(
-            "error: `loadout edit` requires a terminal "
-            "(stdout is not a TTY).",
-            err=True,
-        )
-        sys.exit(2)
-
-    # Auto-launch in our bundled WezTerm so the editor's card art renders
-    # at the locked DPI / cell-size / colour-space.
-    _maybe_relaunch_in_terminal(
-        in_place=in_place,
-        sub_argv=["loadout", "edit", name, "--catalog", catalog_id, "--in-place"],
-    )
-
-    from daimon.play.loadout_editor import run_loadout_editor
-    sys.exit(run_loadout_editor(name, catalog_id=catalog_id))
 
 
 if __name__ == "__main__":

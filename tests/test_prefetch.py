@@ -369,19 +369,18 @@ class TestPrefetchSingletonLock:
         `rm`.
         """
         # Find a PID that is not in use. PID 1 is always alive (init);
-        # we want a definitely-dead one. Walk down from a synthetic
-        # high number and find one that os.kill(pid, 0) reports gone.
+        # we want a definitely-dead one. Use the same liveness check the
+        # production code uses — handles Windows + POSIX uniformly
+        # (Windows raises plain OSError for unknown PIDs, not
+        # ProcessLookupError, so this loop works on both).
         import os
+        from daimon.update.prefetch import _pid_alive
 
         dead_pid = None
         for candidate in range(2_000_000, 2_100_000):
-            try:
-                os.kill(candidate, 0)
-            except ProcessLookupError:
+            if not _pid_alive(candidate):
                 dead_pid = candidate
                 break
-            except OSError:
-                continue
         assert dead_pid is not None, "couldn't find a definitely-dead PID for the test"
 
         # Plant a stale lockfile.

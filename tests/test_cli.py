@@ -143,31 +143,32 @@ def _run_daimon_subprocess(args: list[str], env_overrides: dict[str, str]) -> su
 
 
 def test_daimon_home_isolates_identity(tmp_path):
-    """Setting DAIMON_HOME=<tmp> must route identity files to <tmp>/."""
+    """Setting DAIMON_HOME=<tmp> must route identity files to <tmp>/.
+
+    Post-bootstrap migration: bootstrap silently mints an identity on the
+    first CLI invocation, so we observe it via ``daimon whoami`` instead
+    of a now-redundant explicit ``daimon init``.
+    """
     home = tmp_path / "daimon_home"
     home.mkdir()
-    result = _run_daimon_subprocess(["init"], {"DAIMON_HOME": str(home)})
+    result = _run_daimon_subprocess(["whoami"], {"DAIMON_HOME": str(home)})
     assert result.returncode == 0, result.stderr
-    assert "Identity generated" in result.stdout
+    # Bootstrap writes the identity files into DAIMON_HOME (CONFIG_DIR).
     assert (home / "identity.key").exists()
     assert (home / "identity.pub").exists()
     assert (home / "identity.json").exists()
 
 
-def test_daimon_home_then_whoami_round_trip(tmp_path):
-    """init → whoami inside the same DAIMON_HOME must agree on the pubkey."""
+def test_daimon_home_whoami_is_stable_across_invocations(tmp_path):
+    """Two whoami calls in the same DAIMON_HOME must return the same pubkey
+    — bootstrap's silent identity generation is one-shot, not re-rolled."""
     home = tmp_path / "daimon_home"
     home.mkdir()
-    init = _run_daimon_subprocess(["init"], {"DAIMON_HOME": str(home)})
-    assert init.returncode == 0
-    pubkey_line = next(
-        line for line in init.stdout.splitlines() if "pubkey:" in line
-    )
-    init_pubkey = pubkey_line.split(":", 1)[1].strip()
-
-    whoami = _run_daimon_subprocess(["whoami"], {"DAIMON_HOME": str(home)})
-    assert whoami.returncode == 0
-    assert whoami.stdout.strip() == init_pubkey
+    first = _run_daimon_subprocess(["whoami"], {"DAIMON_HOME": str(home)})
+    assert first.returncode == 0
+    second = _run_daimon_subprocess(["whoami"], {"DAIMON_HOME": str(home)})
+    assert second.returncode == 0
+    assert first.stdout.strip() == second.stdout.strip()
 
 
 def test_xdg_config_home_fallback_when_daimon_home_absent(tmp_path):
@@ -176,7 +177,7 @@ def test_xdg_config_home_fallback_when_daimon_home_absent(tmp_path):
     xdg_root.mkdir()
     # No DAIMON_HOME — XDG_CONFIG_HOME should win.
     result = _run_daimon_subprocess(
-        ["init"], {"XDG_CONFIG_HOME": str(xdg_root)},
+        ["whoami"], {"XDG_CONFIG_HOME": str(xdg_root)},
     )
     assert result.returncode == 0, result.stderr
     expected_dir = xdg_root / "daimon"
@@ -210,7 +211,7 @@ def test_match_writes_state_json(isolated_home, tmp_path):
     state_path = isolated_home / "state.json"
     assert state_path.exists(), "match should write state.json"
 
-    state = json.loads(state_path.read_text())
+    state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["view"] == "match"
     assert state["id"].startswith("match_")
     # The state payload is a V2 Match — has both participants populated.
@@ -237,7 +238,7 @@ def test_match_npc_writes_state_json_with_npc_name(isolated_home, tmp_path):
 
     state_path = isolated_home / "state.json"
     assert state_path.exists()
-    state = json.loads(state_path.read_text())
+    state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["view"] == "match"
     # CRITICAL: opponent name = NPC name, not the literal "opponent"
     assert state["data"]["participants"]["opponent"]["name"] == "Sparring Sam"
@@ -264,7 +265,7 @@ def test_pull_writes_state_json(isolated_home):
 
     state_path = isolated_home / "state.json"
     assert state_path.exists()
-    state = json.loads(state_path.read_text())
+    state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["view"] == "pull"
     assert state["id"].startswith("pull_")
     assert "card_id" in state["data"]
@@ -308,7 +309,7 @@ def test_all_subcommands_responsd_to_help():
     # Locked surface — bump this list explicitly when adding commands.
     expected = [
         "init", "whoami", "home", "match", "match-npc", "mine",
-        "npcs", "play", "play-demo", "play-render", "pull", "render",
+        "npcs", "pull",
     ]
     for cmd in expected:
         result = runner.invoke(main, [cmd, "--help"])
@@ -329,58 +330,16 @@ def test_mine_subcommands_respond_to_help():
 # `daimon home` — chat home card renderer
 # ---------------------------------------------------------------------------
 
-def test_home_no_identity_exits_with_hint(isolated_home):
-    """No identity → fail-fast with a clear hint pointing at `daimon init`.
-    The renderer can show an onboarding card, but the human-driven CLI
-    default surface should explicitly tell them to bootstrap first."""
+def test_home_default_prints_summary(isolated_home):
+    """Default output: human-readable summary. Bootstrap auto-mints the
+    identity on first invocation, so no explicit init is needed."""
     from daimon.cli import main
     runner = CliRunner()
-    result = runner.invoke(main, ["home"])
-    assert result.exit_code == 1
-    assert "no identity" in result.output.lower()
-    assert "daimon init" in result.output
-
-
-def test_home_default_prints_summary_and_message(isolated_home):
-    """Default output: human-readable summary + the :::html message
-    block ready to paste into the chat-reply tool."""
-    from daimon.cli import main
-    runner = CliRunner()
-    runner.invoke(main, ["init"])
     result = runner.invoke(main, ["home"])
     assert result.exit_code == 0, result.output
-    # Summary lines
-    assert "DAIMON home card:" in result.output
+    assert "DAIMON home:" in result.output
     assert "tier:" in result.output
     assert "balance:" in result.output
-    # The fenced message block must follow
-    assert ":::html" in result.output
-
-
-def test_home_message_flag_prints_only_fenced_block(isolated_home):
-    from daimon.cli import main
-    runner = CliRunner()
-    runner.invoke(main, ["init"])
-    result = runner.invoke(main, ["home", "--message"])
-    assert result.exit_code == 0, result.output
-    out = result.output.strip()
-    assert out.startswith(":::html")
-    assert out.endswith(":::")
-    # No human-readable summary leaks in.
-    assert "DAIMON home card:" not in out
-
-
-def test_home_html_flag_prints_raw_html(isolated_home):
-    from daimon.cli import main
-    runner = CliRunner()
-    runner.invoke(main, ["init"])
-    result = runner.invoke(main, ["home", "--html"])
-    assert result.exit_code == 0, result.output
-    out = result.output.strip()
-    # Bare HTML — no fence, no summary.
-    assert not out.startswith(":::html")
-    assert out.startswith("<div")
-    assert "DAIMON home card:" not in out
 
 
 def test_home_json_flag_prints_payload(isolated_home):
@@ -393,12 +352,3 @@ def test_home_json_flag_prints_payload(isolated_home):
     assert payload["status"] == "ok"
     assert "identity" in payload
     assert "rank" in payload
-
-
-def test_home_flags_are_mutually_exclusive(isolated_home):
-    from daimon.cli import main
-    runner = CliRunner()
-    runner.invoke(main, ["init"])
-    result = runner.invoke(main, ["home", "--message", "--json"])
-    assert result.exit_code == 2
-    assert "mutually exclusive" in result.output

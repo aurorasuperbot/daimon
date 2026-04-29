@@ -1,19 +1,12 @@
-"""daimon.play — match rendering, file-watcher inbox, battle UI.
+"""daimon.play — match wire protocol + state.json IPC.
 
-V1 alpha scope:
-  - `schema` — Pydantic models for the match.json wire protocol (locked 2026-04-22)
-  - `frame`  — BattleFrame = computed renderable state at time t
-  - `pil_renderer` — PIL-based PNG renderer (mockup + marketing screenshots)
-  - `animator` + `primitives` — the 4 default animation primitives + registry
-  - `cli` — `daimon play-render` commands
+Surviving modules (post-refactor):
+  - schema — Pydantic models for the match.json wire protocol
+  - state  — read/write state.json (MCP <-> webview IPC)
+  - publish — publish state from MCP server side
 
-Future (V1.x):
-  - daimon.ui TUI renderer — consumes the SAME BattleFrame + primitive registry
-  - HTML replay exporter — ditto
-  - File-watcher inbox dispatcher
-
-Architecture invariant: the match JSON wire protocol and the Primitive registry
-are the two extension points. Renderers are interchangeable, data model stays.
+The terminal renderers (animator/primitives/pil/hud/menu_ui/...) were removed
+in the pywebview migration — see refactor.md.
 """
 
 from daimon.play.schema import Match, Action, Round, Outcome  # noqa: F401

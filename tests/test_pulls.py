@@ -60,7 +60,7 @@ def test_pull_deducts_cost(isolated):
 def test_pull_mints_serial_and_collection(isolated):
     _fund(100)
     receipt = perform_pull(seed=b"\xab" * 32)
-    coll = json.loads(isolated["collection"].read_text())
+    coll = json.loads(isolated["collection"].read_text(encoding="utf-8"))
     assert len(coll["serials"]) == 1
     assert coll["serials"][0]["serial"] == receipt.serial.serial
     assert coll["serials"][0]["card_id"] == receipt.card_id
@@ -84,7 +84,7 @@ def test_pull_insufficient_raises(isolated):
 def test_pull_links_serial_to_ledger_hash(isolated):
     _fund(100)
     receipt = perform_pull(seed=b"\xef" * 32)
-    coll = json.loads(isolated["collection"].read_text())
+    coll = json.loads(isolated["collection"].read_text(encoding="utf-8"))
     assert coll["serials"][0]["ledger_entry_hash"] == receipt.ledger_entry_hash
 
 
@@ -92,7 +92,7 @@ def test_pull_refuses_corrupt_ledger(isolated):
     _fund(100)
     # Corrupt the ledger by editing an amount.
     p = isolated["ledger"]
-    lines = p.read_text().splitlines()
+    lines = p.read_text(encoding="utf-8").splitlines()
     e = json.loads(lines[1])
     e["amount"] = 9999
     lines[1] = json.dumps(e, sort_keys=True, separators=(",", ":"))

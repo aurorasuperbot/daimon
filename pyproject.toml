@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daimon-engine"
-version = "0.1.0"
-description = "DAIMON — open-source agentic-first autobattler engine"
+version = "2.0.0"
+description = "DAIMON — open-source agentic-first autobattler with native pywebview UI"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "LicenseRef-PolyForm-Noncommercial-1.0.0"
@@ -25,11 +25,13 @@ dependencies = [
     "pydantic>=2.5",
     "cryptography>=42",          # ed25519 + signing
     "click>=8.1",                # CLI
-    "rich>=13.7",                # markup → ANSI for the daimon.ui renderer
-    "Pillow>=10.0",              # render harness
     "mnemonic>=0.20",            # BIP39
-    "watchdog>=3.0",             # play.terminal state-file watcher
     "mcp>=1.0",                  # FastMCP server (also imported by `daimon home` for dm_home)
+    # Webview app stack (post-pywebview migration, refactor.md Phase 0+)
+    "pywebview>=5.0",            # OS-native webview (Edge WebView2 / WKWebView / GTK WebKit)
+    "fastapi>=0.110",            # localhost-bound game backend
+    "uvicorn>=0.27",             # ASGI server (in-process daemon thread)
+    "websockets>=12.0",          # live balance + receipt push to the window
 ]
 
 [project.optional-dependencies]
@@ -60,22 +62,19 @@ daimon = [
     "catalog/*/*.json",
     "npcs/manifest.json",
     "npcs/*/*.json",
-    "render/wezterm.lua",        # locked WezTerm config (see daimon.render.wezterm_bundle)
-    "render/fonts/*.ttf",        # bundled DejaVu typefaces (compose.py hard-fails
-                                 # if these are missing — Ubuntu's fonts-dejavu-core
-                                 # ships Sans+Serif but NOT italic, so we ship our own
-                                 # to make render environment-portable).
+    # Bundled web frontend (Phase 0+ of the pywebview migration).
+    "web/static/*.html",
+    "web/static/*.css",
+    "web/static/*.js",
+    "web/static/components/*.js",
+    "web/static/screens/*.js",
+    "web/static/fonts/*",
+    "web/static/audio/*",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-# Custom markers — keep alphabetical. Pytest emits a warning for any
-# unregistered marker, so anything we use in @pytest.mark.<name> must
-# live here.
-markers = [
-    "allows_hud_spawn: opt the test back into the real _maybe_spawn_play_hud path; default for tests/test_mcp.py is a no-op (autouse fixture) so dm_match / dm_pull / dm_match_npc tests don't fork real `daimon play` HUD subprocesses into the host system.",
-]
 
 [tool.ruff]
 line-length = 100

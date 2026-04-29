@@ -239,7 +239,7 @@ class TestLoadout:
         r = _run("loadout", "new", "--out", str(out))
         assert r.exit_code == 0, r.output
         assert out.is_file()
-        doc = json.loads(out.read_text())
+        doc = json.loads(out.read_text(encoding="utf-8"))
         assert "loadout" in doc and len(doc["loadout"]) == 6
 
     def test_new_refuses_to_overwrite(self, isolated_home: Path, tmp_path: Path):

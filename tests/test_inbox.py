@@ -131,7 +131,7 @@ class TestCursor:
         set_last_acked(7, path=path)
         assert get_last_acked(path=path) == 7
         # Persisted file shape
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         assert data["last_acked_id"] == 7
         assert "updated_at" in data
 

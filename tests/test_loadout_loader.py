@@ -206,9 +206,10 @@ class TestLoadLoadoutFile:
         assert lo.cards[0].card_id == "magma_tyrant"
 
     def test_error_message_includes_path(self, tmp_path: Path):
+        import re
         p = tmp_path / "team.json"
         p.write_text(json.dumps({"junk": True}), encoding="utf-8")
-        with pytest.raises(ValueError, match=str(p)):
+        with pytest.raises(ValueError, match=re.escape(str(p))):
             load_loadout_file(p)
 
 

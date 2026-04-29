@@ -76,17 +76,17 @@ NORMAL_MIN_PER_BULK_TIER = {
 
 @pytest.fixture(scope="module")
 def manifest() -> dict:
-    return json.loads(MANIFEST_PATH.read_text())
+    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
 def cards_on_disk() -> list[dict]:
     """Read every card JSON the manifest references — single source of truth
     for trigger counts (manifest doesn't carry triggers)."""
-    m = json.loads(MANIFEST_PATH.read_text())
+    m = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     out: list[dict] = []
     for entry in m["cards"]:
-        out.append(json.loads((PACK_DIR / entry["file"]).read_text()))
+        out.append(json.loads((PACK_DIR / entry["file"]).read_text(encoding="utf-8")))
     return out
 
 

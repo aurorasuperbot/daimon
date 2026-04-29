@@ -122,7 +122,7 @@ def test_main_processes_real_event(monkeypatch, isolated):
     assert rc == 0
     # Ledger now has genesis + mine entry
     assert isolated.exists()
-    lines = isolated.read_text().splitlines()
+    lines = isolated.read_text(encoding="utf-8").splitlines()
     kinds = [json.loads(l)["kind"] for l in lines]
     assert "mine" in kinds
 

@@ -185,7 +185,7 @@ def test_listings_skips_inactive_variants(shop_env, tmp_path):
     pack_root = tmp_path / "art" / "v1_alpha"
     # Patch one card's manifest to mark its skin as discarded.
     mp = pack_root / "card_rare_00" / "manifest.json"
-    m = json.loads(mp.read_text())
+    m = json.loads(mp.read_text(encoding="utf-8"))
     for v in m["variants"]:
         if v.get("kind") == "skin":
             v["status"] = "discarded"
@@ -689,14 +689,14 @@ def test_purchase_out_of_range(shop_env):
 # ---------------------------------------------------------------------------
 
 def test_art_path_for_falls_back_to_canonical(shop_env):
-    from daimon.render import art_path_for
+    from daimon.cards import art_path_for
     p = art_path_for("card_rare_00")
     assert p is not None
     assert p.name == "v0.png"
 
 
 def test_art_path_for_uses_equipped(shop_env):
-    from daimon.render import art_path_for
+    from daimon.cards import art_path_for
     from daimon.shop import equip_skin
     from daimon.shop.owned import OwnedSkin, append_owned
 
@@ -715,7 +715,7 @@ def test_art_path_for_uses_equipped(shop_env):
 def test_art_path_for_falls_back_when_skin_png_missing(shop_env, tmp_path):
     """If the equipped skin's PNG is absent (mid-update etc), fall through
     to canonical without raising."""
-    from daimon.render import art_path_for
+    from daimon.cards import art_path_for
     from daimon.shop import equip_skin
     from daimon.shop.owned import OwnedSkin, append_owned
 

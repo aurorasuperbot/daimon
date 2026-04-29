@@ -85,9 +85,6 @@ def isolated_paths(monkeypatch, tmp_path):
     monkeypatch.setattr(mcp_server, "LOADOUTS_DIR", cfg / "loadouts")
     monkeypatch.setattr(buffer_mod, "BUFFER_PATH", cfg / "mine_buffer.jsonl")
     monkeypatch.setenv("DAIMON_STATE", str(cfg / "state.json"))
-    # Neuter HUD spawn (test_mcp.py does this via autouse fixture; we
-    # explicitly do it here so this file is self-contained).
-    monkeypatch.setattr(mcp_server, "_maybe_spawn_play_hud", lambda: None)
     return cfg
 
 
@@ -101,7 +98,7 @@ _FILLER_ELEMENTS = ["FIRE", "WATER", "NATURE", "VOLT", "VOID"]
 
 def _vanilla_head_dict() -> dict:
     return json.loads(
-        (FIXTURE_DIR / "test_card_01_vanilla_head.json").read_text()
+        (FIXTURE_DIR / "test_card_01_vanilla_head.json").read_text(encoding="utf-8")
     )
 
 
@@ -158,7 +155,7 @@ def test_set_writes_atomically_no_tmp_left_behind(isolated_paths):
     tmp = meta.with_suffix(meta.suffix + ".tmp")
     assert not tmp.exists(), f"stray tmp file: {tmp}"
     # Doc shape on disk
-    doc = json.loads(meta.read_text())
+    doc = json.loads(meta.read_text(encoding="utf-8"))
     assert doc == {"version": 1, "active_loadout": "aggro_volt"}
 
 
@@ -183,7 +180,7 @@ def test_clear_writes_null_pointer(isolated_paths):
     clear_active_loadout()
     assert get_active_loadout_name(validate_exists=False) is None
     # Doc still on disk for debug visibility — body is null, not missing.
-    doc = json.loads(_meta_path().read_text())
+    doc = json.loads(_meta_path().read_text(encoding="utf-8"))
     assert doc == {"version": 1, "active_loadout": None}
 
 

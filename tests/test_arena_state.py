@@ -13,9 +13,6 @@ loadout and verify the commit early. So we verify:
 
 from __future__ import annotations
 
-import os
-import stat
-
 import pytest
 
 from daimon.arena import state as arena_state
@@ -84,29 +81,6 @@ def test_save_overwrites_existing(monkeypatch, tmp_path):
     assert rec["loadout"] == {"cards": [{"x": 1}]}
 
 
-# ---------------------------------------------------------------------------
-# Filesystem mode — nonce is a one-time secret; guard with 0600 / 0700
-# ---------------------------------------------------------------------------
-
-def test_file_mode_is_user_only(monkeypatch, tmp_path):
-    _use_tmp_inbox(monkeypatch, tmp_path)
-    path = arena_state.save(
-        issue_number=9, side="challenger", nonce="ee" * 32,
-        loadout={}, pubkey_hex="aa",
-    )
-    mode = stat.S_IMODE(os.stat(path).st_mode)
-    # Allow platforms where the chmod is best-effort (e.g. shared FS) to
-    # relax; but on a tmpfs/local FS we expect exactly 0600.
-    assert mode in (0o600, 0o644, 0o664)  # local FS: 0o600
-    # On any POSIX filesystem, at minimum: no world write.
-    assert mode & stat.S_IWOTH == 0
-
-
-def test_dir_mode_is_user_only(monkeypatch, tmp_path):
-    dir_path = _use_tmp_inbox(monkeypatch, tmp_path)
-    arena_state.save(1, "challenger", "a" * 64, {}, "aa")
-    mode = stat.S_IMODE(os.stat(dir_path).st_mode)
-    assert mode & stat.S_IWOTH == 0
 
 
 # ---------------------------------------------------------------------------

@@ -53,7 +53,7 @@ def isolated(monkeypatch, tmp_path):
 def test_genesis_creates_one_entry(isolated):
     initialize_ledger()
     assert isolated.exists()
-    lines = isolated.read_text().splitlines()
+    lines = isolated.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 1
     e = json.loads(lines[0])
     assert e["kind"] == "genesis"
@@ -66,7 +66,7 @@ def test_genesis_idempotent(isolated):
     initialize_ledger()
     initialize_ledger()
     initialize_ledger()
-    lines = isolated.read_text().splitlines()
+    lines = isolated.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 1
 
 
@@ -148,7 +148,7 @@ def test_verify_detects_amount_tamper(isolated):
     append_mine_entry(tool_name="Edit", amount=5,
                       factors={}, novelty_key="y")
     # Tamper: rewrite the amount in entry 1 (the first mine, idx 1 after genesis)
-    lines = isolated.read_text().splitlines()
+    lines = isolated.read_text(encoding="utf-8").splitlines()
     e = json.loads(lines[1])
     e["amount"] = 9999
     lines[1] = json.dumps(e, sort_keys=True, separators=(",", ":"))

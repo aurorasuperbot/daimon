@@ -2,7 +2,7 @@
 
 The state.json scheme (see ``daimon/play/state.py``) carries the *current
 view*: which match is playing, which pull just landed, etc. It is "last
-write wins", one file, and the renderer sits on it via watchdog.
+write wins", one file, and the webview reader polls it for changes.
 
 But the agent also generates a stream of small events — every productive
 tool call mints currency, every 100 ¤ is a milestone — that should scroll

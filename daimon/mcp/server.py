@@ -12,19 +12,12 @@ rather than trusting any single number in this docstring.
 
 Identity + currency:
   dm_init              → bootstrap identity + BIP39 mnemonic (one-time)
-  dm_onboard           → one-shot first-run setup (identity + recovery file +
-                         manifest + starter prefetch + optional Claude Code
-                         wiring). Folds the four legacy bootstrap steps.
-  dm_onboarding_status → read-only snapshot of the 5-stage onboarding journey
-                         (bootstrap / asset_load / first_pull / first_match /
-                         mining_hook / graduated). Identical to the
-                         ``onboarding`` field on the ``dm_home`` payload.
   dm_whoami            → pubkey + handle + balance + totals (absorbed mine_status)
-  dm_home              → one-call snapshot for the chat home card (identity +
-                         balance + recent matches/pulls + recommended NPC +
-                         saved loadouts + daily quests + onboarding stage) —
-                         sources: ledger + mine_buffer + arena.my_rank +
-                         npcs roster + quests + onboard.stages
+  dm_home              → one-call snapshot (identity + balance +
+                         recent matches/pulls + recommended NPC +
+                         saved loadouts + daily quests) — sources:
+                         ledger + mine_buffer + arena.my_rank + npcs
+                         roster + quests
   dm_register          → open identity registration Issue in arena
   dm_mine_status       → DEPRECATED alias for dm_whoami; kept for back-compat
 
@@ -357,37 +350,6 @@ def _catalog_summary(catalog_id: str) -> Dict[str, Any]:
 # `status == "not_yet_implemented"` were updated in the same commit.
 
 
-def _maybe_spawn_play_hud() -> Optional[int]:
-    """Best-effort: pop the spectator HUD if it isn't already running.
-
-    Called after every state-mutating tool that writes a ``match`` or
-    ``pull`` to ``state.json`` so the user sees the animation without
-    having to run ``daimon play`` themselves. Honors
-    ``DAIMON_NO_AUTO_HUD=1`` and the inside-terminal sentinel; returns
-    ``None`` on opt-out or when an existing HUD is already up.
-
-    NOTE on ``require_tty=False``: the MCP stdio server runs with stdout
-    piped to the parent agent process — by definition never a TTY. The
-    ``require_tty`` gate exists in ``spawn_play_hud`` to stop CI shells
-    and one-off ``daimon`` invocations from popping a window; the MCP
-    code path is the OPPOSITE situation (an interactive agent
-    explicitly asking for a match). Passing ``require_tty=False`` here
-    is what makes ``hud_pid`` actually populate on the response, instead
-    of always returning ``None``. The two opt-outs above are the
-    correct gates for the agent context.
-
-    Failure is silent — the agent's response must not depend on whether
-    a window popped. The PID (when one is returned) is added to the
-    response envelope as ``hud_pid`` so the agent can surface a
-    "watching now" hint to the player.
-    """
-    try:
-        from daimon.play.spawn import spawn_play_hud
-        return spawn_play_hud(require_tty=False)
-    except Exception:  # noqa: BLE001 — best-effort
-        return None
-
-
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -464,146 +426,6 @@ def dm_init(force: bool = False) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def dm_onboard(
-    force: bool = False,
-    wire_claude_code: bool = False,
-    spawn_prefetch: bool = True,
-) -> Dict[str, Any]:
-    """One-shot first-run setup, agent-driven variant of `daimon onboard`.
-
-    Folds identity generation, recovery file write, manifest fetch,
-    starter-card prefetch, and (optionally) Claude Code hook wiring
-    into a single tool call. The default `wire_claude_code=False`
-    matches the typical agent flow: the agent is already running
-    *inside* Claude Code, so the daimon MCP server is by definition
-    already wired. The PostToolUse mining hook is a separate question
-    — leave wiring it to the user (`daimon mine install-hook` from
-    their terminal), or pass `wire_claude_code=True` if the user
-    explicitly asked for the full setup via this tool.
-
-    Args:
-      force: If True, overwrite an existing identity. DESTRUCTIVE.
-      wire_claude_code: If True, also write the daimon mcpServers
-             entry + PostToolUse hook into ~/.claude/settings.json.
-             The MCP entry is idempotent (a redundant write of the
-             current path is a no-op); the hook write is gated on
-             the user accepting the prompt at their end.
-      spawn_prefetch: If True, spawn a detached background prefetcher
-             for non-starter cards. Default True.
-
-    Returns on success:
-      {"status": "ok",
-       "identity_action": "generated" | "already_present",
-       "pubkey_hex": "<hex>",
-       "mnemonic": "word1 word2 ...",   # empty when identity already existed
-       "recovery_path": "/abs/path/to/recovery.txt" | null,
-       "manifest_action": "installed" | "already_present" | "failed",
-       "manifest_version": "v1_alpha" | null,
-       "manifest_error": "..." | null,
-       "starter_fetched": ["card_id", ...],
-       "starter_failed": [["card_id", "error"], ...],
-       "prefetch_pid": int | null,
-       "claude_code_action": "wired" | "refreshed" | "already_present"
-                            | "skipped" | "failed",
-       "claude_code_settings": "/abs/.claude/settings.json" | null,
-       "claude_code_backup": "/abs/.../settings.json.bak.*" | null,
-       "claude_code_error": "..." | null,
-       "claude_code_mcp_command": "/abs/dmn-mcp" | null,
-       "warning": "Save the mnemonic NOW..."}    # only when mnemonic is non-empty
-
-    Surface the mnemonic to the user IMMEDIATELY — show it as plain
-    text and ask them to write it down before continuing. DAIMON
-    never persists it; this tool returns it once and loses it.
-    """
-    from daimon.onboard import run_onboard
-
-    try:
-        result = run_onboard(
-            force_identity=force,
-            confirm_mnemonic=None,  # the agent handles confirmation surface-side
-            wire_claude_code=wire_claude_code,
-            spawn_prefetch=spawn_prefetch,
-        )
-    except FileExistsError as e:
-        return {
-            "error": "identity_exists",
-            "message": str(e),
-            "hint": "Pass force=true to overwrite (DESTRUCTIVE — "
-                    "old collection + ledger position will be lost "
-                    "unless you have the mnemonic).",
-        }
-    except Exception as e:  # noqa: BLE001 — structured-error contract
-        return {
-            "error": "internal_error",
-            "message": f"{type(e).__name__}: {e}",
-        }
-
-    payload: Dict[str, Any] = {
-        "status": "ok",
-        **result.to_dict(),
-    }
-    if result.mnemonic:
-        payload["warning"] = (
-            "Save the mnemonic NOW. It is shown once only — DAIMON "
-            "never persists it. A copy was also written to "
-            f"{result.recovery_path or '<recovery file>'} (mode 0600). "
-            "Loss of both mnemonic and identity.key means loss of your "
-            "collection."
-        )
-    return payload
-
-
-@mcp.tool()
-def dm_onboarding_status() -> Dict[str, Any]:
-    """Return the player's current onboarding stage (read-only snapshot).
-
-    The 5-stage product flow lives on top of the existing engine
-    primitives — this tool just walks the gates and reports the first
-    one still open. Stages, in order:
-
-      1. ``bootstrap``   — no identity yet (run ``dm_onboard``)
-      2. ``asset_load``  — identity OK, art-pack manifest missing
-      3. ``first_pull``  — collection empty (call ``dm_pull``)
-      4. ``first_match`` — has cards, no recorded match yet (challenge
-         the rank-1 Rookie NPC, default "Sparring Sam")
-      5. ``mining_hook`` — hook missing (run ``daimon mine install-hook``)
-      6. ``graduated``   — all five gates cleared; the home card hides
-         the onboarding banner.
-
-    The returned envelope mirrors :class:`daimon.onboard.OnboardingState`
-    and is **identical** to the ``onboarding`` field embedded inside
-    ``dm_home``'s payload — agents that already called ``dm_home`` don't
-    need to call this tool too.
-
-    Returns:
-      {"status": "ok",
-       "stage": "bootstrap" | "asset_load" | "first_pull" |
-                "first_match" | "mining_hook" | "graduated",
-       "step": int,                 # 1..6 (1-based, GRADUATED is 6)
-       "total": 5,                  # non-graduated stage count
-       "title": "...",              # short banner title (empty when GRADUATED)
-       "blurb": "...",              # one-sentence next-step description
-       "cta_label": "...",          # button text (empty when GRADUATED)
-       "cta_message": "@daimon ...",# what the button posts (empty when GRADUATED)
-       "signals": {...}}            # per-stage diagnostic dict (debug)
-
-    Never raises — every probe is best-effort and degrades to "stage not
-    cleared" on error so the player gets the prompt rather than being
-    silently advanced past a real gate.
-    """
-    try:
-        from daimon.onboard.stages import detect_stage
-        state = detect_stage().to_dict()
-    except Exception as e:  # noqa: BLE001 — structured envelope contract
-        logger.exception("dm_onboarding_status: detect_stage failed")
-        return {
-            "error": "internal_error",
-            "message": f"{type(e).__name__}: {e}",
-        }
-    return {"status": "ok", **state}
-
-
-@mcp.tool()
 def dm_whoami() -> Dict[str, Any]:
     """Return the local DAIMON identity + mining snapshot.
 
@@ -633,7 +455,7 @@ def dm_whoami() -> Dict[str, Any]:
     metadata_path = CONFIG_DIR / "identity.json"
     if metadata_path.exists():
         try:
-            metadata = json.loads(metadata_path.read_text())
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             handle = metadata.get("handle")
             registered = bool(metadata.get("registered"))
         except Exception:
@@ -990,10 +812,7 @@ def dm_home() -> Dict[str, Any]:
                          "complete", "claimed"}, ...],  # exactly 3 entries
        "tier_ceremony": {"pending_tier", "prev_tier",
                          "tiers_to_mint": [...], "reward_total": int,
-                         "wins_at_check": int} | null,  # null when nothing to claim
-       "onboarding": {"stage", "step", "total", "title", "blurb",
-                      "cta_label", "cta_message", "signals"}}
-                                       # see daimon.onboard.stages
+                         "wins_at_check": int} | null}  # null when nothing to claim
 
     Returns {"error": "no_identity", ...} if `daimon init` has never run.
     Never raises — every sub-source is wrapped in best-effort fallback so the
@@ -1016,7 +835,7 @@ def dm_home() -> Dict[str, Any]:
     metadata_path = CONFIG_DIR / "identity.json"
     if metadata_path.exists():
         try:
-            metadata = json.loads(metadata_path.read_text())
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             handle = metadata.get("handle")
             registered = bool(metadata.get("registered"))
         except Exception:
@@ -1091,17 +910,6 @@ def dm_home() -> Dict[str, Any]:
         recent_matches=full_match_window,
     )
 
-    # Onboarding stage detection — pure read-only walk over local FS state.
-    # Lives at the bottom of the payload because the renderer composes the
-    # banner ABOVE the tier ceremony (earliest journey stage gets surfaced
-    # first), but the field order in the JSON itself is irrelevant.
-    try:
-        from daimon.onboard.stages import detect_stage as _detect_stage
-        onboarding_payload = _detect_stage().to_dict()
-    except Exception:  # noqa: BLE001 — never let the detector break dm_home
-        logger.exception("dm_home: onboarding stage detection failed")
-        onboarding_payload = None
-
     return {
         "status": "ok",
         "identity": {
@@ -1124,61 +932,6 @@ def dm_home() -> Dict[str, Any]:
         "saved_loadouts": _saved_loadouts_summary(),
         "daily_quests": daily_quests,
         "tier_ceremony": _pending_tier_ceremony_payload(),
-        "onboarding": onboarding_payload,
-    }
-
-
-@mcp.tool()
-def dm_home_card() -> Dict[str, Any]:
-    """Return the rendered Marvel-Snap-style home card as ready-to-post text.
-
-    The agent is expected to call this and immediately forward the
-    ``message`` field to the chat reply tool (e.g.
-    ``mcp__webapp-channel__reply``). The string already contains the
-    ``:::html`` fence — paste it as-is, the webapp renderer turns it
-    into the rich card.
-
-    Returns:
-      {"status": "ok",
-       "message": ":::html\\n<div…>…</div>\\n:::",   # ready to reply with
-       "html": "<div…>…</div>",                     # raw HTML (no fence)
-       "payload": {...}}                              # full dm_home payload
-
-    The ``payload`` field is the same shape ``dm_home`` returns, so
-    callers don't need to issue a second tool call to inspect specific
-    fields (e.g. choosing whether to also post a quest reminder).
-
-    Failure modes:
-      * Identity missing → renders the onboarding card (NOT an error).
-      * Renderer raises (shouldn't happen — pure function over plain
-        dicts) → returns ``{"status": "error", "message_text": "..."}``
-        with a fallback plain-text message so the agent still has
-        SOMETHING to post.
-    """
-    payload = dm_home()
-    try:
-        from daimon.play.home_card import (
-            render_home_card,
-            render_home_card_message,
-        )
-        html = render_home_card(payload)
-        message = render_home_card_message(payload)
-    except Exception as e:
-        logger.exception("dm_home_card render failed")
-        return {
-            "status": "error",
-            "error": f"render failed: {e!r}",
-            "message": (
-                "DAIMON home card unavailable — renderer error. "
-                "Run `dm_home` to see the raw payload."
-            ),
-            "payload": payload,
-        }
-    return {
-        "status": "ok",
-        "message": message,
-        "html": html,
-        "payload": payload,
     }
 
 
@@ -1599,8 +1352,6 @@ def dm_match(
     # match, claims any quest that just hit its goal.
     daily_quests = _refresh_and_claim_quests()
 
-    hud_pid = _maybe_spawn_play_hud()
-
     out: Dict[str, Any] = {
         "winner": result.winner,
         "reason": result.reason,
@@ -1610,7 +1361,6 @@ def dm_match(
         "seed": seed_bytes.hex(),
         "state_id": state_id,
         "daily_quests": daily_quests,
-        "hud_pid": hud_pid,
     }
     if include_round_log:
         out["rounds"] = full_rounds
@@ -1896,8 +1646,6 @@ def dm_match_npc(
     # After-action quest evaluation — claims any quest that just hit its goal.
     daily_quests = _refresh_and_claim_quests()
 
-    hud_pid = _maybe_spawn_play_hud()
-
     out: Dict[str, Any] = {
         "status": "ok",
         "winner": result.winner,
@@ -1907,7 +1655,6 @@ def dm_match_npc(
         "round_count": len(result.rounds),
         "seed": seed_bytes.hex(),
         "state_id": state_id,
-        "hud_pid": hud_pid,
         "npc": {
             "npc_id": npc.npc_id,
             "name": npc.name,
@@ -1984,7 +1731,7 @@ def dm_collection() -> Dict[str, Any]:
             "serials": [],
         }
     try:
-        data = json.loads(COLLECTION_PATH.read_text())
+        data = json.loads(COLLECTION_PATH.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         return {"error": "corrupt_collection", "message": str(e)}
 
@@ -2132,13 +1879,10 @@ def dm_pull(seed: Optional[str] = None,
     # (e.g. "Pull a card" / "Pull 2 cards"). Idempotent.
     daily_quests = _refresh_and_claim_quests()
 
-    hud_pid = _maybe_spawn_play_hud()
-
     return {
         "status": "ok",
         "state_id": state_id,
         "daily_quests": daily_quests,
-        "hud_pid": hud_pid,
         **receipt_dict,
     }
 

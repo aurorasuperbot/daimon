@@ -63,41 +63,6 @@ def _call(tool, **kwargs):
 
 
 # ---------------------------------------------------------------------------
-# Autouse fixture: neuter HUD subprocess auto-spawn
-#
-# Every dm_match / dm_match_npc / dm_pull invocation runs through
-# ``_maybe_spawn_play_hud`` which forks a real ``daimon play`` subprocess
-# (the spectator HUD). With ~70 tests calling those tools, the test
-# sweep was leaking ~70 zombie HUD processes per run — pinning host CPU
-# (3 separate Alert Engine pages on 2026-04-26 ~> 2026-04-27, all from
-# the same root cause) and contaminating per-test isolation because the
-# zombie HUDs kept watching ``state.json`` after their owning test
-# finished.
-#
-# The right fix is to make HUD-spawn-OFF the default in this file, and
-# require tests that *want* the spawn behaviour to opt back in via the
-# ``@pytest.mark.allows_hud_spawn`` marker. Those opt-in tests must
-# also mock ``subprocess.Popen`` themselves so they still don't fork a
-# real subprocess (the two existing opt-in tests already do this).
-#
-# Marker is registered in pyproject.toml under ``[tool.pytest.ini_options].markers``
-# so pytest doesn't emit an "unknown marker" warning.
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(autouse=True)
-def _neuter_hud_autospawn(request, monkeypatch):
-    """Replace ``mcp_server._maybe_spawn_play_hud`` with a no-op by default.
-
-    Tests marked ``@pytest.mark.allows_hud_spawn`` retain the real
-    function — they're responsible for mocking the underlying
-    ``subprocess.Popen`` so the spawn never reaches the OS.
-    """
-    if request.node.get_closest_marker("allows_hud_spawn"):
-        return
-    monkeypatch.setattr(mcp_server, "_maybe_spawn_play_hud", lambda: None)
-
-
-# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
@@ -105,7 +70,7 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
 
 def _vanilla_head_dict() -> dict:
-    return json.loads((FIXTURE_DIR / "test_card_01_vanilla_head.json").read_text())
+    return json.loads((FIXTURE_DIR / "test_card_01_vanilla_head.json").read_text(encoding="utf-8"))
 
 
 _FILLER_ELEMENTS = ["FIRE", "WATER", "NATURE", "VOLT", "VOID"]
@@ -173,7 +138,7 @@ def test_init_returns_mnemonic_once_only(monkeypatch, tmp_path):
     for p in fake.rglob("*"):
         if p.is_file():
             try:
-                content = p.read_text()
+                content = p.read_text(encoding="utf-8")
             except (UnicodeDecodeError, PermissionError):
                 # Binary key files — won't contain the mnemonic as text anyway
                 continue
@@ -222,163 +187,6 @@ def test_init_unblocks_whoami_end_to_end(monkeypatch, tmp_path):
     after = _call(dm_whoami)
     assert "error" not in after
     assert after["pubkey_hex"] == init_result["pubkey_hex"]
-
-
-# ---------------------------------------------------------------------------
-# dm_onboard — wraps run_onboard() for agents inside Claude Code
-# ---------------------------------------------------------------------------
-
-def _fake_onboard_result(**overrides):
-    """Build a stub OnboardResult. Defaults to a happy-path 'fresh identity'."""
-    from daimon.onboard.orchestrator import OnboardResult
-    defaults = dict(
-        identity_action="generated",
-        pubkey_hex="ab" * 32,
-        mnemonic=" ".join(["word"] * 24),
-        recovery_path="/fake/recovery.txt",
-        manifest_action="installed",
-        manifest_version="v1_alpha",
-        manifest_error=None,
-        starter_fetched=["c1", "c2"],
-        starter_failed=[],
-        prefetch_pid=4242,
-        claude_code_action="skipped",
-    )
-    defaults.update(overrides)
-    return OnboardResult(**defaults)
-
-
-def test_onboard_default_skips_claude_code(monkeypatch, tmp_path):
-    """Default `wire_claude_code=False` means run_onboard sees False."""
-    from daimon.mcp.server import dm_onboard
-    captured = {}
-
-    def fake_run_onboard(**kwargs):
-        captured.update(kwargs)
-        return _fake_onboard_result()
-
-    monkeypatch.setattr("daimon.onboard.run_onboard", fake_run_onboard)
-    result = _call(dm_onboard)
-    assert result["status"] == "ok"
-    assert captured["wire_claude_code"] is False
-    assert captured["force_identity"] is False
-    assert captured["spawn_prefetch"] is True
-    # confirm_mnemonic must be None — the agent surfaces the gate itself.
-    assert captured["confirm_mnemonic"] is None
-
-
-def test_onboard_returns_full_envelope(monkeypatch):
-    from daimon.mcp.server import dm_onboard
-
-    monkeypatch.setattr(
-        "daimon.onboard.run_onboard",
-        lambda **_: _fake_onboard_result(),
-    )
-    result = _call(dm_onboard)
-    assert result["identity_action"] == "generated"
-    assert result["pubkey_hex"] == "ab" * 32
-    assert len(result["mnemonic"].split()) == 24
-    assert result["manifest_action"] == "installed"
-    assert result["starter_fetched"] == ["c1", "c2"]
-    assert result["prefetch_pid"] == 4242
-    # Mnemonic-bearing response must include the warning so an agent
-    # surfaces it to the user.
-    assert "warning" in result
-    assert "mnemonic" in result["warning"].lower()
-
-
-def test_onboard_no_warning_when_identity_already_present(monkeypatch):
-    from daimon.mcp.server import dm_onboard
-
-    monkeypatch.setattr(
-        "daimon.onboard.run_onboard",
-        lambda **_: _fake_onboard_result(
-            identity_action="already_present",
-            mnemonic="",
-            recovery_path=None,
-        ),
-    )
-    result = _call(dm_onboard)
-    assert result["status"] == "ok"
-    assert result["mnemonic"] == ""
-    # No mnemonic → no warning (nothing to save).
-    assert "warning" not in result
-
-
-def test_onboard_force_passes_through(monkeypatch):
-    from daimon.mcp.server import dm_onboard
-    captured = {}
-
-    def fake_run_onboard(**kwargs):
-        captured.update(kwargs)
-        return _fake_onboard_result()
-
-    monkeypatch.setattr("daimon.onboard.run_onboard", fake_run_onboard)
-    _call(dm_onboard, force=True)
-    assert captured["force_identity"] is True
-
-
-def test_onboard_wire_claude_code_passes_through(monkeypatch):
-    from daimon.mcp.server import dm_onboard
-    captured = {}
-
-    def fake_run_onboard(**kwargs):
-        captured.update(kwargs)
-        return _fake_onboard_result(
-            claude_code_action="wired",
-            claude_code_settings="/abs/.claude/settings.json",
-            claude_code_mcp_command="/abs/dmn-mcp",
-        )
-
-    monkeypatch.setattr("daimon.onboard.run_onboard", fake_run_onboard)
-    result = _call(dm_onboard, wire_claude_code=True)
-    assert captured["wire_claude_code"] is True
-    assert result["claude_code_action"] == "wired"
-    assert result["claude_code_mcp_command"] == "/abs/dmn-mcp"
-
-
-def test_onboard_handles_existing_identity_error(monkeypatch):
-    from daimon.mcp.server import dm_onboard
-
-    def boom(**_):
-        raise FileExistsError("identity already exists at /x/identity.key")
-
-    monkeypatch.setattr("daimon.onboard.run_onboard", boom)
-    result = _call(dm_onboard)
-    assert result["error"] == "identity_exists"
-    assert "force" in result["hint"].lower()
-
-
-def test_onboard_normalises_unexpected_errors(monkeypatch):
-    from daimon.mcp.server import dm_onboard
-
-    def boom(**_):
-        raise RuntimeError("disk on fire")
-
-    monkeypatch.setattr("daimon.onboard.run_onboard", boom)
-    result = _call(dm_onboard)
-    assert result["error"] == "internal_error"
-    assert "disk on fire" in result["message"]
-
-
-def test_onboard_surfaces_manifest_failure_without_raising(monkeypatch):
-    """Manifest fetch errors are reported in-band — never as an MCP exception."""
-    from daimon.mcp.server import dm_onboard
-
-    monkeypatch.setattr(
-        "daimon.onboard.run_onboard",
-        lambda **_: _fake_onboard_result(
-            manifest_action="failed",
-            manifest_version=None,
-            manifest_error="GitHub API: 503",
-            starter_fetched=[],
-            prefetch_pid=None,
-        ),
-    )
-    result = _call(dm_onboard)
-    assert result["status"] == "ok"
-    assert result["manifest_action"] == "failed"
-    assert result["manifest_error"] == "GitHub API: 503"
 
 
 # ---------------------------------------------------------------------------
@@ -538,7 +346,7 @@ def test_match_propagates_real_catalog_display_metadata(monkeypatch, tmp_path):
         "voltcat_apex", "bulwarthog", "mindroot", "tidewyrm",
         "stormhare", "iron_boar",
     ]
-    lo_raw = [json.loads((catalog_dir / f"{s}.json").read_text()) for s in species]
+    lo_raw = [json.loads((catalog_dir / f"{s}.json").read_text(encoding="utf-8")) for s in species]
     # loadout_a and loadout_b can share cards — rule caps per-team count.
     lo = {"cards": lo_raw}
 
@@ -595,84 +403,6 @@ def test_match_propagates_real_catalog_display_metadata(monkeypatch, tmp_path):
         player_by_species["voltcat_apex"].art_path
         == "art/v1_alpha/voltcat_apex/base.png"
     )
-
-
-@pytest.mark.allows_hud_spawn
-def test_match_returns_hud_pid_in_mcp_context(monkeypatch, tmp_path):
-    """Regression: ``dm_match`` MUST populate ``hud_pid`` even though the
-    MCP stdio server has no TTY.
-
-    The MCP stdio transport runs with stdout piped to the parent agent
-    process — never a TTY. Before the fix, ``_maybe_spawn_play_hud``
-    called ``spawn_play_hud()`` with the default ``require_tty=True``,
-    which short-circuited on the no-TTY check and returned ``None`` for
-    every single agent-driven match / pull / NPC fight. The advertised
-    "first match auto-pops the HUD" feature was a no-op via MCP.
-
-    The fix is ``spawn_play_hud(require_tty=False)`` from the MCP path:
-    the agent context is exactly the situation where we WANT a window to
-    pop. The two opt-outs (``DAIMON_NO_AUTO_HUD=1`` env + the
-    inside-terminal sentinel) are still honored.
-
-    This test isolates the failure mode by forcing ``sys.stdout.isatty``
-    to False, mocking ``Popen`` to return a deterministic PID, and
-    asserting the PID lands in the dm_match envelope.
-    """
-    _isolate_paths(monkeypatch, tmp_path)
-
-    # Force the MCP-stdio reality: no TTY on stdout.
-    class _NoTty:
-        def isatty(self) -> bool:  # noqa: D401 — stdlib shape
-            return False
-    monkeypatch.setattr("sys.stdout", _NoTty())
-
-    # Make sure neither opt-out env var is set.
-    monkeypatch.delenv("DAIMON_NO_AUTO_HUD", raising=False)
-    monkeypatch.delenv("DAIMON_INSIDE_TERMINAL", raising=False)
-
-    # Mock subprocess.Popen so we don't actually fork a HUD process in CI.
-    captured: list = []
-
-    class _FakeProc:
-        def __init__(self, pid: int) -> None:
-            self.pid = pid
-
-    def fake_popen(args, **kwargs):
-        captured.append({"args": list(args), "kwargs": kwargs})
-        return _FakeProc(42424)
-
-    import subprocess as _sp
-    monkeypatch.setattr(_sp, "Popen", fake_popen)
-    # Force the "not frozen" branch in _build_spawn_command.
-    monkeypatch.delattr("sys.frozen", raising=False)
-
-    lo = _full_loadout_dict()
-    result = _call(dm_match, loadout_a=lo, loadout_b=lo)
-
-    assert "error" not in result, f"dm_match errored: {result}"
-    assert result.get("hud_pid") == 42424, (
-        f"hud_pid should be the spawned PID; got {result.get('hud_pid')!r}. "
-        "If this is None, the MCP-side _maybe_spawn_play_hud is back to "
-        "calling spawn_play_hud() without require_tty=False."
-    )
-    assert len(captured) == 1, "Popen should be called exactly once for the auto-spawn"
-
-
-@pytest.mark.allows_hud_spawn
-def test_match_hud_pid_none_when_optout_env_set(monkeypatch, tmp_path):
-    """The DAIMON_NO_AUTO_HUD opt-out continues to work from the MCP path."""
-    _isolate_paths(monkeypatch, tmp_path)
-    monkeypatch.setenv("DAIMON_NO_AUTO_HUD", "1")
-    # Popen should never be called — opt-out short-circuits before fork.
-    import subprocess as _sp
-    called: list = []
-    monkeypatch.setattr(_sp, "Popen", lambda *a, **k: called.append((a, k)) or None)
-
-    lo = _full_loadout_dict()
-    result = _call(dm_match, loadout_a=lo, loadout_b=lo)
-    assert "error" not in result
-    assert result.get("hud_pid") is None
-    assert called == [], "DAIMON_NO_AUTO_HUD=1 should have short-circuited before Popen"
 
 
 def test_match_synthetic_loadout_still_works(monkeypatch, tmp_path):
@@ -1065,13 +795,12 @@ def test_whoami_includes_purchase_totals(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_all_tools_registered():
-    """Locked 21-tool surface + dm_init + 3 NPC tools + deprecated alias +
-    dm_pvp_reveal (added 2026-04-24 when arena wiring landed) +
-    dm_onboard (added 2026-04-26 to fold the four-step bootstrap into a
-    single agent-callable tool)."""
+    """Surviving MCP tool surface after the pywebview migration —
+    onboarding/home_card tools (dm_onboard, dm_onboarding_status,
+    dm_home_card) were removed."""
     names = {
-        # Identity + currency + onboarding
-        "dm_init", "dm_onboard", "dm_whoami", "dm_register",
+        # Identity + currency
+        "dm_init", "dm_whoami", "dm_register",
         "dm_mine_status",  # deprecated alias, kept for back-compat
         # Catalog
         "dm_expansions", "dm_catalog_list", "dm_catalog_card", "dm_card_compare",
@@ -1089,9 +818,6 @@ def test_all_tools_registered():
         # Disputes
         "dm_dispute_open", "dm_card_propose",
     }
-    # 21 locked tools + dm_init + dm_onboard + 3 NPC tools
-    # + 1 deprecated alias + dm_pvp_reveal = 28.
-    assert len(names) == 28
     for n in names:
         assert hasattr(mcp_server, n), f"{n} missing from server module"
 
@@ -2063,7 +1789,7 @@ def test_match_npc_writes_state_file_with_npc_name_as_opponent(
               seed="00" * 32)
     assert r["status"] == "ok"
     assert state_path.exists()
-    data = json.loads(state_path.read_text())
+    data = json.loads(state_path.read_text(encoding="utf-8"))
     # State file is the V2 Match payload -- opponent under participants.opponent
     opp = data["data"]["participants"]["opponent"]
     assert opp["name"] == "Mythbreaker Marn"

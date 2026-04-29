@@ -139,7 +139,7 @@ class TestCatalogLoad:
             )
 
     def test_all_anchors_in_manifest(self):
-        manifest = json.loads(MANIFEST_PATH.read_text())
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         ids_in_manifest = {entry["card_id"] for entry in manifest["cards"]}
         for cid in PHASE3_ANCHORS:
             assert cid in ids_in_manifest, f"{cid} missing from manifest"
@@ -147,7 +147,7 @@ class TestCatalogLoad:
     def test_full_manifest_loads(self):
         """Every card the manifest declares can be loaded — guards the loader
         against future drift between manifest entries and disk content."""
-        manifest = json.loads(MANIFEST_PATH.read_text())
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         for entry in manifest["cards"]:
             load_card(PACK_DIR / entry["file"])
 
@@ -169,7 +169,7 @@ class TestCatalogLoad:
             "voidking_morr",      # L5 REVENANT    (V1 original legendary)
             "world_eater",        # L6 SYNCRETIC        (V1 original legendary)
         }
-        manifest = json.loads(MANIFEST_PATH.read_text())
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         legendaries = {
             entry["card_id"] for entry in manifest["cards"]
             if entry["rarity"] == "legendary"
@@ -205,7 +205,7 @@ class TestCatalogLoad:
             "rainbow_drake",       # SYNCRETIC
             "concord_phoenix",     # NORMAL (Phase 4e)
         }
-        manifest = json.loads(MANIFEST_PATH.read_text())
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         epics = {
             entry["card_id"] for entry in manifest["cards"]
             if entry["rarity"] == "epic"
@@ -224,11 +224,11 @@ class TestCatalogLoad:
         Reconciliation drift would otherwise manifest as render-vs-pull bugs
         (card displays at one rarity, gets pulled at another).
         """
-        manifest = json.loads(MANIFEST_PATH.read_text())
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         mismatches = []
         for entry in manifest["cards"]:
             json_rarity = json.loads(
-                (PACK_DIR / entry["file"]).read_text()
+                (PACK_DIR / entry["file"]).read_text(encoding="utf-8")
             ).get("rarity")
             if json_rarity != entry["rarity"]:
                 mismatches.append(

@@ -112,7 +112,7 @@ def test_generate_identity_writes_files(isolated_config):
     assert kmod.PUBLIC_KEY_PATH.exists()
     assert kmod.METADATA_PATH.exists()
     assert kmod.PRIVATE_KEY_PATH.read_bytes().startswith(b"-----BEGIN PRIVATE KEY-----")
-    assert kmod.PUBLIC_KEY_PATH.read_text().strip() == identity.pubkey_hex
+    assert kmod.PUBLIC_KEY_PATH.read_text(encoding="utf-8").strip() == identity.pubkey_hex
     assert identity.mnemonic and len(identity.mnemonic.split()) == 24
 
 

@@ -211,7 +211,18 @@ def write_state(
     tmp_path = final_path.with_suffix(final_path.suffix + TMP_SUFFIX)
 
     tmp_path.write_text(encoded)
-    os.replace(tmp_path, final_path)  # atomic on POSIX; best-effort on Windows
+    # On Windows, os.replace can transiently fail with PermissionError when a
+    # reader has the destination open. The reader does the same retry on its
+    # side; here we mirror it so concurrent watchers don't make the writer
+    # error out.
+    for _ in range(20):
+        try:
+            os.replace(tmp_path, final_path)
+            break
+        except PermissionError:
+            time.sleep(0.001)
+    else:
+        os.replace(tmp_path, final_path)  # last attempt — let it raise
 
     return GameState(
         view=view,
@@ -240,10 +251,24 @@ def read_state(state_path: Optional[Path | str] = None) -> Optional[GameState]:
     if not path.exists():
         return None
 
-    try:
-        raw = path.read_text()
-    except OSError as e:
-        raise ValueError(f"state file unreadable: {e}") from e
+    # Windows: os.replace() in the writer can briefly hold the destination
+    # locked, raising PermissionError on a concurrent read. Retry a handful
+    # of times with tiny backoff before treating it as a real read error.
+    raw = None
+    last_err: Optional[OSError] = None
+    for _ in range(5):
+        try:
+            raw = path.read_text(encoding="utf-8")
+            break
+        except FileNotFoundError:
+            return None
+        except PermissionError as e:
+            last_err = e
+            time.sleep(0.001)
+        except OSError as e:
+            raise ValueError(f"state file unreadable: {e}") from e
+    if raw is None:
+        raise ValueError(f"state file unreadable: {last_err}") from last_err
 
     try:
         body = json.loads(raw)
