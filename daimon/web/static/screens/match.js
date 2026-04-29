@@ -441,41 +441,87 @@ function appendLog(logEl, action, depth = 0) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
+/** Trace ring buffer the cinematic walker writes to. Inspect via:
+ *    fetch /api/_dev/eval { js: "JSON.stringify(window.__cinTrace)" }
+ *  Cleared on each new playCinematic() call. */
+function cinTrace(msg) {
+  if (!window.__cinTrace) window.__cinTrace = [];
+  window.__cinTrace.push(`${(performance.now() | 0)}ms ${msg}`);
+  // Also surface via console for browser devtools.
+  console.log(`[cinematic] ${msg}`);
+}
+
 async function playCinematic(transcript, refs, signal, speed) {
+  window.__cinTrace = [];
   const rounds = transcript.rounds || [];
+  cinTrace(`start: ${rounds.length} rounds`);
+  let totalActions = 0;
   for (const round of rounds) {
-    if (signal.aborted) return;
+    if (signal.aborted) {
+      cinTrace(`abort before round ${round.round}`);
+      return;
+    }
+    cinTrace(`round ${round.round}: ${round.actions?.length || 0} actions`);
     refs.roundChip.textContent = `ROUND ${round.round}`;
     refs.roundChip.classList.add("pulse");
     setTimeout(() => refs.roundChip.classList.remove("pulse"), 650);
     await abortableSleep(450, signal, speed);
 
     for (const action of (round.actions || [])) {
-      if (signal.aborted) return;
-      await playAction(action, refs, signal, speed);
+      if (signal.aborted) {
+        cinTrace(`abort at r${round.round} a${totalActions}`);
+        return;
+      }
+      try {
+        await playAction(action, refs, signal, speed);
+      } catch (err) {
+        if (err.name === "AbortError") throw err;
+        cinTrace(`THROW at action ${totalActions}: ${err.message || err}`);
+        console.error(`[cinematic] playAction threw at action ${totalActions}:`, err, action);
+        throw err;
+      }
+      totalActions++;
     }
     // Brief breather between rounds.
     await abortableSleep(380, signal, speed);
   }
+  cinTrace(`complete: ${totalActions} actions / ${rounds.length} rounds`);
 }
 
 async function startCinematic(root, transcript) {
+  // Snapshot result + selected NPC into closures so a stray render()
+  // re-init (which resets module-level `state`) can't blank them out
+  // by the time the cinematic finishes 30s later.
+  const capturedResult = state.result;
+  const capturedNpcId = state.selectedNpc;
+  const capturedNpc = state.npcsById?.[capturedNpcId];
+
   state.abort = new AbortController();
   const speed = makeSpeedCtl(1);
   const { screen, refs } = buildCinematicDom(root, transcript, speed);
   root.innerHTML = "";
   root.appendChild(screen);
 
+  let cinematicError = null;
   try {
     await playCinematic(transcript, refs, state.abort.signal, speed);
   } catch (err) {
     if (err.name !== "AbortError") {
-      console.error("cinematic", err);
+      cinematicError = err;
+      console.error("cinematic walker crashed:", err);
     }
   }
-  // Done (or skipped) — flow into the result view.
+  // Restore captured snapshot so the result view always renders with
+  // real data even if the global state was clobbered mid-play.
   state.view = "result";
+  state.result = state.result ?? capturedResult;
+  state.selectedNpc = state.selectedNpc ?? capturedNpcId;
+  if (capturedNpc && !state.npcsById?.[capturedNpcId]) {
+    state.npcsById = state.npcsById || {};
+    state.npcsById[capturedNpcId] = capturedNpc;
+  }
   state.abort = null;
+  if (cinematicError) state.error = `cinematic: ${cinematicError.message || cinematicError}`;
   rerender(root);
 }
 
@@ -588,6 +634,11 @@ function rerender(root) {
 }
 
 export async function render(root, params) {
+  // Diagnostic: track render() invocations so we can see if a stray
+  // hashchange is wiping our state mid-cinematic. Surfaces in the
+  // browser console as a numbered log per call.
+  const renderId = (window.__matchRenderId = (window.__matchRenderId || 0) + 1);
+  console.log(`[match] render() #${renderId} params=`, params);
   state = {
     view: "picker",
     tiers: [], npcsById: {}, recommended: null,
