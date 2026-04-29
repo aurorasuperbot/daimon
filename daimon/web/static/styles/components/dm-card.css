@@ -30,6 +30,12 @@
     /* Container queries — children read `cqi` (1% of inline size) so a
      * 380px hero and a 110px tile both look right with the same rules. */
     container-type: inline-size;
+    /* Non-detail cards are clickable: tiles select via the parent
+     * wrapper (shop/collection); other sizes open the detail modal. */
+    cursor: pointer;
+  }
+  :scope[size="detail"] {
+    cursor: default;
   }
 
   /* Clip wrapper — holds the rotating frame. Lives between :scope and
@@ -133,8 +139,10 @@
     text-shadow: 0 0 20px var(--rarity-color);
   }
 
-  /* Vignette: only the top headline gets a darkening band; the bottom
-   * lives behind the glass info panel which has its own readability. */
+  /* Bottom vignette — fades the lower portion of the art toward dark
+   * so the headline (name + element/archetype) reads against a soft
+   * gradient even when the art under it is bright. No glass blur
+   * needed — text-stroke handles edge legibility. */
   .dm-card-front::before {
     content: "";
     position: absolute;
@@ -142,33 +150,29 @@
     z-index: 1;
     pointer-events: none;
     background: linear-gradient(180deg,
-      rgba(10, 12, 24, 0.78) 0%,
-      rgba(10, 12, 24, 0.18) 24%,
-      transparent 60%);
+      transparent 55%,
+      rgba(10, 12, 24, 0.55) 88%,
+      rgba(10, 12, 24, 0.85) 100%);
   }
 
-  /* Top headline — name + element/archetype on a frosted glass band
-   * matching the bottom info panel. Text reads against a known-dark
-   * surface, regardless of what the underlying art looks like. */
+  /* Top headline — name + element/archetype, floating on the art with
+   * no glass. Text-stroke + drop-shadow handle legibility (universal
+   * rule below); the glass band was redundant once we did proper text
+   * outlines. By default headline lives at the bottom; full/detail
+   * sizes that need a visual hierarchy override this. */
   .dm-card-headline {
     position: absolute;
-    inset: 0 0 auto 0;
+    inset: auto 0 0 0;
     z-index: 2;
-    padding: clamp(0.55rem, 3.4cqi, 1rem)
+    padding: clamp(0.55rem, 3.4cqi, 0.9rem)
              clamp(0.5rem, 3cqi, 0.9rem)
-             clamp(0.5rem, 2.8cqi, 0.85rem);
+             clamp(0.55rem, 3.4cqi, 0.9rem);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 3px;
     text-align: center;
-    background: linear-gradient(180deg,
-      rgba(10, 12, 24, 0.55) 0%,
-      rgba(10, 12, 24, 0.30) 70%,
-      transparent 100%);
-    backdrop-filter: blur(10px) saturate(125%);
-    -webkit-backdrop-filter: blur(10px) saturate(125%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+    pointer-events: none;
   }
   /* Universal text-overlay treatment.
    *
@@ -233,23 +237,12 @@
   .dm-card-element:empty,
   .dm-card-archetype:empty { display: none; }
 
-  /* Bottom info panel — glass over the art. Stronger blur + lower
-   * opacity reads as frosted glass; the artwork stays visible behind
-   * the stats / abilities / flavor without making them hard to read. */
+  /* Bottom info panel — hidden by default. Only `size="detail"` (the
+   * modal full-view) shows it; tile/hero/full all collapse to "art +
+   * name" only, Marvel-Snap-style. Click any non-tile card to open
+   * the detail modal with everything visible. */
   .dm-card-info {
-    position: absolute;
-    inset: auto 0 0 0;
-    z-index: 2;
-    padding: clamp(0.7rem, 3.8cqi, 1.15rem)
-             clamp(0.55rem, 3cqi, 1rem)
-             clamp(0.7rem, 3.8cqi, 1.15rem);
-    display: flex;
-    flex-direction: column;
-    gap: clamp(0.4rem, 1.8cqi, 0.7rem);
-    background: rgba(10, 12, 24, 0.32);
-    backdrop-filter: blur(14px) saturate(130%);
-    -webkit-backdrop-filter: blur(14px) saturate(130%);
-    border-top: 1px solid rgba(255, 255, 255, 0.10);
+    display: none;
   }
 
   /* Stats — fixed 4-column row. Game-critical, sized accordingly. */
@@ -367,25 +360,47 @@
     height: 100%;
   }
 
-  /* Tile: art-only with a name banner at the bottom. No info panel. */
-  :scope[size="tile"] .dm-card-info {
-    display: none;
-  }
-  :scope[size="tile"] .dm-card-front::before {
-    background: linear-gradient(180deg,
-      rgba(10, 12, 24, 0.45) 0%,
-      transparent 22%,
-      transparent 55%,
-      rgba(10, 12, 24, 0.92) 100%);
-  }
-  :scope[size="tile"] .dm-card-headline {
-    inset: auto 0 0 0;
-    padding: clamp(0.6rem, 4cqi, 1.1rem)
-             clamp(0.4rem, 2.5cqi, 0.8rem)
-             clamp(0.4rem, 2.5cqi, 0.7rem);
-  }
+  /* Tile: smaller name treatment, no element/archetype subtitle —
+   * tiles are a name + image only (the info panel is hidden for all
+   * sizes by default, but tiles also drop the subtitle). */
   :scope[size="tile"] .dm-card-name {
     font-size: clamp(0.85rem, 6cqi, 1.4rem);
+  }
+  :scope[size="tile"] .dm-card-sub {
+    display: none;
+  }
+
+  /* Detail: the modal full-view size. Re-enables the info panel that's
+   * hidden for every other size, and gives stats/abilities/flavor room
+   * to breathe. The headline lifts to the top so the name + element
+   * frame the art instead of competing with the info panel below. */
+  :scope[size="detail"] {
+    width: 100%;
+    height: 100%;
+  }
+  :scope[size="detail"] .dm-card-info {
+    display: flex;
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 2;
+    padding: clamp(0.7rem, 3.2cqi, 1.1rem)
+             clamp(0.55rem, 2.6cqi, 1rem);
+    flex-direction: column;
+    gap: clamp(0.4rem, 1.6cqi, 0.6rem);
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(10, 12, 24, 0.55) 22%,
+      rgba(10, 12, 24, 0.88) 70%);
+  }
+  :scope[size="detail"] .dm-card-headline {
+    inset: 0 0 auto 0;
+    padding: clamp(0.55rem, 2.4cqi, 0.9rem) clamp(0.5rem, 2.4cqi, 0.9rem);
+  }
+  :scope[size="detail"] .dm-card-front::before {
+    background: linear-gradient(180deg,
+      rgba(10, 12, 24, 0.70) 0%,
+      rgba(10, 12, 24, 0.18) 22%,
+      transparent 50%);
   }
 
   /* ===== Rarity tiers — distinct mechanism families =================
@@ -462,15 +477,17 @@
   :scope[data-rarity="rare"]      .dm-card-holo,
   :scope[data-rarity="epic"]      .dm-card-holo,
   :scope[data-rarity="legendary"] .dm-card-holo {
-    opacity: 0.55;
+    opacity: 0.28;
   }
   /* Rare and up: scale the holo tile down so the pattern reads denser
-   * (foil-as-glyph effect — MTG Step-and-Compleat). */
+   * (foil-as-glyph effect — MTG Step-and-Compleat). Opacity stays low
+   * — the goal is "tinted texture under the art", not "pattern over
+   * the art". */
   :scope[data-rarity="rare"]      .dm-card-holo,
   :scope[data-rarity="epic"]      .dm-card-holo,
   :scope[data-rarity="legendary"] .dm-card-holo {
     background-size: 38px 38px;
-    opacity: 0.65;
+    opacity: 0.32;
   }
   /* Suppress the holo when the art failed to load — the sigil on
    * .dm-card-art::after takes precedence then. */
@@ -546,25 +563,25 @@
     z-index: 1;
     pointer-events: none;
     background: linear-gradient(115deg,
-      transparent 28%,
-      rgba(255, 100, 200, 0.28) 42%,
-      rgba(180, 120, 255, 0.32) 50%,
-      rgba(120, 200, 255, 0.28) 58%,
-      transparent 72%);
-    background-size: 280% 100%;
-    animation: dm-card-foil 4s linear infinite;
+      transparent 36%,
+      rgba(255, 100, 200, 0.14) 46%,
+      rgba(180, 120, 255, 0.18) 50%,
+      rgba(120, 200, 255, 0.14) 54%,
+      transparent 64%);
+    background-size: 320% 100%;
+    animation: dm-card-foil 5s linear infinite;
     mix-blend-mode: screen;
   }
   /* Legendary uses warm gold tones in the sweep. */
   :scope[data-rarity="legendary"] .dm-card-front::after {
     background: linear-gradient(115deg,
-      transparent 25%,
-      rgba(255, 255, 255, 0.32) 42%,
-      rgba(255, 220, 120, 0.48) 50%,
-      rgba(255, 255, 255, 0.32) 58%,
-      transparent 75%);
-    background-size: 260% 100%;
-    animation-duration: 3.5s;
+      transparent 32%,
+      rgba(255, 255, 255, 0.18) 46%,
+      rgba(255, 220, 120, 0.28) 50%,
+      rgba(255, 255, 255, 0.18) 54%,
+      transparent 68%);
+    background-size: 300% 100%;
+    animation-duration: 4.2s;
   }
   @keyframes dm-card-foil {
     0%   { background-position: -120% 0; }

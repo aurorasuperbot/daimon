@@ -1,0 +1,52 @@
+/* dm-card detail modal — fullscreen overlay opened on click of any
+ * non-tile <dm-card>. Centers a size="detail" card with backdrop blur,
+ * dismissed by Escape or backdrop click. The element itself is a
+ * singleton appended to <body> by dm-card.js.
+ *
+ * Lives outside @scope (dm-card) because the overlay is a sibling of
+ * <dm-card>, not a descendant — the inner card uses the regular dm-card
+ * rules from dm-card.css and inherits rarity tokens normally.
+ */
+
+.dm-card-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(20px, 4vh, 60px);
+  background: rgba(5, 6, 14, 0.78);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  cursor: zoom-out;
+  animation: dm-card-modal-fade var(--motion-base) var(--ease-soft);
+}
+.dm-card-modal-overlay[hidden] {
+  display: none;
+}
+
+.dm-card-modal-stage {
+  /* Card aspect 5:7. Cap to whichever dimension hits its limit first
+   * so the modal card is huge but never taller than the viewport. */
+  width: min(440px, calc((100vh - 80px) * 5 / 7));
+  aspect-ratio: 5 / 7;
+  cursor: default;
+  animation: dm-card-modal-rise var(--motion-base) var(--ease-snap);
+}
+
+@keyframes dm-card-modal-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes dm-card-modal-rise {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-card-modal-overlay,
+  .dm-card-modal-stage {
+    animation: none;
+  }
+}

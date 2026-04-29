@@ -22,6 +22,58 @@
 import { cardStore } from "/store.js";
 
 // ---------------------------------------------------------------------------
+// Card-detail modal — singleton shared across the app
+// ---------------------------------------------------------------------------
+//
+// Marvel-Snap-style behaviour: clicking any non-tile <dm-card> opens a
+// fullscreen overlay with the same card rendered at size="detail" — the
+// only size variant that shows stats, abilities, and flavor. Click the
+// backdrop or press Escape to close. A single modal element is reused
+// across the lifetime of the app; subsequent opens just swap card-id.
+
+let _modal = null;
+
+function _ensureModal() {
+  if (_modal) return _modal;
+
+  const overlay = document.createElement("div");
+  overlay.className = "dm-card-modal-overlay";
+  overlay.setAttribute("hidden", "");
+
+  const stage = document.createElement("div");
+  stage.className = "dm-card-modal-stage";
+
+  const card = document.createElement("dm-card");
+  card.setAttribute("size", "detail");
+  card.setAttribute("face", "front");
+  stage.appendChild(card);
+  overlay.appendChild(stage);
+
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    overlay.setAttribute("hidden", "");
+    document.removeEventListener("keydown", onKey);
+  };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  overlay.addEventListener("click", (e) => {
+    // Backdrop click closes; clicks inside .dm-card-modal-stage don't.
+    if (e.target === overlay) close();
+  });
+
+  _modal = { overlay, stage, card, close, onKey };
+  return _modal;
+}
+
+export function openCardModal(card_id) {
+  if (!card_id) return;
+  const m = _ensureModal();
+  m.card.setAttribute("card-id", card_id);
+  m.overlay.removeAttribute("hidden");
+  document.addEventListener("keydown", m.onKey);
+}
+
+// ---------------------------------------------------------------------------
 // Tiny DOM helpers — local to keep the component self-contained.
 // ---------------------------------------------------------------------------
 
@@ -161,6 +213,16 @@ class DMCard extends HTMLElement {
     // Defaults — the component is renderable even before card-id arrives.
     if (!this.hasAttribute("size")) this.setAttribute("size", "hero");
     if (!this.hasAttribute("face")) this.setAttribute("face", "front");
+
+    // Click → open detail modal. Tiles skip this — their parent wrappers
+    // (shop tile, collection tile) own the click for selection. The
+    // modal itself uses size="detail" cards which short-circuit the
+    // handler so clicking inside the modal doesn't recurse.
+    this.addEventListener("click", () => {
+      const sz = this.getAttribute("size");
+      if (sz === "tile" || sz === "detail") return;
+      if (this._currentId) openCardModal(this._currentId);
+    });
 
     if (this.hasAttribute("card-id")) {
       this._loadCard(this.getAttribute("card-id"));
