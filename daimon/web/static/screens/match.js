@@ -13,6 +13,7 @@ import { backButton, el, fetchJSON, postJSON } from "/screens/_dom.js";
 let state = {
   view: "picker",
   tiers: [],
+  npcsById: {},        // npc_id -> {name, flavor, rank, tier}
   recommended: null,
   loadouts: [],
   selectedLoadout: null,
@@ -26,13 +27,15 @@ let state = {
 // ---------------------------------------------------------------------------
 
 function pickerView(root) {
+  const recName = state.recommended
+    ? (state.npcsById[state.recommended.npc_id]?.name || state.recommended.npc_id)
+    : null;
   return el("div", { class: "screen match-screen fade-in" },
     el("header", { class: "screen-header" },
       backButton(),
       el("h1", null, "MATCH"),
-      state.recommended
-        ? el("div", { class: "screen-balance" },
-            `recommended: ${state.recommended.npc_id}`)
+      recName
+        ? el("div", { class: "screen-balance" }, `recommended: ${recName}`)
         : null,
     ),
     el("div", { class: "match-body" },
@@ -73,9 +76,17 @@ function tierSection(tier, root) {
 }
 
 function npcCard(npcId, tier, root) {
-  return el("div", { class: "npc-card" },
-    el("div", { class: "npc-name" }, npcId),
-    el("div", { class: "npc-tier" }, tier.label),
+  const meta = state.npcsById[npcId] || {};
+  const isRecommended = state.recommended?.npc_id === npcId;
+  return el("div", { class: `npc-card${isRecommended ? " recommended" : ""}` },
+    isRecommended
+      ? el("div", { class: "npc-recommended-pill" }, "RECOMMENDED")
+      : null,
+    el("div", { class: "npc-name" }, meta.name || npcId),
+    el("div", { class: "npc-tier" }, `${tier.label}${meta.rank ? ` · #${meta.rank}` : ""}`),
+    meta.flavor
+      ? el("div", { class: "npc-flavor" }, meta.flavor)
+      : null,
     el("button", {
       class: "primary-btn",
       onClick: () => startMatch(npcId, root),
@@ -88,8 +99,9 @@ function npcCard(npcId, tier, root) {
 // ---------------------------------------------------------------------------
 
 function runningView() {
+  const opponentName = state.npcsById[state.selectedNpc]?.name || state.selectedNpc;
   return el("div", { class: "screen match-running fade-in" },
-    el("h2", null, `vs ${state.selectedNpc}…`),
+    el("h2", null, `vs ${opponentName}…`),
     el("div", { class: "spinner" }, "resolving battle"),
   );
 }
@@ -98,7 +110,9 @@ function resultView(root) {
   const r = state.result || {};
   const youWon = r.winner === 0;
   const draw = r.winner === null || r.winner === undefined;
-  return el("div", { class: "screen match-result fade-in" },
+  const opponentName = state.npcsById[state.selectedNpc]?.name || state.selectedNpc;
+  return el("div", { class: `screen match-result fade-in${
+    draw ? " draw" : youWon ? " win" : " loss"}` },
     el("header", { class: "screen-header" },
       el("button", { class: "back-btn",
         onClick: () => { state.view = "picker"; state.result = null; rerender(root); } }, "← BACK"),
@@ -111,7 +125,7 @@ function resultView(root) {
       el("div", { class: "match-result-line" },
         `your team: ${r.side_a_final_hp ?? "?"} hp`),
       el("div", { class: "match-result-line" },
-        `${state.selectedNpc}: ${r.side_b_final_hp ?? "?"} hp`),
+        `${opponentName}: ${r.side_b_final_hp ?? "?"} hp`),
       r.npc ? el("div", { class: "match-result-flavor" },
         r.npc.flavor || "") : null,
       state.error ? el("div", { class: "error-line" }, state.error) : null,
@@ -168,6 +182,12 @@ async function loadAll() {
     fetchJSON("/api/loadouts").catch(() => ({ loadouts: [] })),
   ]);
   state.tiers = npcs.tiers || [];
+  // Index the flat npc list by id so npcCard() can resolve names + flavor
+  // without N tier-walks per render.
+  state.npcsById = {};
+  for (const npc of (npcs.npcs || [])) {
+    state.npcsById[npc.npc_id] = npc;
+  }
   state.recommended = recommended.recommended_npc || null;
   state.loadouts = loadouts.loadouts || [];
   // Prime the picker with the active loadout if one exists.
@@ -187,7 +207,7 @@ function rerender(root) {
 export async function render(root, params) {
   state = {
     view: "picker",
-    tiers: [], recommended: null,
+    tiers: [], npcsById: {}, recommended: null,
     loadouts: [], selectedLoadout: null,
     selectedNpc: null, result: null, error: null,
   };

@@ -65,6 +65,7 @@
   }
 
   .npc-card {
+    position: relative;
     background: var(--bg-panel);
     border: 1px solid var(--border-rest);
     border-radius: var(--radius-sm);
@@ -76,8 +77,31 @@
     transition: border-color var(--motion-fast) var(--ease-soft);
   }
   .npc-card:hover { border-color: var(--accent); }
+  .npc-card.recommended {
+    border-color: var(--accent);
+    box-shadow: 0 0 18px rgba(240, 196, 88, 0.20);
+  }
+  .npc-recommended-pill {
+    position: absolute;
+    top: -8px;
+    right: 8px;
+    background: var(--accent);
+    color: var(--bg-deep);
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
   .npc-name { font-weight: 600; }
   .npc-tier { color: var(--text-muted); font-size: 0.85rem; }
+  .npc-flavor {
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    font-style: italic;
+    line-height: 1.3;
+  }
 
 }
 
@@ -111,6 +135,11 @@
 @scope (.match-result) {
 
   :scope { display: flex; flex-direction: column; }
+
+  /* Outcome-tinted h1 — VICTORY (gold), DEFEAT (coral), DRAW (muted). */
+  :scope.win  h1 { color: var(--accent); text-shadow: 0 0 24px rgba(240,196,88,.45); }
+  :scope.loss h1 { color: #ff9a7a; text-shadow: 0 0 24px rgba(255,154,122,.4); }
+  :scope.draw h1 { color: var(--text-muted); }
 
   .match-result-body {
     flex: 1;
