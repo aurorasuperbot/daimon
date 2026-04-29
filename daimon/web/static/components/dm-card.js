@@ -46,6 +46,10 @@ function _ensureModal() {
   const card = document.createElement("dm-card");
   card.setAttribute("size", "detail");
   card.setAttribute("face", "front");
+  // Marks the modal's own card so its click handler skips reopening
+  // — every OTHER detail-sized card (collection / shop right panels)
+  // should still be clickable and open this same modal.
+  card.setAttribute("data-in-modal", "");
   stage.appendChild(card);
   overlay.appendChild(stage);
 
@@ -153,14 +157,25 @@ function buildShell(host) {
   abilities.appendChild(triggers);
   abilities.appendChild(moves);
 
+  // Rule line — only present on legendaries with a rule_change tag.
+  // Holds the human-readable mutation description (e.g. "every heal
+  // trickles +1 to all allies") fetched from the engine registry via
+  // /api/card. Hidden until populated.
+  const rule      = el("div", "dm-card-rule");
+  const ruleTag   = el("span", "dm-card-rule-tag");
+  const ruleText  = el("span", "dm-card-rule-text");
+  rule.appendChild(ruleTag);
+  rule.appendChild(ruleText);
+
   const flavor = el("div", "dm-card-flavor");
 
-  // Bottom info panel — stats + abilities + flavor stack on a single
-  // overlay strip so they can share a frosted backdrop and don't drift
-  // up into the art when sub-content is short.
+  // Bottom info panel — stats + abilities + rule (legendary only) +
+  // flavor. Visible only at size="detail" (the modal). Other sizes
+  // collapse to "art + name" per the Snap-style hierarchy.
   const info = el("div", "dm-card-info");
   info.appendChild(stats);
   info.appendChild(abilities);
+  info.appendChild(rule);
   info.appendChild(flavor);
 
   const front = el("div", "dm-card-front");
@@ -186,7 +201,7 @@ function buildShell(host) {
   return {
     frame, front, back,
     artImg, name, elementTxt, archetype,
-    statRefs, triggers, moves, flavor,
+    statRefs, triggers, moves, rule, ruleTag, ruleText, flavor,
   };
 }
 
@@ -215,12 +230,14 @@ class DMCard extends HTMLElement {
     if (!this.hasAttribute("face")) this.setAttribute("face", "front");
 
     // Click → open detail modal. Tiles skip this — their parent wrappers
-    // (shop tile, collection tile) own the click for selection. The
-    // modal itself uses size="detail" cards which short-circuit the
-    // handler so clicking inside the modal doesn't recurse.
+    // (.shop-tile, .coll-tile) own the click for selection. Cards that
+    // ARE the modal's own card (data-in-modal) also skip, so clicking
+    // inside the modal doesn't recurse. Every other size — including
+    // detail-sized side-panel cards in collection/shop — opens the
+    // modal for fullscreen inspection.
     this.addEventListener("click", () => {
-      const sz = this.getAttribute("size");
-      if (sz === "tile" || sz === "detail") return;
+      if (this.getAttribute("size") === "tile") return;
+      if (this.hasAttribute("data-in-modal")) return;
       if (this._currentId) openCardModal(this._currentId);
     });
 
@@ -268,6 +285,9 @@ class DMCard extends HTMLElement {
     for (const v of Object.values(r.statRefs)) v.textContent = "—";
     syncSlots(r.triggers, 0, () => el("li", "dm-card-trigger"));
     syncSlots(r.moves,    0, () => el("li", "dm-card-move"));
+    r.rule.setAttribute("hidden", "");
+    r.ruleTag.textContent = "";
+    r.ruleText.textContent = "";
     r.flavor.textContent = "";
     this.removeAttribute("data-rarity");
     this.removeAttribute("data-element");
@@ -324,6 +344,19 @@ class DMCard extends HTMLElement {
       li.children[0].textContent = m.name || "";
       li.children[1].textContent = (m.when || "").replace(/_/g, " ").toLowerCase();
     });
+
+    // Rule-change description (legendary mutations only). The opaque
+    // ID (e.g. "L3") is meaningless to a player on its own — the
+    // routes layer joins it with the engine description registry.
+    if (p.rule_change && p.rule_change_text) {
+      r.ruleTag.textContent  = `RULE ${p.rule_change}`;
+      r.ruleText.textContent = p.rule_change_text;
+      r.rule.removeAttribute("hidden");
+    } else {
+      r.ruleTag.textContent  = "";
+      r.ruleText.textContent = "";
+      r.rule.setAttribute("hidden", "");
+    }
 
     r.flavor.textContent = p.flavor || "";
 

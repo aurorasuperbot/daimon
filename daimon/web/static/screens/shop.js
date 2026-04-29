@@ -55,7 +55,7 @@ function detailNode(root) {
   }, slot.sold ? "OWNED" : `BUY  ${cost}¤`);
   const card = document.createElement("dm-card");
   card.setAttribute("card-id", slot.card_id);
-  card.setAttribute("size", "full");
+  card.setAttribute("size", "detail");
   return el("div", { class: "shop-detail" },
     el("div", { class: "shop-detail-card" }, card),
     el("div", { class: "shop-detail-meta" },

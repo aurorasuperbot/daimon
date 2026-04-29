@@ -61,7 +61,7 @@ function detailNode(_root) {
   }
   const card = document.createElement("dm-card");
   card.setAttribute("card-id", r.card_id);
-  card.setAttribute("size", "full");
+  card.setAttribute("size", "detail");
   return el("div", { class: "coll-detail" },
     el("div", { class: "coll-detail-card" }, card),
     el("div", { class: "coll-detail-meta" },

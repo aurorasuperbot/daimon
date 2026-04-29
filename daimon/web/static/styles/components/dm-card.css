@@ -193,6 +193,8 @@
   .dm-card-trigger-op,
   .dm-card-move-name,
   .dm-card-move-when,
+  .dm-card-rule-tag,
+  .dm-card-rule-text,
   .dm-card-flavor {
     paint-order: stroke fill;
     -webkit-text-stroke: 2.5px rgba(0, 0, 0, 0.92);
@@ -331,6 +333,34 @@
     color: #ffffff;
     font-weight: 700;
     overflow-wrap: anywhere;
+  }
+
+  /* Legendary rule-change row — "RULE L3 · every heal trickles +1 to
+   * all allies". Visually distinct from triggers and moves: a single
+   * paragraph with the gold accent tag, no list bullet. Hidden until
+   * the JS populates it (only legendaries with rule_change set). */
+  .dm-card-rule[hidden] { display: none; }
+  .dm-card-rule {
+    font-size: clamp(0.78rem, 3cqi, 1rem);
+    line-height: 1.4;
+    border-top: 1px solid rgba(255, 220, 120, 0.45);
+    padding: 7px 0 2px;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+  .dm-card-rule-tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-weight: 800;
+    color: #ffdc78;
+    letter-spacing: 0.12em;
+    margin-right: 0.5em;
+    /* The tag reads as a "stamp" — flat gold, no italic, max contrast. */
+  }
+  .dm-card-rule-text {
+    color: #ffffff;
+    font-style: italic;
+    opacity: 0.96;
   }
 
   .dm-card-flavor {

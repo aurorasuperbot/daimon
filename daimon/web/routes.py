@@ -167,8 +167,15 @@ def get_card(card_id: str, expansion: Optional[str] = None) -> Dict[str, Any]:
     on demand. Unlike ``/api/catalog`` this preserves ``triggers`` and
     every other payload field so the card renderer has everything it
     needs in one round-trip per unique id.
+
+    Augments the raw payload with ``rule_change_text`` when the card
+    carries a legendary mutation tag — the catalog stores only the
+    opaque ID (``L3``); the human-readable description lives in
+    ``daimon.engine.types.RULE_CHANGE_DESCRIPTIONS`` and the render
+    layer needs both.
     """
     from daimon.catalog import DEFAULT_CATALOG_ID, load_catalog
+    from daimon.engine.types import RULE_CHANGE_DESCRIPTIONS
     cid = expansion or DEFAULT_CATALOG_ID
     try:
         cat = load_catalog(cid)
@@ -179,11 +186,15 @@ def get_card(card_id: str, expansion: Optional[str] = None) -> Dict[str, Any]:
         raise HTTPException(
             status_code=404, detail=f"unknown card {card_id!r} in {cid!r}",
         )
+    payload = dict(card.payload)
+    rc = payload.get("rule_change")
+    if rc and rc in RULE_CHANGE_DESCRIPTIONS:
+        payload["rule_change_text"] = RULE_CHANGE_DESCRIPTIONS[rc]
     return {
         "card_id": card.card_id,
         "rarity": card.rarity,
         "pack": card.pack,
-        "payload": card.payload,
+        "payload": payload,
     }
 
 
