@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daimon-engine"
-version = "2.0.0"
+version = "2.0.1"
 description = "DAIMON — open-source agentic-first autobattler with native pywebview UI"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -46,6 +46,13 @@ dev = [
 daimon = "daimon.cli:main"
 dmn = "daimon.cli:main"             # short alias (`dm` collides with `cd ~`-style muscle memory in some shells)
 dmn-mcp = "daimon.mcp.server:run_stdio"
+
+[project.gui-scripts]
+# GUI-subsystem (no console) twin of `daimon`. Used by the PostToolUse mining
+# hook so each Claude Code tool call doesn't flash a terminal window on
+# Windows. Functionally identical to `daimon` — same entry point, same
+# subcommands. On POSIX, gui-scripts is a no-op (everything's a console).
+daimonw = "daimon.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/aurorasuperbot/daimon"

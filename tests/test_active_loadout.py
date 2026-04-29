@@ -69,6 +69,8 @@ def isolated_paths(monkeypatch, tmp_path):
     """
     from daimon.identity import keys as identity_keys
     from daimon.mining import buffer as buffer_mod
+    from daimon.mining import ledger as ledger_mod
+    from daimon.quests import state as quests_state
     from daimon import collection as collection_mod
     from daimon.mcp import server as mcp_server
 
@@ -84,6 +86,14 @@ def isolated_paths(monkeypatch, tmp_path):
                         cfg / "collection.json")
     monkeypatch.setattr(mcp_server, "LOADOUTS_DIR", cfg / "loadouts")
     monkeypatch.setattr(buffer_mod, "BUFFER_PATH", cfg / "mine_buffer.jsonl")
+    # Ledger + quests state — without these, dm_match_npc / dm_pull leak
+    # quest_reward entries to the user's real ~/.config/daimon/mining_ledger.jsonl
+    # because evaluate_and_claim() reads ledger_mod.LEDGER_PATH at call time.
+    # (Caught 2026-04-29 when a real player's ledger was corrupted by these
+    # leaked entries during a test run.)
+    monkeypatch.setattr(ledger_mod, "LEDGER_PATH", cfg / "mining_ledger.jsonl")
+    monkeypatch.setattr(mcp_server, "LEDGER_PATH", cfg / "mining_ledger.jsonl")
+    monkeypatch.setattr(quests_state, "QUESTS_PATH", cfg / "daily_quests.json")
     monkeypatch.setenv("DAIMON_STATE", str(cfg / "state.json"))
     return cfg
 

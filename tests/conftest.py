@@ -42,6 +42,95 @@ def _no_art_autoupdate(monkeypatch, request):
     monkeypatch.setattr(_update_pkg, "ensure_art_available", _noop)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_real_state_paths(monkeypatch, tmp_path_factory, request):
+    """Defense-in-depth: redirect every "lives at ~/.config/daimon/" path to
+    a per-test tmp dir for ALL tests, so a forgotten ``_isolate_paths`` call
+    can't pollute the user's real ledger / quests / collection / loadouts.
+
+    Why autouse rather than per-test: there are 100+ tests (test_mcp.py
+    alone has 115) and even one missed ``_isolate_paths`` call lets a tool
+    like ``dm_match`` write a ``quest_reward`` to the real
+    ``~/.config/daimon/mining_ledger.jsonl`` (the auto-claim flow inside
+    ``_refresh_and_claim_quests`` runs for every play action). Caught in
+    the wild — see git log around the ledger truncation.
+
+    Per-test tmp dirs (`tmp_path_factory.mktemp`) so nothing survives across
+    the suite. Sets the env vars (DAIMON_HOME / XDG_CONFIG_HOME) AND
+    monkeypatches every module-level path constant — necessary because
+    several modules cache CONFIG_DIR / LEDGER_PATH at import time.
+
+    Tests that opt into a specific tmp dir via their own ``_isolate_paths``
+    helper still work — monkeypatch values just stack and the per-test
+    helper wins.
+    """
+    sandbox = tmp_path_factory.mktemp("daimon-sandbox")
+    cfg = sandbox / "config"
+    cfg.mkdir()
+
+    # Env-level redirect: any *future* import / fresh subprocess sees the
+    # tmp paths via the canonical resolver. We only set XDG_CONFIG_HOME (the
+    # second-priority branch in ``_resolve_config_dir``) — NOT DAIMON_HOME.
+    # Some tests (e.g. test_cli_groups.py::isolated_home) set their own
+    # XDG_CONFIG_HOME and reload modules to re-resolve CONFIG_DIR; setting
+    # DAIMON_HOME here would override their explicit setenv since DAIMON_HOME
+    # has higher precedence in the resolver. The module-level monkeypatches
+    # below are the actual safety net — env vars are belt-and-suspenders.
+    xdg = sandbox / "xdg"
+    xdg.mkdir()
+    (xdg / "daimon").mkdir()
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
+    monkeypatch.setenv("DAIMON_STATE", str(cfg / "state.json"))
+    monkeypatch.setenv("DAIMON_INBOX", str(sandbox / "inbox"))
+
+    # Module-level redirect: rebind every cached path constant. Imports are
+    # local so we don't drag the whole world into conftest at collect time;
+    # each module is already imported by the test that needs it anyway.
+    from daimon.identity import keys as identity_keys
+    from daimon.mining import ledger as ledger_mod
+    from daimon.mining import buffer as buffer_mod
+    from daimon import collection as collection_mod
+    from daimon.quests import state as quests_state
+
+    monkeypatch.setattr(identity_keys, "CONFIG_DIR", cfg)
+    monkeypatch.setattr(identity_keys, "PRIVATE_KEY_PATH",
+                        cfg / "identity.key")
+    monkeypatch.setattr(identity_keys, "PUBLIC_KEY_PATH",
+                        cfg / "identity.pub")
+    monkeypatch.setattr(identity_keys, "METADATA_PATH",
+                        cfg / "identity.json")
+    monkeypatch.setattr(ledger_mod, "LEDGER_PATH",
+                        cfg / "mining_ledger.jsonl")
+    monkeypatch.setattr(buffer_mod, "BUFFER_PATH",
+                        cfg / "mine_buffer.jsonl")
+    monkeypatch.setattr(collection_mod, "COLLECTION_PATH",
+                        cfg / "collection.json")
+    monkeypatch.setattr(quests_state, "QUESTS_PATH",
+                        cfg / "daily_quests.json")
+
+    # MCP server has its own copies of LEDGER_PATH/COLLECTION_PATH/LOADOUTS_DIR
+    # bound at import time. Patch them too. ``dm_match`` etc. all read these
+    # globals (not ``ledger_mod.LEDGER_PATH``) for some operations.
+    try:
+        from daimon.mcp import server as mcp_server
+    except Exception:  # noqa: BLE001
+        mcp_server = None
+    if mcp_server is not None:
+        monkeypatch.setattr(mcp_server, "LEDGER_PATH",
+                            cfg / "mining_ledger.jsonl")
+        monkeypatch.setattr(mcp_server, "COLLECTION_PATH",
+                            cfg / "collection.json")
+        monkeypatch.setattr(mcp_server, "LOADOUTS_DIR", cfg / "loadouts")
+
+    # Arena state caches PVP_STATE_DIR at import time too.
+    try:
+        from daimon.arena import state as arena_state
+        monkeypatch.setattr(arena_state, "PVP_STATE_DIR",
+                            sandbox / "inbox" / "pvp_state")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _load(name: str) -> Card:
     return load_card(FIXTURE_DIR / name)
 

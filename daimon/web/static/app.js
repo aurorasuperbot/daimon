@@ -53,7 +53,10 @@ async function navigate() {
     if (typeof mod.render !== "function") {
       throw new Error(`screen ${name} did not export render()`);
     }
-    mod.render(root, params);
+    // Await so async errors thrown inside render() surface here instead
+    // of becoming silent unhandled promise rejections that leave the
+    // page blank.
+    await mod.render(root, params);
   } catch (err) {
     console.error("nav error", err);
     showError(`failed to render ${name}: ${err}`);

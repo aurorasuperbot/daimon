@@ -93,11 +93,15 @@ def menu() -> None:
         return
 
     spawn_detached()
-    info = wait_for_lock(timeout_s=5.0)
+    # 15s budget covers cold-start overhead: pythonw.exe import +
+    # bootstrap (identity mint, settings.json patching, art manifest
+    # fetch) + uvicorn server startup. Subsequent runs hit the .pyc
+    # cache and are sub-second.
+    info = wait_for_lock(timeout_s=15.0)
     if info is None:
         click.echo(
-            "error: daemon failed to start within 5s. Check "
-            "~/.daimon/log/ for details.",
+            "error: daemon failed to start within 15s. Check "
+            "~/.daimon/log/daemon.log for details.",
             err=True,
         )
         sys.exit(1)

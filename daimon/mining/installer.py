@@ -35,7 +35,12 @@ from typing import Any, Dict, Optional
 
 DEFAULT_SETTINGS_PATH = Path.home() / ".claude" / "settings.json"
 HOOK_OWNER = "daimon"
-DEFAULT_HOOK_COMMAND = "daimon mine receipt"
+# GUI-subsystem twin of `daimon` (declared under [project.gui-scripts] in
+# pyproject.toml). On Windows, `daimon.exe` is a console binary and Claude
+# Code spawns the hook without CREATE_NO_WINDOW — so each tool call would
+# flash a terminal. `daimonw` (pythonw-based) suppresses that. POSIX falls
+# back to `daimon` since gui-scripts only matters on Windows.
+DEFAULT_HOOK_COMMAND = "daimonw mine receipt"
 DEFAULT_MATCHER = ".*"
 
 

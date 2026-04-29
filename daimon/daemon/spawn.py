@@ -8,10 +8,15 @@ Cross-platform contract:
 
   * POSIX (Mac/Linux): ``start_new_session=True`` puts the child in a new
     process group + session, detaching from the controlling terminal.
-  * Windows: ``DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`` flags.
+  * Windows: spawn via ``pythonw.exe`` (the GUI-subsystem Python launcher,
+    which has no console at all) plus ``CREATE_NO_WINDOW`` +
+    ``CREATE_NEW_PROCESS_GROUP``. Using plain ``python.exe`` with
+    ``DETACHED_PROCESS`` still pops a console window because python.exe
+    is a console-subsystem binary; ``pythonw.exe`` is the canonical fix.
 
-In both cases stdin/stdout/stderr are routed to ``DEVNULL`` so the child
-never blocks on parent I/O.
+In both cases stdin/stdout/stderr are routed to a log file (or DEVNULL
+on POSIX) so the child never blocks on parent I/O and so future debug
+doesn't require running in foreground mode.
 """
 
 from __future__ import annotations
@@ -19,19 +24,48 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Optional
 
+from daimon.bootstrap import daimon_home
 from daimon.daemon.lock import LockInfo, read_lock
+
+
+def _python_exe() -> str:
+    """Return the interpreter to spawn the daemon with.
+
+    On Windows, swap ``python.exe`` for ``pythonw.exe`` (sibling binary
+    in every CPython install) so the child has no console subsystem
+    attached. Falls back to ``sys.executable`` if pythonw isn't there.
+    """
+    if sys.platform != "win32":
+        return sys.executable
+    candidate = Path(sys.executable).with_name("pythonw.exe")
+    return str(candidate) if candidate.is_file() else sys.executable
 
 
 def _build_command() -> list[str]:
     """Return the argv the spawned child will exec.
 
-    Uses the current Python interpreter (handles venvs and frozen
-    bundles correctly) and re-enters the CLI via ``-m daimon.cli`` with
-    the hidden ``_daemon_internal`` subcommand.
+    Uses the GUI-subsystem Python on Windows (see :func:`_python_exe`)
+    so no console flashes during ``daimon menu``. Re-enters the CLI via
+    ``-m daimon.cli`` with the hidden ``_daemon_internal`` subcommand.
     """
-    return [sys.executable, "-m", "daimon.cli", "_daemon_internal"]
+    return [_python_exe(), "-m", "daimon.cli", "_daemon_internal"]
+
+
+def _open_log() -> "subprocess._FILE":
+    """Open ``~/.daimon/log/daemon.log`` for the child's stdout/stderr.
+
+    Falls back to DEVNULL if the log directory can't be created — never
+    fatal at the spawn layer (caller still gets a Popen handle).
+    """
+    try:
+        log_dir = daimon_home() / "log"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        return open(log_dir / "daemon.log", "ab", buffering=0)
+    except OSError:
+        return subprocess.DEVNULL  # type: ignore[return-value]
 
 
 def spawn_detached() -> subprocess.Popen:
@@ -42,15 +76,20 @@ def spawn_detached() -> subprocess.Popen:
     the canonical handle is the lock file, not this Popen).
     """
     cmd = _build_command()
+    log = _open_log()
     kwargs: dict = {
         "stdin": subprocess.DEVNULL,
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
+        "stdout": log,
+        "stderr": log,
         "close_fds": True,
     }
     if sys.platform == "win32":
-        # DETACHED_PROCESS=0x00000008, CREATE_NEW_PROCESS_GROUP=0x00000200
-        kwargs["creationflags"] = 0x00000008 | 0x00000200
+        # CREATE_NO_WINDOW=0x08000000, CREATE_NEW_PROCESS_GROUP=0x00000200.
+        # CREATE_NO_WINDOW is the right flag for our case: the child IS
+        # a long-running background process. DETACHED_PROCESS would also
+        # work but is documented as mutually exclusive with most child
+        # console-handle inheritance, which we don't want to depend on.
+        kwargs["creationflags"] = 0x08000000 | 0x00000200
     else:
         kwargs["start_new_session"] = True
     return subprocess.Popen(cmd, **kwargs)
