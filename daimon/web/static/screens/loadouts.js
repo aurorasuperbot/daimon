@@ -209,8 +209,12 @@ function catalogTile(card, root) {
     class: `catalog-tile${inDeck ? " in-deck" : ""}`,
     disabled: (full && !inDeck) ? true : false,
     onClick: () => {
-      if (state.slots.length >= LOADOUT_SIZE) return;
-      state.slots = [...state.slots, card.card_id];
+      if (inDeck) {
+        state.slots = state.slots.filter(id => id !== card.card_id);
+      } else {
+        if (state.slots.length >= LOADOUT_SIZE) return;
+        state.slots = [...state.slots, card.card_id];
+      }
       rerender(root);
     },
   });

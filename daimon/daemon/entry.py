@@ -46,10 +46,10 @@ def _try_import_webview():
     return webview
 
 WINDOW_TITLE = "DAIMON"
-WINDOW_WIDTH = 1280
-WINDOW_HEIGHT = 800
-WINDOW_MIN_WIDTH = 960
-WINDOW_MIN_HEIGHT = 600
+WINDOW_WIDTH = 1440
+WINDOW_HEIGHT = 900
+WINDOW_MIN_WIDTH = 1100
+WINDOW_MIN_HEIGHT = 720
 
 
 def _pick_free_port() -> int:

@@ -93,14 +93,16 @@ def test_seed_validation():
         resolve_match(fl, fl, "string seed")  # type: ignore
 
 
-# -- Round cap and termination ----------------------------------------------
+# -- Termination ------------------------------------------------------------
 
-def test_round_cap_ends_match(filler_loadout):
-    """Two identical filler loadouts should hit round cap, draw on hp."""
+def test_no_progress_match_hits_stalemate_guard(filler_loadout):
+    """Filler 5/5/20/5 vs itself deals 0 damage (atk=def). Without a hard
+    round cap, the engine must still terminate — the 100-round stalemate
+    guard catches it and the equal-HP tiebreak collapses to a draw."""
     result = resolve_match(filler_loadout, filler_loadout, SEED_ZERO)
-    assert len(result.rounds) <= 5
-    # Identical loadouts mean they progress in lockstep
+    assert result.reason == "draw"
     assert result.side_a_final_hp == result.side_b_final_hp
+    assert len(result.rounds) == 100
 
 
 def test_wipe_ends_match_early():
@@ -140,7 +142,7 @@ def test_on_round_start_heal():
     all_logs = "\n".join("\n".join(rd.actions) for rd in r.rounds)
     assert "heals" in all_logs
     # And side A is not wiped (heal kept someone alive or dampened damage)
-    assert r.reason in ("wipe", "round_cap", "draw")
+    assert r.reason in ("wipe", "double_wipe", "stalemate", "draw")
 
 
 def test_on_attack_self_buff():
@@ -148,7 +150,7 @@ def test_on_attack_self_buff():
     a = lo(snowball)
     b = lo()
     r = resolve_match(a, b, SEED_ZERO)
-    assert r.reason in ("wipe", "round_cap", "draw")
+    assert r.reason in ("wipe", "double_wipe", "stalemate", "draw")
 
 
 def test_on_take_damage_shield():
@@ -156,7 +158,7 @@ def test_on_take_damage_shield():
     a = lo(shielded)
     b = lo()
     r = resolve_match(a, b, SEED_ZERO)
-    assert r.reason in ("wipe", "round_cap", "draw")
+    assert r.reason in ("wipe", "double_wipe", "stalemate", "draw")
 
 
 def test_on_death_damage_to_all_enemies():
@@ -174,7 +176,7 @@ def test_on_ally_death_buff():
     a = lo(fragile, inheritor)
     b = lo()
     r = resolve_match(a, b, SEED_ZERO)
-    assert r.reason in ("wipe", "round_cap", "draw")
+    assert r.reason in ("wipe", "double_wipe", "stalemate", "draw")
 
 
 def test_random_enemy_targeting_uses_seed():

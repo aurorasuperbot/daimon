@@ -303,12 +303,13 @@ class TestOnLowHp:
         assert len(heals) == 1, f"expected 1 ON_LOW_HP fire, got {len(heals)}"
 
     def test_on_low_hp_does_not_fire_above_threshold(self):
+        # Sized so the 100-round stalemate guard caps total damage at 500,
+        # leaving guardian at 500 hp — well above its 250 threshold (hp/4).
         guardian = mk(
-            "guard", atk=0, defense=0, hp=100, spd=1,
+            "guard", atk=0, defense=0, hp=1000, spd=1,
             triggers=(Trigger(TriggerWhen.ON_LOW_HP, EffectOp.HEAL,
                               TargetFilter.SELF, value=23),),
         )
-        # 5 dmg/round × 5 rounds = 25 dmg. hp ends at 75, well above threshold.
         nibbler = mk("nib", atk=5, defense=0, hp=200, spd=99)
         result = resolve_match(solo(guardian), solo(nibbler), SEED_ZERO)
         log = all_logs(result)

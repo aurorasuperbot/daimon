@@ -23,6 +23,7 @@
 // ---------------------------------------------------------------------------
 
 const _cardCache = new Map();   // card_id -> Promise<payload>
+const _cardResolved = new Map();  // card_id -> payload (after resolve)
 const _cardSubs  = new Set();   // (card_id, payload) => void
 
 function _emitCard(card_id, payload) {
@@ -45,6 +46,7 @@ export const cardStore = {
       })
       .then(envelope => {
         const payload = envelope.payload || envelope;
+        _cardResolved.set(card_id, payload);
         _emitCard(card_id, payload);
         return payload;
       })
@@ -60,11 +62,7 @@ export const cardStore = {
   /** Synchronous accessor — returns undefined on miss. Safe to call from
    *  render paths that already pre-loaded via get(). */
   peek(card_id) {
-    const hit = _cardCache.get(card_id);
-    if (!hit || typeof hit.then !== "function") return undefined;
-    // The Map holds the promise; consumers wanting sync access should
-    // have awaited it once already.
-    return undefined;
+    return _cardResolved.get(card_id);
   },
 
   /** Subscribe to "card payload landed" events. Returns unsubscribe. */
@@ -76,6 +74,7 @@ export const cardStore = {
   /** Clear the cache — only useful for tests / dev hot-reload. */
   _reset() {
     _cardCache.clear();
+    _cardResolved.clear();
     _cardSubs.clear();
   },
 };
@@ -145,6 +144,7 @@ export const liveStore = {
 
 let _socket = null;
 let _reconnectMs = 250;
+let _supersededCount = 0;
 
 export function startLiveSocket() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -155,17 +155,38 @@ export function startLiveSocket() {
     console.warn("ws construct failed", err);
     return;
   }
-  _socket.onopen    = () => { _reconnectMs = 250; };
+  _socket.onopen    = () => { _reconnectMs = 250; _supersededCount = 0; };
   _socket.onmessage = (e) => {
     let frame;
     try { frame = JSON.parse(e.data); }
     catch (err) { console.warn("bad ws frame", err); return; }
     liveStore._ingest(frame);
   };
-  _socket.onclose = () => {
+  _socket.onclose = (e) => {
     _socket = null;
+    if (e.code === 4001) {
+      _supersededCount++;
+      if (_supersededCount >= 3) return;
+      _showSuperseded();
+      return;
+    }
     setTimeout(startLiveSocket, _reconnectMs);
     _reconnectMs = Math.min(_reconnectMs * 2, 5000);
   };
   _socket.onerror = (e) => { console.warn("ws error", e); };
+}
+
+function _showSuperseded() {
+  const root = document.getElementById("root");
+  if (!root) return;
+  root.innerHTML = "";
+  const msg = document.createElement("div");
+  msg.style.cssText =
+    "height:80vh;display:flex;flex-direction:column;align-items:center;" +
+    "justify-content:center;gap:1rem;text-align:center;";
+  msg.innerHTML =
+    '<div style="color:var(--accent);font-family:var(--font-display);font-size:1.3rem;letter-spacing:0.3em">DAIMON</div>' +
+    '<div style="color:var(--text-muted)">This session was taken over by a new window.</div>' +
+    '<div style="font-size:0.85rem;color:var(--text-dim)">Refresh to reclaim, or close this tab.</div>';
+  root.appendChild(msg);
 }

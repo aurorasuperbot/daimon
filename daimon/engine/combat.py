@@ -56,7 +56,7 @@ from daimon.engine.types import (
     UnitState,
 )
 
-ROUND_CAP = 5
+STALEMATE_GUARD = 100
 
 # Phase-2 status tick magnitudes (locked):
 #   BURN = 3 dmg/round
@@ -1526,9 +1526,9 @@ def resolve_match(
     )
 
     winner: Optional[int] = None
-    reason = "round_cap"
+    reason = "stalemate"
 
-    for r in range(1, ROUND_CAP + 1):
+    for r in range(1, STALEMATE_GUARD + 1):
         # Round-alternating first-player (locked rule #30, 2026-04-21):
         # opener is `start_player` (seed-derived); subsequent rounds flip.
         # Round 1 -> start_player; round 2 -> 1 - start_player; round 3 ->
@@ -1640,7 +1640,7 @@ def resolve_match(
     final_a = _hp_total(side_a)
     final_b = _hp_total(side_b)
 
-    if winner is None and reason == "round_cap":
+    if winner is None and reason == "stalemate":
         if final_a > final_b:
             winner = 0
         elif final_b > final_a:

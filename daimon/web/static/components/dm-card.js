@@ -511,7 +511,12 @@ class DMCard extends HTMLElement {
     }
     if (card_id === this._currentId) return;   // already showing this card
     this._currentId = card_id;
-    this._applyEmpty();                        // immediately blank stale data
+    const cached = cardStore.peek(card_id);
+    if (cached) {
+      this._applyPayload(card_id, cached);
+      return;
+    }
+    this._applyEmpty();
     const token = ++this._loadToken;
     cardStore.get(card_id).then(payload => {
       if (token !== this._loadToken) return;   // stale; a newer load won

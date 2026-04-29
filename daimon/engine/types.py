@@ -423,4 +423,4 @@ class MatchResult:
     winner: Optional[int]   # 0, 1, or None for draw
     side_a_final_hp: int
     side_b_final_hp: int
-    reason: str             # "wipe", "round_cap", "draw"
+    reason: str             # "wipe", "double_wipe", "stalemate", "draw"

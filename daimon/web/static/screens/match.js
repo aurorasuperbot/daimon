@@ -206,7 +206,7 @@ function buildCinematicDom(root, transcript, speed) {
     const cardId = card.species;          // species == card_id in catalog
     const dm = document.createElement("dm-card");
     dm.setAttribute("card-id", cardId);
-    dm.setAttribute("size", "full");
+    dm.setAttribute("size", "detail");
 
     // HP bar + numeric strip live below the card so they stay readable
     // while the art/text is busy. Per-event flash overlays the whole
@@ -289,13 +289,17 @@ function buildCinematicDom(root, transcript, speed) {
         refs.roundChip, controlBar, skip),
     ),
     el("div", { class: "cinematic-body" },
-      el("div", { class: "team-label opponent" },
-        opponent.name || opponentName),
-      opponentRow,
-      el("div", { class: "team-label player" }, "YOUR TEAM"),
-      playerRow,
-      el("div", { class: "log-header" }, "BATTLE LOG"),
-      refs.log,
+      el("div", { class: "cinematic-field" },
+        el("div", { class: "team-label opponent" },
+          opponent.name || opponentName),
+        opponentRow,
+        el("div", { class: "team-label player" }, "YOUR TEAM"),
+        playerRow,
+      ),
+      el("div", { class: "cinematic-sidebar" },
+        el("div", { class: "log-header" }, "BATTLE LOG"),
+        refs.log,
+      ),
     ),
   );
   return { screen, refs };
@@ -313,15 +317,27 @@ async function playAction(action, refs, signal, speed, opts = {}) {
   if (actorRef && !actorRef.dead) {
     actorRef.cell.classList.add("acting");
     setTimeout(() => actorRef.cell.classList.remove("acting"), pacing);
+    if (action.kind === "passive") {
+      actorRef.cell.classList.add("fx-passive");
+      setTimeout(() => actorRef.cell.classList.remove("fx-passive"), 600);
+    }
   }
 
-  // Target flash + amount float.
+  // Target flash + amount float + effect animation.
   if (action.target) {
     const tRef = refs.cells[action.target.side]?.[action.target.position];
     if (tRef) {
       tRef.flash.classList.remove("damage", "heal", "buff", "debuff", "status", "shield");
       tRef.flash.classList.add("active", action.kind);
       setTimeout(() => tRef.flash.classList.remove("active"), pacing);
+
+      const fxClass = `fx-${action.kind}`;
+      tRef.cell.classList.remove(fxClass);
+      void tRef.cell.offsetWidth;
+      tRef.cell.classList.add(fxClass);
+      const fxMs = { damage: 400, heal: 500, buff: 450, debuff: 450,
+                     shield: 500, status: 900 }[action.kind] || 500;
+      setTimeout(() => tRef.cell.classList.remove(fxClass), fxMs);
 
       if (action.amount != null && ["damage", "heal", "buff", "debuff", "shield"].includes(action.kind)) {
         const sign = action.kind === "heal" || action.kind === "buff" || action.kind === "shield" ? "+" : "-";
@@ -350,20 +366,22 @@ async function playAction(action, refs, signal, speed, opts = {}) {
       const pct = Math.max(0, Math.min(100, (hp / r.hp_max) * 100));
       r.hpFill.style.width = `${pct.toFixed(1)}%`;
       r.hpText.textContent = `${Math.max(0, hp)}/${r.hp_max}`;
-      // Color-by-health threshold so the bar reads "wounded" without needing
-      // a separate animation system.
       r.hpFill.classList.toggle("low", pct > 0 && pct < 30);
       r.hpFill.classList.toggle("crit", pct > 0 && pct < 12);
       r.hp = hp;
     }
   }
 
-  // Death: blacken cell + mark dead so subsequent acting glints skip it.
+  // Death: animated collapse, then static .dead class after the animation.
   if (action.kind === "death") {
     const aRef = refs.cells[action.actor.side]?.[action.actor.position];
     if (aRef) {
-      aRef.cell.classList.add("dead");
+      aRef.cell.classList.add("fx-death");
       aRef.dead = true;
+      setTimeout(() => {
+        aRef.cell.classList.remove("fx-death");
+        aRef.cell.classList.add("dead");
+      }, 600);
     }
   }
 
@@ -511,8 +529,7 @@ async function startCinematic(root, transcript) {
       console.error("cinematic walker crashed:", err);
     }
   }
-  // Restore captured snapshot so the result view always renders with
-  // real data even if the global state was clobbered mid-play.
+  if (!screen.isConnected) return;
   state.view = "result";
   state.result = state.result ?? capturedResult;
   state.selectedNpc = state.selectedNpc ?? capturedNpcId;
@@ -540,7 +557,7 @@ function resultView(root) {
     ),
     el("div", { class: "match-result-body" },
       el("div", { class: "match-result-line" },
-        `${r.round_count ?? 0} rounds — ${r.reason || ""}`),
+        `${r.round_count ?? 0} rounds`),
       el("div", { class: "match-result-line" },
         `your team: ${r.side_a_final_hp ?? "?"} hp`),
       el("div", { class: "match-result-line" },
@@ -634,9 +651,10 @@ function rerender(root) {
 }
 
 export async function render(root, params) {
-  // Diagnostic: track render() invocations so we can see if a stray
-  // hashchange is wiping our state mid-cinematic. Surfaces in the
-  // browser console as a numbered log per call.
+  if (state.abort) {
+    state.abort.abort();
+    state.abort = null;
+  }
   const renderId = (window.__matchRenderId = (window.__matchRenderId || 0) + 1);
   console.log(`[match] render() #${renderId} params=`, params);
   state = {
@@ -644,18 +662,20 @@ export async function render(root, params) {
     tiers: [], npcsById: {}, recommended: null,
     loadouts: [], selectedLoadout: null,
     selectedNpc: null, result: null, error: null,
+    abort: null,
   };
   root.innerHTML = `<div class="loading">loading match…</div>`;
+  const cleanup = () => { state.abort?.abort(); };
   try {
     await loadAll();
   } catch (err) {
     root.innerHTML = `<div class="error">match unreachable: ${err}</div>`;
-    return;
+    return cleanup;
   }
-  // If a route arg was passed (e.g. #match/sparring_sam), auto-start.
   if (params && params.length > 0 && params[0]) {
     await startMatch(params[0], root);
-    return;
+    return cleanup;
   }
   rerender(root);
+  return cleanup;
 }

@@ -67,23 +67,33 @@ def _run_silent(args: list[str], stdin_text: str = "") -> Optional[str]:
     Used to query auth helpers (``gh auth token``, ``git credential fill``)
     without leaking output to the user's terminal. Times out at 5 s.
 
-    Sets a non-interactive environment so neither git nor Git Credential
-    Manager can pop a login dialog. Without these, `git credential fill`
-    on Windows happily opens a browser-based auth prompt the moment a
-    background art fetch hits a release with no cached PAT — which is
-    where the "GitHub login spam" bug came from. We don't want auth
-    prompts here; if no helper has a token we just fall through.
+    Sets a non-interactive environment so neither git nor an askpass
+    helper can pop a login dialog. Without these, `git credential fill`
+    on Windows happily opens an auth prompt the moment a background art
+    fetch hits a release with no cached PAT — that was the "GitHub
+    login spam" bug.
 
       GIT_TERMINAL_PROMPT=0   — git itself never prompts on a TTY
-      GCM_INTERACTIVE=Never   — Git Credential Manager never opens a UI
       GIT_ASKPASS=echo        — backstop: if anything still tries to
                                  prompt, the askpass returns an empty
                                  string and the helper exits non-zero
+
+    NOTE: we do NOT set ``GCM_INTERACTIVE=Never``. GCM uses DPAPI/Windows
+    Hello to *unlock* its credential vault, and ``Never`` blocks even
+    cached-cred reads — GCM falls through to git's host-level fallback,
+    which on a multi-account machine is the WRONG account (e.g. the
+    daimon-cards repo's path-specific aurorasuperbot PAT gets shadowed
+    by the host-level santi-contextually PAT). The empirical test:
+    with Never set, ``git credential fill path=aurorasuperbot/...``
+    fails with "Cannot prompt because user interactivity has been
+    disabled" and silently returns host-level creds. With it unset,
+    GCM reads the cached path-specific PAT non-interactively; the UI
+    only opens if there's NO cached cred at all, which is the expected
+    first-run UX. The TIMEOUT below caps any stuck prompt to 5s.
     """
     import subprocess
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
-    env["GCM_INTERACTIVE"] = "Never"
     env["GIT_ASKPASS"] = "echo"
     try:
         proc = subprocess.run(

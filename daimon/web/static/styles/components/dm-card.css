@@ -460,6 +460,45 @@
       transparent 50%);
   }
 
+  /* Battle: cinematic unit card. Shows ability names + when-chips so
+   * the player can read "what does this unit do?" at a glance during
+   * a fight. Stats, flavor, and ability bodies are hidden — too dense
+   * at 1/6 viewport width. */
+  :scope[size="battle"] {
+    width: 100%;
+    height: 100%;
+  }
+  :scope[size="battle"] .dm-card-info {
+    display: flex;
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 2;
+    padding: clamp(0.25rem, 1.6cqi, 0.45rem)
+             clamp(0.25rem, 1.4cqi, 0.4rem);
+    flex-direction: column;
+    gap: clamp(0.15rem, 0.6cqi, 0.25rem);
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(10, 12, 24, 0.65) 15%,
+      rgba(10, 12, 24, 0.93) 60%);
+  }
+  :scope[size="battle"] .dm-card-stats { display: none; }
+  :scope[size="battle"] .dm-card-flavor { display: none; }
+  :scope[size="battle"] .dm-card-ability-body { display: none; }
+  :scope[size="battle"] .dm-card-sub { display: none; }
+  :scope[size="battle"] .dm-card-abilities { gap: 2px; }
+  :scope[size="battle"] .dm-card-ability {
+    font-size: clamp(0.5rem, 2cqi, 0.68rem);
+    padding: 2px 4px;
+  }
+  :scope[size="battle"] .dm-card-headline {
+    padding: clamp(0.25rem, 1.8cqi, 0.4rem)
+             clamp(0.2rem, 1.4cqi, 0.35rem);
+  }
+  :scope[size="battle"] .dm-card-name {
+    font-size: clamp(0.65rem, 3.5cqi, 1rem);
+  }
+
   /* ===== Rarity tiers — distinct mechanism families =================
    *
    * Each tier introduces a NEW mechanism category, not a brighter

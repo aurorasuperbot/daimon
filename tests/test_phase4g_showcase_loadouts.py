@@ -293,7 +293,7 @@ class TestEndToEnd:
         assert len(result.rounds) >= 1, (
             f"{loadout_id}: match produced 0 rounds"
         )
-        assert result.reason in ("wipe", "round_cap", "draw"), result.reason
+        assert result.reason in ("wipe", "double_wipe", "stalemate", "draw"), result.reason
         assert result.winner in (0, 1, None)
         assert result.side_a_final_hp >= 0
         assert result.side_b_final_hp >= 0

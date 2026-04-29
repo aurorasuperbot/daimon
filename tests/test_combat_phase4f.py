@@ -481,12 +481,16 @@ class TestOnDamageTaken:
         assert "d_dt buffs ATK of d_dt by +4" in log
 
     def test_on_damage_taken_skipped_if_fully_shielded(self):
-        """Damage fully absorbed by shield → ON_DAMAGE_TAKEN does NOT fire (charter §21.2)."""
+        """Damage fully absorbed by shield → ON_DAMAGE_TAKEN does NOT fire (charter §21.2).
+
+        Shield is sized to absorb the full 100-round × 10-atk worst case so
+        the stalemate guard can't break it.
+        """
         defender = mk(
             "d_sh", atk=0, defense=0, hp=100, spd=1,
             triggers=(
                 Trigger(TriggerWhen.ON_BATTLE_START, EffectOp.ADD_SHIELD,
-                        TargetFilter.SELF, value=999),
+                        TargetFilter.SELF, value=9999),
                 # Witness — should NOT fire if fully shielded.
                 Trigger(TriggerWhen.ON_DAMAGE_TAKEN, EffectOp.BUFF_ATK,
                         TargetFilter.SELF, value=99),
