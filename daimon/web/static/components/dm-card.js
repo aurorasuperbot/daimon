@@ -55,6 +55,11 @@ function buildShell(host) {
   const artImg    = el("img", "dm-card-art-img");
   artImg.alt      = "";
   artImg.draggable = false;
+  // Soft-fail: when /art/{id} 404s (or any image error), mark the host
+  // so CSS can swap to a tasteful placeholder instead of the broken-
+  // image glyph. Successful loads clear the marker.
+  artImg.addEventListener("error", () => host.setAttribute("data-art-error", ""));
+  artImg.addEventListener("load",  () => host.removeAttribute("data-art-error"));
   art.appendChild(artImg);
 
   const headline   = el("div", "dm-card-headline");
@@ -67,11 +72,13 @@ function buildShell(host) {
   headline.appendChild(name);
   headline.appendChild(sub);
 
-  // Stat row — fixed 4 cells (atk/def/hp/spd), always present.
+  // Stat row — fixed 4 cells (atk/def/hp/spd), always present. Each cell
+  // carries data-stat so the CSS can color-code labels per stat type.
   const stats = el("div", "dm-card-stats");
   const statRefs = {};
   for (const [key, label] of [["atk","ATK"], ["def","DEF"], ["hp","HP"], ["spd","SPD"]]) {
     const cell = el("div", "dm-card-stat");
+    cell.setAttribute("data-stat", key);
     const lab  = el("span", "dm-card-stat-label", label);
     const val  = el("span", "dm-card-stat-value", "—");
     cell.appendChild(lab);
@@ -89,12 +96,18 @@ function buildShell(host) {
 
   const flavor = el("div", "dm-card-flavor");
 
+  // Bottom info panel — stats + abilities + flavor stack on a single
+  // overlay strip so they can share a frosted backdrop and don't drift
+  // up into the art when sub-content is short.
+  const info = el("div", "dm-card-info");
+  info.appendChild(stats);
+  info.appendChild(abilities);
+  info.appendChild(flavor);
+
   const front = el("div", "dm-card-front");
   front.appendChild(art);
   front.appendChild(headline);
-  front.appendChild(stats);
-  front.appendChild(abilities);
-  front.appendChild(flavor);
+  front.appendChild(info);
 
   const frame = el("div", "dm-card-frame");
   frame.appendChild(back);

@@ -1,10 +1,18 @@
 /* <dm-card> — light-DOM card primitive.
  *
- * Styles scoped via @scope so they cannot leak past the component root.
- * The element exposes three knobs:
+ * Full-art layout: the artwork covers the entire card; text overlays
+ * sit on top with vignette gradients keeping them legible against any
+ * art. Rarity escalates the frame treatment Marvel-Snap-style — common
+ * is a thin line, legendary gets a gilded gradient border + animated
+ * foil sweep. Container queries scale every text node with card width
+ * so the same component looks right at hero, full, and tile sizes.
+ *
+ * Knobs (attributes on <dm-card>):
  *   size  : hero | tile | full   — layout density
- *   face  : front | back         — which side faces the camera
- *   data-rarity : (set by JS)    — drives --rarity-* tokens for the frame
+ *   face  : front | back         — which face faces the camera
+ *   data-rarity : (set by JS)    — drives both --rarity-* tokens AND
+ *                                  the per-tier frame escalation rules
+ *                                  in this file.
  */
 
 @scope (dm-card) {
@@ -18,15 +26,13 @@
     color: var(--text);
     font-family: var(--font-body);
     width: 100%;
-    /* Perspective gives the frame a real 3D depth when it rotates
-     * (face transitions). 1200px is the cinematic-feeling default;
-     * lower = more dramatic, higher = subtler. */
     perspective: 1200px;
+    /* Container queries — children read `cqi` (1% of inline size) so a
+     * 380px hero and a 110px tile both look right with the same rules. */
+    container-type: inline-size;
   }
 
-  /* Frame: the bordered, rarity-glowing container that holds both
-   * faces of the card. Rotates between 0deg (back-facing camera) and
-   * 180deg (front-facing camera) on the `face` attribute. */
+  /* Frame: rotates between 0deg (back) and 180deg (front) on `face`. */
   .dm-card-frame {
     position: absolute;
     inset: 0;
@@ -36,57 +42,32 @@
     box-shadow: var(--rarity-glow);
     transform-style: preserve-3d;
     transition: transform var(--motion-flip) var(--ease-snap);
-    /* face attribute rotates this; defaults below cover the "no attr"
-     * case (initial mount before connectedCallback assigns face=front). */
   }
 
-  /* The inner faces clip themselves so corner radius applies cleanly.
-   * The frame itself avoids overflow:hidden so 3D children aren't
-   * flattened during rotation (Chromium quirk). */
-  .dm-card-front,
-  .dm-card-back {
-    border-radius: calc(var(--radius-lg) - 2px);
-    overflow: hidden;
-  }
-
-  /* Each face of the card sits in 3D space such that the frame's
-   * single rotateY rotation reveals exactly one of them. The back is
-   * at 0deg and faces the camera by default; the front is rotated
-   * 180deg so it only becomes visible after the frame flips. */
   .dm-card-front,
   .dm-card-back {
     position: absolute;
     inset: 0;
-    display: flex;
-    flex-direction: column;
+    border-radius: calc(var(--radius-lg) - 2px);
+    overflow: hidden;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
   }
-  .dm-card-back {
-    transform: rotateY(0deg);
-  }
-  .dm-card-front {
-    transform: rotateY(180deg);
-  }
+  .dm-card-back  { transform: rotateY(0deg); }
+  .dm-card-front { transform: rotateY(180deg); }
 
-  /* Face toggle: rotate the frame.
-   * Default (no attr) and face=front: frame at 180deg → front visible.
-   * face=back: frame at 0deg → back visible. */
   :scope:not([face]) .dm-card-frame,
-  :scope[face="front"] .dm-card-frame {
-    transform: rotateY(180deg);
-  }
-  :scope[face="back"] .dm-card-frame {
-    transform: rotateY(0deg);
-  }
+  :scope[face="front"] .dm-card-frame { transform: rotateY(180deg); }
+  :scope[face="back"]  .dm-card-frame { transform: rotateY(0deg); }
 
-  /* Back-of-card ---------------------------------------------------- */
+  /* ----- Back of card ----------------------------------------------- */
 
   .dm-card-back {
+    display: flex;
     align-items: center;
     justify-content: center;
     background:
-      radial-gradient(circle at 50% 50%, rgba(240,196,88,0.20), transparent 70%),
+      radial-gradient(circle at 50% 50%, rgba(240, 196, 88, 0.22), transparent 70%),
       linear-gradient(135deg, #181e30 25%, #10142a 50%, #181e30 75%);
     background-size: 8px 8px, 100% 100%;
   }
@@ -95,23 +76,20 @@
     font-weight: 800;
     letter-spacing: 0.4em;
     color: var(--accent-deep);
-    font-size: 1.5rem;
+    font-size: clamp(1rem, 6cqi, 2rem);
   }
 
-  /* Front-of-card layout (size=hero/full) -------------------------- */
+  /* ----- Front of card --------------------------------------------- */
 
+  /* Front layers: art (z=0), vignette tint (z=1), text overlays (z=2). */
   .dm-card-front {
-    padding: var(--gap-tight);
-    gap: var(--gap-tight);
+    background: var(--bg-deep);
   }
 
-  /* Art region — top half of the card. */
   .dm-card-art {
-    position: relative;
-    flex: 0 0 50%;
-    overflow: hidden;
-    border-radius: var(--radius);
-    background: var(--bg-raised);
+    position: absolute;
+    inset: 0;
+    z-index: 0;
   }
   .dm-card-art-img {
     width: 100%;
@@ -120,73 +98,190 @@
     display: block;
     transition: opacity var(--motion-base) var(--ease-soft);
   }
-  /* When no card-id has loaded yet, show a quiet placeholder backdrop. */
-  :scope:not([data-loaded]) .dm-card-art-img {
-    opacity: 0;
+  :scope:not([data-loaded]) .dm-card-art-img { opacity: 0; }
+
+  /* Art missing (404 or load error) — show a tinted gradient with a
+   * soft sigil so the card still feels intentional instead of broken. */
+  :scope[data-art-error] .dm-card-art-img { display: none; }
+  :scope[data-art-error] .dm-card-art {
+    background:
+      radial-gradient(circle at 50% 35%,
+        color-mix(in srgb, var(--rarity-color) 22%, var(--bg-panel)) 0%,
+        var(--bg-panel) 70%),
+      linear-gradient(135deg, var(--bg-panel), var(--bg-raised));
+  }
+  :scope[data-art-error] .dm-card-art::after {
+    content: "✦";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--rarity-color);
+    font-size: clamp(2.5rem, 22cqi, 7rem);
+    opacity: 0.35;
+    text-shadow: 0 0 20px var(--rarity-color);
   }
 
-  /* Headline: name + element/archetype subtitle. */
+  /* Vignette: only the top headline gets a darkening band; the bottom
+   * lives behind the glass info panel which has its own readability. */
+  .dm-card-front::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+      rgba(10, 12, 24, 0.78) 0%,
+      rgba(10, 12, 24, 0.18) 24%,
+      transparent 60%);
+  }
+
+  /* Top headline — name + element/archetype on a frosted glass band
+   * matching the bottom info panel. Text reads against a known-dark
+   * surface, regardless of what the underlying art looks like. */
   .dm-card-headline {
+    position: absolute;
+    inset: 0 0 auto 0;
+    z-index: 2;
+    padding: clamp(0.55rem, 3.4cqi, 1rem)
+             clamp(0.5rem, 3cqi, 0.9rem)
+             clamp(0.5rem, 2.8cqi, 0.85rem);
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    border-bottom: 1px solid var(--rarity-frame);
-    padding-bottom: 2px;
+    align-items: center;
+    gap: 3px;
+    text-align: center;
+    background: linear-gradient(180deg,
+      rgba(10, 12, 24, 0.55) 0%,
+      rgba(10, 12, 24, 0.30) 70%,
+      transparent 100%);
+    backdrop-filter: blur(10px) saturate(125%);
+    -webkit-backdrop-filter: blur(10px) saturate(125%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
   }
+  /* Universal text-overlay treatment.
+   *
+   * `paint-order: stroke fill` paints the dark stroke FIRST, then the
+   * colored fill on top — so a 2.5px black ring around every glyph stays
+   * outside the letterform instead of fattening it. Combined with a
+   * downshifted drop-shadow, this is the readability technique every
+   * card-game UI uses (Marvel Snap, Hearthstone, MTGA all do it). The
+   * result: text reads against ANY underlying art.
+   *
+   * Applied as a single rule to every overlay text node in the card. */
+  .dm-card-name,
+  .dm-card-element,
+  .dm-card-archetype,
+  .dm-card-stat-label,
+  .dm-card-stat-value,
+  .dm-card-trigger-when,
+  .dm-card-trigger-op,
+  .dm-card-move-name,
+  .dm-card-move-when,
+  .dm-card-flavor {
+    paint-order: stroke fill;
+    -webkit-text-stroke: 2.5px rgba(0, 0, 0, 0.92);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85);
+  }
+
   .dm-card-name {
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 1rem;
-    letter-spacing: 0.08em;
-    color: var(--rarity-color);
+    font-size: clamp(0.95rem, 5cqi, 1.6rem);
+    letter-spacing: 0.05em;
     line-height: 1.1;
-    /* Long names truncate gracefully. */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    color: #ffffff;
+    /* Bump the stroke + add a colored glow on top of the universal shadow. */
+    -webkit-text-stroke: 3.5px rgba(0, 0, 0, 0.95);
+    text-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.95),
+      0 0   18px var(--rarity-color);
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    hyphens: none;
+    max-width: 100%;
   }
   .dm-card-sub {
-    display: flex;
-    gap: var(--gap-tight);
-    font-size: 0.65rem;
-    color: var(--text-muted);
+    font-size: clamp(0.6rem, 2.6cqi, 0.85rem);
     letter-spacing: 0.18em;
+    text-transform: uppercase;
+    display: flex;
+    gap: 0.6em;
+    justify-content: center;
+    flex-wrap: wrap;
   }
-  .dm-card-element { font-weight: 700; }
-  .dm-card-archetype { color: var(--text-dim); }
+  .dm-card-element {
+    font-weight: 700;
+    color: var(--rarity-color);
+    text-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.85),
+      0 0   10px var(--rarity-color);
+  }
+  .dm-card-archetype { color: #ffffff; opacity: 0.95; }
+  .dm-card-element:empty,
+  .dm-card-archetype:empty { display: none; }
 
-  /* Stat row — fixed 4-column grid. Always rendered, even with "—". */
+  /* Bottom info panel — glass over the art. Stronger blur + lower
+   * opacity reads as frosted glass; the artwork stays visible behind
+   * the stats / abilities / flavor without making them hard to read. */
+  .dm-card-info {
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 2;
+    padding: clamp(0.7rem, 3.8cqi, 1.15rem)
+             clamp(0.55rem, 3cqi, 1rem)
+             clamp(0.7rem, 3.8cqi, 1.15rem);
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.4rem, 1.8cqi, 0.7rem);
+    background: rgba(10, 12, 24, 0.32);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
+    border-top: 1px solid rgba(255, 255, 255, 0.10);
+  }
+
+  /* Stats — fixed 4-column row. Game-critical, sized accordingly. */
   .dm-card-stats {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
+    gap: clamp(2px, 0.8cqi, 6px);
   }
   .dm-card-stat {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: var(--bg-deep);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: var(--radius-sm);
-    padding: 2px 0;
+    padding: 3px 0 4px;
   }
   .dm-card-stat-label {
-    font-size: 0.55rem;
-    letter-spacing: 0.2em;
-    color: var(--text-muted);
+    font-size: clamp(0.55rem, 2.2cqi, 0.78rem);
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    /* Default — overridden per data-stat below. */
+    color: #ffffff;
   }
+  /* Per-stat color coding so a glance at a card immediately distinguishes
+   * attack from defence from health from speed. Same hues game-wide. */
+  .dm-card-stat[data-stat="atk"] .dm-card-stat-label { color: #ff8c6e; }
+  .dm-card-stat[data-stat="def"] .dm-card-stat-label { color: #7ab8ff; }
+  .dm-card-stat[data-stat="hp"]  .dm-card-stat-label { color: #9bd9a3; }
+  .dm-card-stat[data-stat="spd"] .dm-card-stat-label { color: #ffdc78; }
+
   .dm-card-stat-value {
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 0.95rem;
-    color: var(--text);
+    font-size: clamp(1rem, 4.6cqi, 1.5rem);
+    color: #ffffff;
     font-variant-numeric: tabular-nums;
+    line-height: 1.1;
   }
 
-  /* Abilities (triggers + moves). Each list grows/shrinks to fit
-   * the loaded card; layout is stable when length doesn't change. */
+  /* Abilities (triggers + moves). */
   .dm-card-abilities {
-    flex: 1;
-    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -203,98 +298,324 @@
   }
   .dm-card-trigger,
   .dm-card-move {
-    font-size: 0.65rem;
-    line-height: 1.25;
-    padding: 2px 4px;
+    font-size: clamp(0.7rem, 2.6cqi, 0.9rem);
+    line-height: 1.3;
+    padding: 4px 7px;
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.03);
-    display: flex;
-    gap: var(--gap-tight);
-  }
-  .dm-card-trigger {
+    background: rgba(255, 255, 255, 0.05);
     border-left: 2px solid var(--rarity-color);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
   }
-  .dm-card-move {
-    border-left: 2px solid var(--accent-deep);
-  }
+  .dm-card-move { border-left-color: var(--accent); }
   .dm-card-trigger-when,
   .dm-card-move-when {
     font-family: var(--font-mono);
-    font-size: 0.6rem;
-    color: var(--text-muted);
+    font-size: 0.85em;
+    color: #ffdc78;          /* event tags = bright accent */
     text-transform: uppercase;
     letter-spacing: 0.05em;
     flex-shrink: 0;
+    font-weight: 700;
   }
   .dm-card-trigger-op {
-    color: var(--rarity-color);
+    color: #ffffff;
     font-style: italic;
+    overflow-wrap: anywhere;
   }
   .dm-card-move-name {
-    color: var(--text);
-    font-weight: 600;
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    color: #ffffff;
+    font-weight: 700;
+    overflow-wrap: anywhere;
   }
 
   .dm-card-flavor {
     font-style: italic;
-    font-size: 0.65rem;
-    line-height: 1.3;
-    color: var(--text-dim);
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    padding-top: 2px;
-    /* Clamp to two lines max — overflow becomes a quiet ellipsis. */
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    font-size: clamp(0.7rem, 2.6cqi, 0.85rem);
+    line-height: 1.35;
+    color: #ffffff;
+    opacity: 0.85;
+    text-align: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    padding-top: 5px;
+    overflow-wrap: anywhere;
   }
+  .dm-card-flavor:empty { display: none; }
 
-  /* Hero size: fixed display width, used for the menu hero card and
-   * the pull-card front. View Transitions can morph between these
-   * two appearances because the view-transition-name is the same. */
+  /* ----- Size variants --------------------------------------------- */
+
+  /* Hero: fixed display width; canonical morph target for menu→pull. */
   :scope[size="hero"] {
     width: min(380px, 90%);
-    /* The hero card is the canonical morph target between menu → pull. */
     view-transition-name: dm-card-hero;
   }
 
-  /* Full size: fills its container (e.g. detail panes). */
+  /* Full: fills its container — used in shop/collection detail panes. */
   :scope[size="full"] {
     width: 100%;
     height: 100%;
   }
 
-  /* Tile size: compact — art + nameplate only, no stats / abilities /
-   * flavor. Used for grids (shop, collection, loadouts). */
-  :scope[size="tile"] {
-    width: 100%;
-    cursor: inherit;
-  }
-  :scope[size="tile"] .dm-card-front {
-    padding: 0;
-  }
-  :scope[size="tile"] .dm-card-art {
-    flex: 1;
-    border-radius: 0;
-  }
-  :scope[size="tile"] .dm-card-headline {
-    position: absolute;
-    inset: auto 0 0 0;
-    padding: var(--gap-normal) var(--gap-tight) var(--gap-tight);
-    background: linear-gradient(180deg, transparent 0%, rgba(10,12,24,0.92) 60%);
-    border-bottom: none;
-  }
-  :scope[size="tile"] .dm-card-name {
-    font-size: 0.8rem;
-  }
-  :scope[size="tile"] .dm-card-stats,
-  :scope[size="tile"] .dm-card-abilities,
-  :scope[size="tile"] .dm-card-flavor {
+  /* Tile: art-only with a name banner at the bottom. No info panel. */
+  :scope[size="tile"] .dm-card-info {
     display: none;
   }
+  :scope[size="tile"] .dm-card-front::before {
+    background: linear-gradient(180deg,
+      rgba(10, 12, 24, 0.45) 0%,
+      transparent 22%,
+      transparent 55%,
+      rgba(10, 12, 24, 0.92) 100%);
+  }
+  :scope[size="tile"] .dm-card-headline {
+    inset: auto 0 0 0;
+    padding: clamp(0.6rem, 4cqi, 1.1rem)
+             clamp(0.4rem, 2.5cqi, 0.8rem)
+             clamp(0.4rem, 2.5cqi, 0.7rem);
+  }
+  :scope[size="tile"] .dm-card-name {
+    font-size: clamp(0.85rem, 6cqi, 1.4rem);
+  }
 
+  /* ----- Rarity escalation (Marvel-Snap-style) ---------------------- */
+  /*
+   * Five tiers, each adding visible flash on top of the previous:
+   *   common     — animated breathing glow (always visible)
+   *   uncommon   — green pulse + slow holo sweep
+   *   rare       — blue pulse + faster holo sweep + light beam
+   *   epic       — purple aggressive pulse + rainbow holo + corner flares
+   *   legendary  — rotating gilded border + heavy halo + foil + flares
+   *
+   * Pure CSS — no JS branching anywhere. --rarity-* tokens from tokens.css
+   * supply per-tier base colors; this layer drives all the animation.
+   */
+
+  /* Common — clean baseline, always on, breathing glow.
+   * Even the lowest tier should feel "alive", not dead. */
+  :scope[data-rarity="common"] .dm-card-frame {
+    border-width: 1px;
+    animation: dm-card-common-breathe 5s ease-in-out infinite;
+  }
+  @keyframes dm-card-common-breathe {
+    0%, 100% { box-shadow:
+      0 0 18px rgba(207, 210, 216, 0.30),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+    50%      { box-shadow:
+      0 0 32px rgba(207, 210, 216, 0.55),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+  }
+
+  /* Uncommon — visible green pulse + slow holographic sweep. */
+  :scope[data-rarity="uncommon"] .dm-card-frame {
+    border-width: 2px;
+    animation: dm-card-uncommon-pulse 3.5s ease-in-out infinite;
+  }
+  @keyframes dm-card-uncommon-pulse {
+    0%, 100% { box-shadow:
+      0 0 30px rgba(155, 217, 163, 0.55),
+      0 0 60px rgba(155, 217, 163, 0.18),
+      inset 0 0 0 1px rgba(155, 217, 163, 0.30); }
+    50%      { box-shadow:
+      0 0 50px rgba(155, 217, 163, 0.80),
+      0 0 90px rgba(155, 217, 163, 0.32),
+      inset 0 0 0 1px rgba(155, 217, 163, 0.55); }
+  }
+  :scope[data-rarity="uncommon"] .dm-card-front::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(115deg,
+      transparent 38%,
+      rgba(155, 217, 163, 0.30) 50%,
+      transparent 62%);
+    background-size: 220% 100%;
+    animation: dm-card-foil 7s linear infinite;
+    mix-blend-mode: screen;
+  }
+
+  /* Rare — bright blue pulse + faster holo + a light beam ray. */
+  :scope[data-rarity="rare"] .dm-card-frame {
+    border-width: 2px;
+    animation: dm-card-rare-pulse 2.8s ease-in-out infinite;
+  }
+  @keyframes dm-card-rare-pulse {
+    0%, 100% { box-shadow:
+      0 0 42px rgba(122, 184, 255, 0.70),
+      0 0 80px rgba(122, 184, 255, 0.28),
+      inset 0 0 0 1px rgba(122, 184, 255, 0.50),
+      inset 0 0 22px rgba(122, 184, 255, 0.18); }
+    50%      { box-shadow:
+      0 0 70px rgba(122, 184, 255, 1.0),
+      0 0 130px rgba(122, 184, 255, 0.45),
+      inset 0 0 0 1px rgba(122, 184, 255, 0.80),
+      inset 0 0 38px rgba(122, 184, 255, 0.35); }
+  }
+  :scope[data-rarity="rare"] .dm-card-front::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(115deg,
+      transparent 32%,
+      rgba(122, 184, 255, 0.20) 44%,
+      rgba(255, 255, 255, 0.30) 50%,
+      rgba(122, 184, 255, 0.20) 56%,
+      transparent 68%);
+    background-size: 230% 100%;
+    animation: dm-card-foil 5s linear infinite;
+    mix-blend-mode: screen;
+  }
+
+  /* Epic — aggressive purple pulse + rainbow holo + corner flares. */
+  :scope[data-rarity="epic"] .dm-card-frame {
+    border-width: 3px;
+    animation: dm-card-epic-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes dm-card-epic-pulse {
+    0%, 100% { box-shadow:
+      0 0 55px rgba(207, 155, 255, 0.85),
+      0 0 110px rgba(207, 155, 255, 0.40),
+      inset 0 0 0 2px rgba(207, 155, 255, 0.65),
+      inset 0 0 30px rgba(207, 155, 255, 0.30); }
+    50%      { box-shadow:
+      0 0 90px rgba(207, 155, 255, 1.0),
+      0 0 160px rgba(207, 155, 255, 0.60),
+      inset 0 0 0 2px rgba(207, 155, 255, 0.95),
+      inset 0 0 50px rgba(207, 155, 255, 0.50); }
+  }
+  /* Rainbow holographic sweep across the front. */
+  :scope[data-rarity="epic"] .dm-card-front::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(115deg,
+      transparent 28%,
+      rgba(255, 100, 200, 0.30) 42%,
+      rgba(180, 120, 255, 0.32) 50%,
+      rgba(120, 200, 255, 0.30) 58%,
+      transparent 72%);
+    background-size: 280% 100%;
+    animation: dm-card-foil 4s linear infinite;
+    mix-blend-mode: screen;
+  }
+  /* Corner flares — twin radial glints that pulse out of opposite
+   * corners. The pseudo lives on .dm-card-frame so it sits inside the
+   * rounded clip. */
+  :scope[data-rarity="epic"] .dm-card-frame::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+      radial-gradient(circle at 12% 12%,
+        rgba(207, 155, 255, 0.55) 0%, transparent 18%),
+      radial-gradient(circle at 88% 88%,
+        rgba(207, 155, 255, 0.55) 0%, transparent 18%);
+    animation: dm-card-flare 2.4s ease-in-out infinite alternate;
+    mix-blend-mode: screen;
+  }
+  @keyframes dm-card-flare {
+    0%   { opacity: 0.3; }
+    100% { opacity: 0.95; }
+  }
+
+  /* Legendary — rotating gilded conic border + heavy halo + foil
+   * sweep + corner flares. Maximum flash. */
+  :scope[data-rarity="legendary"] .dm-card-frame {
+    border-width: 4px;
+    border-color: transparent;
+    background:
+      linear-gradient(var(--bg-panel), var(--bg-panel)) padding-box,
+      conic-gradient(from var(--dm-card-spin),
+        #b48220 0deg, #ffdc78 60deg, #fff7d0 120deg,
+        #ffdc78 180deg, #b48220 240deg, #ffdc78 300deg,
+        #b48220 360deg) border-box;
+    animation:
+      dm-card-legendary-spin 6s linear infinite,
+      dm-card-legendary-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes dm-card-legendary-spin {
+    from { --dm-card-spin: 0deg; }
+    to   { --dm-card-spin: 360deg; }
+  }
+  @keyframes dm-card-legendary-pulse {
+    0%, 100% { box-shadow:
+      0 0 90px rgba(255, 220, 120, 0.85),
+      0 0 160px rgba(255, 220, 120, 0.50),
+      0 0 240px rgba(255, 220, 120, 0.20),
+      inset 0 0 0 2px rgba(255, 220, 120, 0.70),
+      inset 0 0 45px rgba(255, 220, 120, 0.32); }
+    50%      { box-shadow:
+      0 0 130px rgba(255, 220, 120, 1.0),
+      0 0 220px rgba(255, 220, 120, 0.70),
+      0 0 320px rgba(255, 220, 120, 0.30),
+      inset 0 0 0 2px rgba(255, 220, 120, 1.0),
+      inset 0 0 70px rgba(255, 220, 120, 0.55); }
+  }
+  /* Gold foil sweep. */
+  :scope[data-rarity="legendary"] .dm-card-front::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(115deg,
+      transparent 25%,
+      rgba(255, 255, 255, 0.30) 42%,
+      rgba(255, 220, 120, 0.45) 50%,
+      rgba(255, 255, 255, 0.30) 58%,
+      transparent 75%);
+    background-size: 260% 100%;
+    animation: dm-card-foil 3.5s linear infinite;
+    mix-blend-mode: screen;
+  }
+  /* Twin corner flares in gold. */
+  :scope[data-rarity="legendary"] .dm-card-frame::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+      radial-gradient(circle at 10% 8%,
+        rgba(255, 240, 180, 0.70) 0%, transparent 22%),
+      radial-gradient(circle at 90% 92%,
+        rgba(255, 240, 180, 0.70) 0%, transparent 22%);
+    animation: dm-card-flare 2s ease-in-out infinite alternate;
+    mix-blend-mode: screen;
+  }
+
+  /* Shared foil sweep — used by uncommon → legendary. */
+  @keyframes dm-card-foil {
+    0%   { background-position: -120% 0; }
+    100% { background-position: 220% 0; }
+  }
+
+  /* Honor reduced-motion: still color-code rarities, but stop animating
+   * everything. The base box-shadow remains so cards still glow. */
+  @media (prefers-reduced-motion: reduce) {
+    :scope .dm-card-frame,
+    :scope .dm-card-front::after,
+    :scope .dm-card-frame::before {
+      animation: none !important;
+    }
+  }
+
+}
+
+/* @property must live at top level so the registered custom-property
+ * applies globally, not just inside @scope. */
+@property --dm-card-spin {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
 }

@@ -32,12 +32,11 @@ function tileNode(slot, root) {
   card.setAttribute("card-id", slot.card_id);
   card.setAttribute("size", "tile");
   node.appendChild(card);
-  node.appendChild(el("div", { class: "shop-tile-overlay" },
-    el("div", { class: "shop-tile-name" }, slot.skin_name || slot.card_id),
-    slot.sold
-      ? el("div", { class: "shop-tile-cost owned" }, "OWNED")
-      : el("div", { class: "shop-tile-cost" }, `${slot.cost}¤`),
-  ));
+  // Cost / OWNED chip — top-right corner. The card name is rendered
+  // by <dm-card> itself; we don't double it up here.
+  node.appendChild(slot.sold
+    ? el("div", { class: "shop-tile-chip owned" }, "OWNED")
+    : el("div", { class: "shop-tile-chip" }, `${slot.cost}¤`));
   return node;
 }
 

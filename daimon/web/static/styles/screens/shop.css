@@ -36,31 +36,29 @@
   }
   .shop-tile.sold { opacity: 0.5; }
 
-  .shop-tile-overlay {
+  /* Cost / OWNED chip — top-right corner pill. The card name itself
+   * is owned by <dm-card>; this chip only carries shop-specific info. */
+  .shop-tile-chip {
     position: absolute;
-    inset: auto 0 0 0;
-    background: linear-gradient(180deg, transparent 0%, rgba(10,12,24,0.92) 60%);
-    padding: var(--gap-normal) var(--gap-tight) var(--gap-tight);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    pointer-events: none;
-  }
-  .shop-tile-name {
-    font-family: var(--font-display);
-    font-size: 0.85rem;
-    color: var(--text);
-    letter-spacing: 0.1em;
-  }
-  .shop-tile-cost {
+    top: 6px;
+    right: 6px;
+    background: var(--bg-deep);
     color: var(--accent);
+    font-family: var(--font-display);
     font-weight: 700;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    pointer-events: none;
+    z-index: 3;
   }
-  .shop-tile-cost.owned {
+  .shop-tile-chip.owned {
     color: var(--success);
+    border-color: var(--success);
     letter-spacing: 0.2em;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
 
   .shop-detail {
