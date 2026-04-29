@@ -12,9 +12,80 @@
 
   .coll-left {
     display: grid;
-    grid-template-rows: 1fr auto;
+    grid-template-rows: auto 1fr auto;
     gap: var(--gap-normal);
     min-height: 0;
+  }
+
+  /* Progress strip: total + per-rarity bars. Pinned to the top of the
+   * left column so the player sees collection completion before they
+   * see the tile grid. */
+  .coll-progress {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    padding: var(--gap-normal);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-tight);
+  }
+  .coll-progress-total {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+  }
+  .coll-progress-num {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--accent);
+  }
+  .coll-progress-sep,
+  .coll-progress-cat {
+    color: var(--text-muted);
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+  }
+  .coll-progress-lbl {
+    margin-left: auto;
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .coll-rarity-bars {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--gap-tight);
+  }
+  .coll-rarity-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .coll-rarity-label {
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--rarity-color);
+  }
+  .coll-rarity-track {
+    height: 4px;
+    background: var(--bg-raised);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .coll-rarity-fill {
+    height: 100%;
+    background: var(--rarity-color);
+    border-radius: inherit;
+    transition: width var(--motion-base) var(--ease-soft);
+  }
+  .coll-rarity-count {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
   }
 
   .coll-grid {
@@ -89,6 +160,11 @@
   .coll-detail-count {
     color: var(--text-muted);
     font-size: 0.9rem;
+  }
+  .coll-detail-first {
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    font-style: italic;
   }
 
 }

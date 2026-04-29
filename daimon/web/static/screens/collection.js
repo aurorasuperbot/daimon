@@ -13,7 +13,9 @@ const PAGE_SIZE = 8;
 // Module-local state — replaced fresh on every render() call so re-entry
 // doesn't carry stale fields. Mutated by event handlers, never by other
 // modules.
-let state = { rows: [], page: 0, selected: null };
+let state = { rows: [], page: 0, selected: null, catalogSize: 0, catalogByRarity: {} };
+
+const RARITY_ORDER = ["legendary", "epic", "rare", "uncommon", "common"];
 
 function buildRows(payload) {
   const by = new Map();
@@ -26,10 +28,9 @@ function buildRows(payload) {
     entry.count++;
     entry.serials.push(s);
   }
-  const RARITY = ["legendary", "epic", "rare", "uncommon", "common"];
   return Array.from(by.values()).sort((a, b) => {
-    const ra = RARITY.indexOf(a.rarity);
-    const rb = RARITY.indexOf(b.rarity);
+    const ra = RARITY_ORDER.indexOf(a.rarity);
+    const rb = RARITY_ORDER.indexOf(b.rarity);
     if (ra !== rb) return ra - rb;
     return a.card_id.localeCompare(b.card_id);
   });
@@ -63,13 +64,64 @@ function detailNode(_root) {
   const card = document.createElement("dm-card");
   card.setAttribute("card-id", r.card_id);
   card.setAttribute("size", "detail");
+  // Earliest serial first → "first acquired" timestamp.
+  const sorted = [...r.serials].sort((a, b) =>
+    (a.minted_at || "").localeCompare(b.minted_at || ""));
+  const first = sorted[0]?.minted_at;
+  let firstStr = null;
+  if (first) {
+    try { firstStr = new Date(first).toLocaleDateString(); } catch { /* ignore */ }
+  }
   return el("div", { class: "coll-detail" },
     el("div", { class: "coll-detail-card" }, card),
     el("div", { class: "coll-detail-meta" },
       el("div", { class: "coll-detail-count" },
         `${r.count} serial${r.count > 1 ? "s" : ""} owned`),
+      firstStr
+        ? el("div", { class: "coll-detail-first" }, `first pulled ${firstStr}`)
+        : null,
     ),
   );
+}
+
+/** Per-rarity completion strip — "OWNED 24/200" with a thin per-rarity
+ *  bar so the player can see at-a-glance which tiers are sparse. */
+function progressNode() {
+  const totalCatalog = state.catalogSize || 0;
+  const totalOwned = state.rows.length;
+  if (!totalCatalog) return null;
+
+  const strip = el("div", { class: "coll-progress" });
+  const summary = el("div", { class: "coll-progress-total" },
+    el("span", { class: "coll-progress-num" }, `${totalOwned}`),
+    el("span", { class: "coll-progress-sep" }, "/"),
+    el("span", { class: "coll-progress-cat" }, `${totalCatalog}`),
+    el("span", { class: "coll-progress-lbl" }, "unique cards"),
+  );
+  strip.append(summary);
+
+  // Owned counts by rarity — derived from rows we already have.
+  const ownedByRarity = {};
+  for (const row of state.rows) {
+    ownedByRarity[row.rarity] = (ownedByRarity[row.rarity] || 0) + 1;
+  }
+
+  const bars = el("div", { class: "coll-rarity-bars" });
+  for (const rarity of RARITY_ORDER) {
+    const owned = ownedByRarity[rarity] || 0;
+    const total = state.catalogByRarity[rarity] || 0;
+    if (!total) continue;
+    const pct = Math.round((owned / total) * 100);
+    const bar = el("div", { class: "coll-rarity-bar", "data-rarity": rarity },
+      el("span", { class: "coll-rarity-label" }, rarity),
+      el("div", { class: "coll-rarity-track" },
+        el("div", { class: "coll-rarity-fill", style: `width:${pct}%` })),
+      el("span", { class: "coll-rarity-count" }, `${owned}/${total}`),
+    );
+    bars.append(bar);
+  }
+  strip.append(bars);
+  return strip;
 }
 
 function pagerNode(root) {
@@ -88,15 +140,18 @@ function rerender(root) {
   root.innerHTML = "";
   const start = state.page * PAGE_SIZE;
   const visible = state.rows.slice(start, start + PAGE_SIZE);
+  const headerLabel = state.catalogSize
+    ? `${state.rows.length} of ${state.catalogSize}`
+    : `${state.rows.length} unique`;
   root.appendChild(el("div", { class: "screen coll-screen fade-in" },
     el("header", { class: "screen-header" },
       backButton(),
       el("h1", null, "COLLECTION"),
-      el("div", { class: "screen-balance" },
-        `${state.rows.length} unique`),
+      el("div", { class: "screen-balance" }, headerLabel),
     ),
     el("div", { class: "coll-body" },
       el("div", { class: "coll-left" },
+        progressNode(),
         el("div", { class: "coll-grid" },
           state.rows.length === 0
             ? el("div", { class: "empty" }, "(no cards yet — try a pull)")
@@ -122,11 +177,29 @@ async function loadCollection() {
   }
 }
 
+/** Catalog size + per-rarity totals. Loaded once per render — fixed
+ *  data, doesn't change while the screen is open. Soft-fails to a 0
+ *  total which collapses the progress strip. */
+async function loadCatalog() {
+  try {
+    const cat = await fetchJSON("/api/catalog");
+    const cards = cat.cards || [];
+    state.catalogSize = cards.length;
+    state.catalogByRarity = {};
+    for (const c of cards) {
+      state.catalogByRarity[c.rarity] = (state.catalogByRarity[c.rarity] || 0) + 1;
+    }
+  } catch {
+    state.catalogSize = 0;
+    state.catalogByRarity = {};
+  }
+}
+
 export async function render(root) {
-  state = { rows: [], page: 0, selected: null };
+  state = { rows: [], page: 0, selected: null, catalogSize: 0, catalogByRarity: {} };
   root.innerHTML = `<div class="loading">loading collection…</div>`;
   try {
-    await loadCollection();
+    await Promise.all([loadCollection(), loadCatalog()]);
   } catch (err) {
     root.innerHTML = `<div class="error">collection unreachable: ${err}</div>`;
     return;
