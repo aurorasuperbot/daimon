@@ -47,24 +47,60 @@ function detailNode(root) {
     return el("div", { class: "shop-detail empty" }, "no slot selected");
   }
   const cost = slot.cost;
-  const canAfford = state.balance >= cost && !slot.sold;
+  const weeklyCapped = (state.shop.weekly_remaining ?? 99) <= 0;
+  const canAfford = state.balance >= cost;
+  const disabled =
+    state.busy || slot.sold || !canAfford || weeklyCapped;
+
+  // Reason hint surfaces WHY the button is disabled — replaces the
+  // "dead button" UX where players couldn't tell what was wrong.
+  let reason = null;
+  if (!slot.sold) {
+    if (!canAfford) {
+      reason = `need ${cost - state.balance}¤ more`;
+    } else if (weeklyCapped) {
+      reason = "weekly purchase cap reached";
+    }
+  }
+
   const btn = el("button", {
     class: "shop-buy-btn",
-    disabled: state.busy || slot.sold || !canAfford ? true : false,
+    disabled: disabled ? true : false,
     onClick: () => buy(slot.index, root),
   }, slot.sold ? "OWNED" : `BUY  ${cost}¤`);
+
   const card = document.createElement("dm-card");
   card.setAttribute("card-id", slot.card_id);
   card.setAttribute("size", "detail");
+
   return el("div", { class: "shop-detail" },
     el("div", { class: "shop-detail-card" }, card),
     el("div", { class: "shop-detail-meta" },
-      el("div", { class: "shop-detail-name" }, slot.skin_name || slot.card_id),
-      slot.skin_axis ? el("div", { class: "shop-detail-axis" }, slot.skin_axis) : null,
+      slot.skin_name
+        ? el("div", { class: "shop-detail-skin" },
+            el("span", { class: "shop-detail-skin-label" }, "skin"),
+            el("span", { class: "shop-detail-name" }, slot.skin_name))
+        : el("div", { class: "shop-detail-name" }, slot.card_id),
+      slot.skin_axis
+        ? el("div", { class: "shop-detail-axis" }, slot.skin_axis)
+        : null,
     ),
     state.error ? el("div", { class: "error-line" }, state.error) : null,
+    reason ? el("div", { class: "shop-buy-reason" }, reason) : null,
     btn,
   );
+}
+
+/** Format seconds → "2d 14h" / "14h 22m" / "22m". For longer ranges
+ *  show days+hours; under an hour show minutes only. */
+function formatCountdown(secs) {
+  if (!Number.isFinite(secs) || secs <= 0) return null;
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 async function buy(slotIdx, root) {
@@ -96,12 +132,31 @@ function rerender(root) {
   const grid = el("div", { class: "shop-grid" },
     ...((state.shop.slots || []).map(s => tileNode(s, root))),
   );
+  const weeklyRem = state.shop.weekly_remaining;
+  const weeklyCap = state.shop.weekly_cap;
+  const rotationTxt = formatCountdown(state.shop.seconds_until_rotation);
+  const meta = el("div", { class: "shop-meta" });
+  if (Number.isFinite(weeklyRem) && Number.isFinite(weeklyCap)) {
+    const cls = weeklyRem === 0 ? "shop-meta-stat capped" : "shop-meta-stat";
+    meta.append(el("div", { class: cls },
+      el("span", { class: "shop-meta-val" }, `${weeklyRem}/${weeklyCap}`),
+      el("span", { class: "shop-meta-lbl" }, "buys this week"),
+    ));
+  }
+  if (rotationTxt) {
+    meta.append(el("div", { class: "shop-meta-stat" },
+      el("span", { class: "shop-meta-val" }, rotationTxt),
+      el("span", { class: "shop-meta-lbl" }, "until rotation"),
+    ));
+  }
+
   root.appendChild(el("div", { class: "screen shop-screen fade-in" },
     el("header", { class: "screen-header" },
       backButton(),
       el("h1", null, "SHOP"),
       el("div", { class: "screen-balance", id: "shop-balance" }, `${state.balance}¤`),
     ),
+    meta.children.length ? meta : null,
     el("div", { class: "shop-body" },
       grid,
       detailNode(root),

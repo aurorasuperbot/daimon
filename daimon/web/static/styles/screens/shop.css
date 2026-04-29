@@ -84,6 +84,18 @@
     justify-content: center;
   }
   .shop-detail-meta { display: flex; flex-direction: column; gap: var(--gap-tight); }
+  .shop-detail-skin {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  .shop-detail-skin-label {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
   .shop-detail-name {
     font-family: var(--font-display);
     font-size: 1.4rem;
@@ -94,6 +106,44 @@
     font-size: 0.9rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
+  }
+  .shop-buy-reason {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-align: center;
+    font-style: italic;
+    margin-top: -0.3rem;
+  }
+
+  /* Meta strip — weekly cap + rotation timer above the grid. Two
+   * compact stat chips with big number + small label, mirroring the
+   * stat-card pattern used elsewhere. */
+  .shop-meta {
+    display: flex;
+    gap: var(--gap-loose);
+    padding: var(--gap-tight) 0;
+    border-bottom: 1px solid var(--border-rest);
+    margin-bottom: var(--gap-normal);
+  }
+  .shop-meta-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .shop-meta-val {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+  }
+  .shop-meta-stat.capped .shop-meta-val {
+    color: #ff9a7a;
+  }
+  .shop-meta-lbl {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
   }
 
   .shop-buy-btn {
