@@ -474,6 +474,7 @@ def mine_status(as_json: bool) -> None:
     if not verification.get("ok"):
         for err in verification.get("errors", [])[:3]:
             click.echo(f"  ! {err}")
+        click.echo("\nrun `daimon mine repair` to re-chain from the break.")
     if recent:
         click.echo("\nrecent:")
         for e in recent[-10:]:
@@ -482,6 +483,43 @@ def mine_status(as_json: bool) -> None:
             label = (e.get("tool_name") or e.get("card_id")
                      or e.get("skin_slug") or "")
             click.echo(f"  {e.get('ts', '')[:19]}  {kind:8} {amount:+5}  {label}")
+
+
+@mine.command("repair")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON output.")
+def mine_repair(as_json: bool) -> None:
+    """Re-chain the ledger from the first prev_hash break onward.
+
+    Concurrent-writer races (parallel tool calls firing the mine hook
+    on the same tick) can land two entries with the same prev_hash and
+    break the chain. The data is intact — `repair` walks from the break
+    forward, recomputes prev_hash on each affected entry, re-signs with
+    the local identity, and atomically swaps the file in. The original
+    is preserved as `mining_ledger.jsonl.bak.<utcstamp>.prerepair`.
+    """
+    import json as _json
+    from daimon.mining import repair_ledger
+
+    result = repair_ledger()
+    if as_json:
+        click.echo(_json.dumps(result, indent=2))
+        return
+
+    if not result.get("ok"):
+        click.echo("repair FAILED:")
+        for err in result.get("errors", [])[:5]:
+            click.echo(f"  ! {err}")
+        sys.exit(1)
+
+    if result["rewrote"] == 0:
+        click.echo(f"ledger already clean — {result['entries']} entries, "
+                   f"balance={result['balance']}")
+        return
+
+    click.echo(f"backup:    {result['backup']}")
+    click.echo(f"rewrote:   {result['rewrote']} entries (re-chained + re-signed)")
+    click.echo(f"verified:  {result['entries']} entries, "
+               f"balance={result['balance']}")
 
 
 @mine.command("install-hook")

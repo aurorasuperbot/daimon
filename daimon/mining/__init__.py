@@ -24,6 +24,7 @@ from daimon.mining.ledger import (
     get_recent_entries,
     get_stats,
     initialize_ledger,
+    repair_ledger,
     verify_ledger,
 )
 
@@ -46,5 +47,6 @@ __all__ = [
     "get_stats",
     "initialize_ledger",
     "make_novelty_key",
+    "repair_ledger",
     "verify_ledger",
 ]

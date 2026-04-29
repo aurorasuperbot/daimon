@@ -678,3 +678,106 @@ def verify_ledger(path: Optional[Path] = None,
         "balance": sum(int(e.get("amount", 0)) for e in entries),
         "pubkey_hex": canonical_pubkey,
     }
+
+
+# ---------------------------------------------------------------------------
+# Repair — re-chain after a concurrent-writer race broke prev_hash.
+# ---------------------------------------------------------------------------
+#
+# Concurrent-writer races (two `mine` hooks firing on the same tick from
+# parallel tool calls) can land two entries with the same `prev_hash`,
+# breaking the chain. The data is salvageable because:
+#   - every entry's `amount` / `kind` / `factors` is intact
+#   - the actual write order is preserved by O_APPEND
+#   - we still hold the private key
+# So "repair" = walk from the first bad index, recompute prev_hash by
+# hashing the prior entry, then re-sign each affected entry. Output is
+# a valid ledger with the same balance + history.
+
+def repair_ledger(path: Optional[Path] = None,
+                  identity: Optional[Identity] = None,
+                  ) -> Dict[str, Any]:
+    """Re-chain a corrupt ledger from the first prev_hash break onward.
+
+    Backs up the original to `<ledger>.bak.<utcstamp>.prerepair` before
+    the in-place atomic swap. Re-signs every rewritten entry with the
+    local identity (loaded automatically if not provided).
+
+    Returns:
+      {"ok": True,  "rewrote": N, "entries": M, "balance": int, "backup": "..."}
+      {"ok": True,  "rewrote": 0, "entries": M, "balance": int}    # already clean
+      {"ok": False, "errors": [...], "first_bad_index": ...}        # repair failed
+    """
+    if path is None:
+        path = LEDGER_PATH
+
+    pre = verify_ledger(path)
+    if pre.get("ok"):
+        return {
+            "ok": True,
+            "rewrote": 0,
+            "entries": pre["entries"],
+            "balance": pre.get("balance", 0),
+        }
+
+    first_bad = pre.get("first_bad_index", -1)
+    if first_bad < 0:
+        # Read failure (bad JSON line) — we can't fix that here.
+        return {"ok": False, "errors": pre.get("errors", []),
+                "first_bad_index": first_bad}
+
+    if identity is None:
+        identity = load_identity()
+    if identity is None:
+        return {"ok": False, "errors": ["no identity available to re-sign"],
+                "first_bad_index": first_bad}
+
+    entries = _read_entries(path)
+    if first_bad >= len(entries):
+        return {"ok": False, "errors": [f"first_bad={first_bad} out of range"],
+                "first_bad_index": first_bad}
+
+    # Backup BEFORE writing.
+    stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    backup = path.with_suffix(path.suffix + f".bak.{stamp}.prerepair")
+    import shutil
+    shutil.copy2(path, backup)
+
+    # Re-chain from first_bad onward. Cascading: once we change one
+    # entry, every subsequent entry's prev_hash stops matching too,
+    # so we walk to the end re-signing as we go.
+    if first_bad == 0:
+        prev_hash = GENESIS_PREV_HASH
+    else:
+        prev_hash = entry_hash(entries[first_bad - 1])
+
+    rewrites = 0
+    for i in range(first_bad, len(entries)):
+        e = entries[i]
+        if e.get("prev_hash") != prev_hash:
+            e["prev_hash"] = prev_hash
+            e.pop("signature", None)
+            e["signature"] = identity.sign_bytes(signing_payload(e)).hex()
+            rewrites += 1
+        prev_hash = entry_hash(e)
+
+    # Atomic swap via .new + replace.
+    new_path = path.with_suffix(path.suffix + ".new")
+    with new_path.open("w", encoding="utf-8") as f:
+        for e in entries:
+            f.write(canonical_bytes(e).decode("utf-8") + "\n")
+    new_path.replace(path)
+
+    post = verify_ledger(path)
+    if not post.get("ok"):
+        return {"ok": False, "errors": post.get("errors", []),
+                "first_bad_index": post.get("first_bad_index", -1),
+                "backup": str(backup)}
+
+    return {
+        "ok": True,
+        "rewrote": rewrites,
+        "entries": post["entries"],
+        "balance": post.get("balance", 0),
+        "backup": str(backup),
+    }
