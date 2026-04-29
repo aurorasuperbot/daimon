@@ -1,0 +1,233 @@
+/* Pull screen — orchestrated reveal driven by data-phase on the
+ * .pull-screen root. Phases: fetching | draw | tension | reveal | settled.
+ *
+ * Design rules:
+ *   - Stable DOM. The screen is mounted once; CSS reads data-phase
+ *     and progressively shows/hides things via opacity + transforms.
+ *   - The card flip itself is owned by <dm-card> (face attribute);
+ *     this file controls the OUT OF CARD effects only (burst, hint,
+ *     CTA, BACK/SKIP visibility).
+ */
+
+@scope (.pull-screen) {
+
+  :scope {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    padding: var(--gap-loose);
+    gap: var(--gap-loose);
+  }
+
+  .screen-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--gap-normal);
+    border-bottom: 1px solid var(--border-rest);
+    padding-bottom: var(--gap-normal);
+  }
+  .screen-header h1 {
+    margin: 0;
+    text-align: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.6rem;
+    letter-spacing: 0.4em;
+    color: var(--accent);
+  }
+
+  /* BACK button hidden until the reveal settles — it's a "leave the
+   * cinematic" affordance, not a "kill the cinematic mid-animation"
+   * one. SKIP lives next to the title for the latter. */
+  .pull-back-btn {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-base) var(--ease-soft);
+  }
+  :scope[data-phase="settled"] .pull-back-btn {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .pull-skip {
+    background: transparent;
+    border: 1px solid var(--border-rest);
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition:
+      border-color var(--motion-fast) var(--ease-soft),
+      opacity      var(--motion-base) var(--ease-soft);
+  }
+  .pull-skip:hover { border-color: var(--accent); color: var(--accent); }
+  /* SKIP hidden after the cinematic completes. */
+  :scope[data-phase="settled"] .pull-skip {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* ------- Body layout --------------------------------------------- */
+
+  .pull-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap-loose);
+    align-items: center;
+    justify-items: center;
+    min-height: 0;
+  }
+
+  .pull-card-wrap {
+    position: relative;
+    width: min(380px, 90%);
+    aspect-ratio: var(--card-aspect);
+  }
+  .pull-card-wrap dm-card {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Subtle idle while face-down — slight float so the card feels alive. */
+  :scope[data-phase="draw"]    .pull-card-wrap dm-card,
+  :scope[data-phase="tension"] .pull-card-wrap dm-card {
+    animation: pull-shuffle 0.6s ease-in-out infinite;
+  }
+  @keyframes pull-shuffle {
+    0%, 100% { transform: translateY(0)  rotate(-0.6deg); }
+    50%      { transform: translateY(-6px) rotate(0.6deg); }
+  }
+
+  /* ------- Rarity hint --------------------------------------------- */
+  /* Appears during tension, persists through reveal/settled. */
+  .pull-rarity-hint {
+    position: absolute;
+    inset: auto 0 -2.5rem 0;
+    text-align: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: 0.6em;
+    font-size: 1.5rem;
+    color: var(--rarity-color);
+    text-shadow: 0 0 20px var(--rarity-color);
+    opacity: 0;
+    transition: opacity var(--motion-slow) var(--ease-soft);
+    pointer-events: none;
+  }
+  :scope[data-phase="tension"] .pull-rarity-hint,
+  :scope[data-phase="reveal"]  .pull-rarity-hint,
+  :scope[data-phase="settled"] .pull-rarity-hint {
+    opacity: 1;
+  }
+  /* Rarity hint shows the rarity name — populated by JS via
+   * detailRarity → rarity hint pipe. We just mirror the dataset. */
+  :scope[data-rarity] .pull-rarity-hint::before {
+    content: attr(data-rarity);
+    text-transform: uppercase;
+  }
+  /* Read the screen-level data-rarity through the wrap. */
+  :scope .pull-rarity-hint::before {
+    content: "";
+  }
+  :scope[data-rarity="common"]    .pull-rarity-hint::before { content: "COMMON"; }
+  :scope[data-rarity="uncommon"]  .pull-rarity-hint::before { content: "UNCOMMON"; }
+  :scope[data-rarity="rare"]      .pull-rarity-hint::before { content: "RARE"; }
+  :scope[data-rarity="epic"]      .pull-rarity-hint::before { content: "EPIC"; }
+  :scope[data-rarity="legendary"] .pull-rarity-hint::before { content: "LEGENDARY"; }
+
+  /* ------- Reveal burst -------------------------------------------- */
+  .pull-burst {
+    position: absolute;
+    inset: -25%;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--rarity-color) 0%, transparent 60%);
+    opacity: 0;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+  :scope[data-phase="reveal"] .pull-burst {
+    animation: pull-burst 0.8s ease-out 1 forwards;
+  }
+  @keyframes pull-burst {
+    0%   { opacity: 0; transform: scale(0.6); }
+    35%  { opacity: 0.85; }
+    100% { opacity: 0; transform: scale(1.5); }
+  }
+
+  /* ------- Detail panel -------------------------------------------- */
+
+  .pull-detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-normal);
+    min-width: 240px;
+    max-width: 320px;
+    /* Fade up alongside the card reveal — invisible during draw/tension. */
+    opacity: 0;
+    transform: translateY(8px);
+    transition:
+      opacity   var(--motion-slow) var(--ease-soft),
+      transform var(--motion-slow) var(--ease-soft);
+  }
+  :scope[data-phase="reveal"]  .pull-detail,
+  :scope[data-phase="settled"] .pull-detail {
+    opacity: 1;
+    transform: none;
+  }
+
+  .pull-detail-name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 2rem;
+    color: var(--rarity-color);
+    letter-spacing: 0.1em;
+    line-height: 1.05;
+  }
+  .pull-detail-rarity {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    letter-spacing: 0.4em;
+    color: var(--rarity-color);
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--rarity-color);
+    border-radius: 999px;
+    background: var(--rarity-bg);
+    align-self: flex-start;
+  }
+  .pull-detail-meta {
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.9rem;
+  }
+
+  .pull-cta {
+    margin-top: var(--gap-normal);
+    font-family: var(--font-display);
+    letter-spacing: 0.4em;
+    color: var(--accent);
+    font-size: 0.9rem;
+    opacity: 0;
+    animation: none;
+  }
+  :scope[data-phase="settled"] .pull-cta {
+    opacity: 1;
+    animation: pull-cta-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pull-cta-pulse {
+    0%, 100% { opacity: 0.4; }
+    50%      { opacity: 1; }
+  }
+
+  .pull-error {
+    color: var(--danger);
+    font-size: 0.85rem;
+    display: none;
+  }
+
+}

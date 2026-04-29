@@ -111,6 +111,19 @@ def run() -> int:
         # existing window to the user.
         return 0
 
+    # CLI group callback in daimon/cli.py skips ensure_art_available for
+    # `menu` and `_daemon_internal` (both in ART_PURE_COMMANDS) — so the
+    # daemon owns the manifest fetch instead. Without this, a fresh
+    # install would serve /art/{card_id} against an empty manifest and
+    # every card would 404 to a placeholder. Failure is non-fatal: the
+    # lazy art pipeline soft-fails to placeholders and the rest of the
+    # daemon (matches, mining, pulls metadata) still works.
+    try:
+        from daimon.update import ensure_art_available
+        ensure_art_available()
+    except Exception:  # noqa: BLE001 — never fatal at daemon boot
+        logger.exception("art manifest fetch failed at daemon boot (non-fatal)")
+
     port = _pick_free_port()
     server = _DaemonServer(port)
     server.start()

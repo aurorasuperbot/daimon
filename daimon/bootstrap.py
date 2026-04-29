@@ -112,7 +112,9 @@ def ensure_bootstrapped() -> None:
     group callback's job (in ``daimon/cli.py``), which gates it on
     ``ART_PURE_COMMANDS`` so pure data commands (``daimon npcs``,
     ``daimon collection list``, etc.) don't pay the network cost. The
-    daemon entry point hits the same callback when it boots.
+    daemon entry point (``daimon/daemon/entry.py::run``) calls
+    ``ensure_art_available`` directly because both ``menu`` and
+    ``_daemon_internal`` live in ART_PURE_COMMANDS.
     """
     _ensure_directories()
     _ensure_identity()

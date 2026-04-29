@@ -1,14 +1,20 @@
-// Collection screen — paged grid of owned cards. Phase 2 keeps it simple:
-// one card per unique card_id, with a count badge for duplicate serials.
+// Collection screen — paged grid of owned cards, full-card detail panel.
+//
+// Phase 2 of the redesign: built on <dm-card> rather than per-screen card
+// layout. Tile = compact (art + name); detail = full card (art + stats +
+// abilities + flavor). The screen owns no card visuals; visuals live in
+// <dm-card>'s @scope CSS.
 
 import { backButton, el, fetchJSON } from "/screens/_dom.js";
 
 const PAGE_SIZE = 8;
 
+// Module-local state — replaced fresh on every render() call so re-entry
+// doesn't carry stale fields. Mutated by event handlers, never by other
+// modules.
 let state = { rows: [], page: 0, selected: null };
 
 function buildRows(payload) {
-  // Group serials by card_id.
   const by = new Map();
   for (const s of payload.serials || []) {
     const id = s.card_id;
@@ -19,7 +25,6 @@ function buildRows(payload) {
     entry.count++;
     entry.serials.push(s);
   }
-  // Sort by rarity (legendary first) then card_id.
   const RARITY = ["legendary", "epic", "rare", "uncommon", "common"];
   return Array.from(by.values()).sort((a, b) => {
     const ra = RARITY.indexOf(a.rarity);
@@ -29,7 +34,9 @@ function buildRows(payload) {
   });
 }
 
-function pageCount() { return Math.max(1, Math.ceil(state.rows.length / PAGE_SIZE)); }
+function pageCount() {
+  return Math.max(1, Math.ceil(state.rows.length / PAGE_SIZE));
+}
 
 function tileNode(row, root) {
   const sel = state.selected?.card_id === row.card_id;
@@ -37,34 +44,29 @@ function tileNode(row, root) {
     class: `coll-tile${sel ? " selected" : ""}`,
     onClick: () => { state.selected = row; rerender(root); },
   });
-  const art = document.createElement("card-art");
-  art.setAttribute("card-id", row.card_id);
-  node.appendChild(art);
-  const chip = document.createElement("rarity-chip");
-  chip.setAttribute("rarity", row.rarity);
-  node.appendChild(el("div", { class: "coll-tile-overlay" },
-    el("div", { class: "coll-tile-name" }, row.card_id),
-    chip,
-    row.count > 1 ? el("div", { class: "coll-tile-count" }, `×${row.count}`) : null,
-  ));
+  const card = document.createElement("dm-card");
+  card.setAttribute("card-id", row.card_id);
+  card.setAttribute("size", "tile");
+  node.appendChild(card);
+  if (row.count > 1) {
+    node.appendChild(el("div", { class: "coll-tile-count" }, `×${row.count}`));
+  }
   return node;
 }
 
-function detailNode(root) {
+function detailNode(_root) {
   const r = state.selected;
   if (!r) {
     return el("div", { class: "coll-detail empty" }, "select a card");
   }
-  const chip = document.createElement("rarity-chip");
-  chip.setAttribute("rarity", r.rarity);
-  const art = document.createElement("card-art");
-  art.setAttribute("card-id", r.card_id);
+  const card = document.createElement("dm-card");
+  card.setAttribute("card-id", r.card_id);
+  card.setAttribute("size", "full");
   return el("div", { class: "coll-detail" },
-    el("div", { class: "coll-detail-art" }, art),
+    el("div", { class: "coll-detail-card" }, card),
     el("div", { class: "coll-detail-meta" },
-      el("h2", null, r.card_id),
-      chip,
-      el("div", { class: "coll-detail-count" }, `${r.count} serial${r.count > 1 ? "s" : ""}`),
+      el("div", { class: "coll-detail-count" },
+        `${r.count} serial${r.count > 1 ? "s" : ""} owned`),
     ),
   );
 }

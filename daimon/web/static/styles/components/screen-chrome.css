@@ -1,0 +1,160 @@
+/* Shared screen chrome — header, back button, balance pill, generic
+ * buttons. Used by every non-menu screen (shop, collection, loadouts,
+ * match, pull) so the layout reads as one product, not five.
+ */
+
+.screen {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: var(--gap-loose);
+  gap: var(--gap-loose);
+}
+
+.screen-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--gap-normal);
+  border-bottom: 1px solid var(--border-rest);
+  padding-bottom: var(--gap-normal);
+}
+.screen-header h1 {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.6rem;
+  letter-spacing: 0.4em;
+  color: var(--accent);
+}
+
+.screen-balance {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  text-align: right;
+  min-width: 6rem;
+  transition: color var(--motion-base) var(--ease-soft);
+}
+
+.back-btn {
+  background: transparent;
+  border: 1px solid var(--border-rest);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease-soft),
+    color        var(--motion-fast) var(--ease-soft);
+}
+.back-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.screen-action {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.screen-action:hover { background: rgba(240, 196, 88, 0.12); }
+
+/* Page-dot pager — reused by collection + loadouts catalog. */
+.page-dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--gap-tight);
+}
+.page-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-rest);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background    var(--motion-fast) var(--ease-soft),
+    border-color  var(--motion-fast) var(--ease-soft);
+}
+.page-dot:hover { border-color: var(--accent); }
+.page-dot.active { background: var(--accent); border-color: var(--accent-bright); }
+
+/* Generic primary / small buttons used across screens. */
+.primary-btn {
+  background: var(--accent);
+  color: var(--bg-deep);
+  border: none;
+  padding: 0.6rem 1.4rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft);
+}
+.primary-btn:disabled {
+  background: var(--text-dim);
+  color: var(--bg-panel);
+  cursor: not-allowed;
+}
+.primary-btn:not(:disabled):hover { background: var(--accent-bright); }
+
+.btn-small {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--text-dim);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease-soft),
+    color        var(--motion-fast) var(--ease-soft);
+}
+.btn-small:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Validity / status chips — used by the loadout editor. */
+.validity-chip {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  letter-spacing: 0.08em;
+}
+.validity-chip.ready {
+  background: rgba(108, 217, 108, 0.18);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+.validity-chip.incomplete {
+  background: rgba(217, 54, 54, 0.12);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.error-line { color: var(--danger); font-size: 0.85rem; }
+
+/* Screen-mount fade-in. View Transitions handles route swaps; this
+ * is a fallback for browsers that skip the transition (e.g. when
+ * a duplicate view-transition-name aborts it). */
+.fade-in {
+  animation: fadeIn var(--motion-base) var(--ease-soft);
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}

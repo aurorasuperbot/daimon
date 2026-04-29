@@ -1,7 +1,13 @@
-// Shop screen — 6-tile grid + hero detail panel + BUY button.
+// Shop screen — 6-tile grid + full-card detail panel + BUY button.
 // Backend: GET /api/shop, POST /api/shop/buy/{slot}.
+//
+// Phase 5 of the redesign: tiles and detail both use <dm-card>; balance
+// pill is driven by liveStore.subscribe (no more daimon:balance custom
+// events). Returns a cleanup function so app.js can detach the
+// subscription on navigate-away.
 
 import { backButton, el, fetchJSON, postJSON } from "/screens/_dom.js";
+import { liveStore } from "/store.js";
 
 let state = { shop: null, balance: 0, selectedSlot: 0, error: null, busy: false };
 
@@ -22,11 +28,12 @@ function tileNode(slot, root) {
     class: `shop-tile${sel ? " selected" : ""}${slot.sold ? " sold" : ""}`,
     onClick: () => { state.selectedSlot = slot.index; rerender(root); },
   });
-  const art = document.createElement("card-art");
-  art.setAttribute("card-id", slot.card_id);
-  node.appendChild(art);
+  const card = document.createElement("dm-card");
+  card.setAttribute("card-id", slot.card_id);
+  card.setAttribute("size", "tile");
+  node.appendChild(card);
   node.appendChild(el("div", { class: "shop-tile-overlay" },
-    el("div", { class: "shop-tile-name" }, slot.skin_name),
+    el("div", { class: "shop-tile-name" }, slot.skin_name || slot.card_id),
     slot.sold
       ? el("div", { class: "shop-tile-cost owned" }, "OWNED")
       : el("div", { class: "shop-tile-cost" }, `${slot.cost}¤`),
@@ -47,19 +54,14 @@ function detailNode(root) {
     disabled: state.busy || slot.sold || !canAfford ? true : false,
     onClick: () => buy(slot.index, root),
   }, slot.sold ? "OWNED" : `BUY  ${cost}¤`);
-  const chip = document.createElement("rarity-chip");
-  chip.setAttribute("rarity", slot.rarity);
+  const card = document.createElement("dm-card");
+  card.setAttribute("card-id", slot.card_id);
+  card.setAttribute("size", "full");
   return el("div", { class: "shop-detail" },
-    el("div", { class: "shop-detail-art" }, (() => {
-      const a = document.createElement("card-art");
-      a.setAttribute("card-id", slot.card_id);
-      return a;
-    })()),
+    el("div", { class: "shop-detail-card" }, card),
     el("div", { class: "shop-detail-meta" },
-      el("div", { class: "shop-detail-name" }, slot.skin_name),
-      el("div", { class: "shop-detail-axis" }, slot.skin_axis),
-      el("div", { class: "shop-detail-card" }, slot.card_id),
-      chip,
+      el("div", { class: "shop-detail-name" }, slot.skin_name || slot.card_id),
+      slot.skin_axis ? el("div", { class: "shop-detail-axis" }, slot.skin_axis) : null,
     ),
     state.error ? el("div", { class: "error-line" }, state.error) : null,
     btn,
@@ -99,7 +101,7 @@ function rerender(root) {
     el("header", { class: "screen-header" },
       backButton(),
       el("h1", null, "SHOP"),
-      el("div", { class: "screen-balance" }, `${state.balance}¤`),
+      el("div", { class: "screen-balance", id: "shop-balance" }, `${state.balance}¤`),
     ),
     el("div", { class: "shop-body" },
       grid,
@@ -119,11 +121,19 @@ export async function render(root) {
   }
   rerender(root);
 
-  // Live balance updates from purchases in other windows.
-  document.addEventListener("daimon:balance", (e) => {
-    if (typeof e.detail?.balance === "number") {
-      state.balance = e.detail.balance;
-      rerender(root);
+  // Live balance from purchases — patches the header pill in place.
+  const unsubscribe = liveStore.subscribe(s => {
+    if (typeof s.balance !== "number") return;
+    state.balance = s.balance;
+    const pill = document.getElementById("shop-balance");
+    if (pill) pill.textContent = `${s.balance}¤`;
+    // Buy button state depends on balance — repaint the detail pane.
+    const detail = root.querySelector(".shop-detail");
+    if (detail) {
+      const fresh = detailNode(root);
+      detail.replaceWith(fresh);
     }
-  }, { once: false });
+  });
+
+  return unsubscribe;
 }

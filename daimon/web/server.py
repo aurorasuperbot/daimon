@@ -32,7 +32,7 @@ def create_app() -> FastAPI:
 
     app.include_router(router)
 
-    # Static mount serves index.html at "/" plus app.css / app.js / etc.
+    # Static mount serves index.html at "/" plus app.js, /styles/*, /components/*, etc.
     # MUST come last so /api/* and /art/* aren't shadowed.
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
     return app

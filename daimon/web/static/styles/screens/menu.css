@@ -1,0 +1,221 @@
+/* Menu screen — the home dashboard. Custom layout (DAIMON wordmark +
+ * identity strip header, action grid + panels body, footer). Other
+ * screens share the smaller chrome in components/screen-chrome.css. */
+
+@scope (.menu-app) {
+
+  :scope {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: var(--gap-loose);
+    gap: var(--gap-loose);
+  }
+
+  /* ---------- Header ---------- */
+  .menu-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-rest);
+    padding-bottom: var(--gap-normal);
+  }
+  .menu-title {
+    font-family: var(--font-display);
+    font-size: 4rem;
+    font-weight: 800;
+    letter-spacing: 0.4em;
+    margin: 0;
+    color: var(--accent);
+    text-shadow: 0 0 32px rgba(240, 196, 88, 0.35);
+  }
+  .menu-identity {
+    text-align: right;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .menu-identity .handle {
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .menu-identity .pubkey {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+
+  /* ---------- Body ---------- */
+  .menu-body {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: var(--gap-loose);
+    min-height: 0;
+  }
+  .menu-left {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: var(--gap-loose);
+    min-height: 0;
+  }
+  .menu-right {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Currency strip */
+  .currency-strip {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    padding: var(--gap-normal) var(--gap-loose);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--gap-loose);
+  }
+  .currency-amount {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .currency-amount::after {
+    content: " ¤";
+    color: var(--text-muted);
+    font-size: 1.25rem;
+  }
+  .currency-progress {
+    height: 6px;
+    background: var(--bg-raised);
+    border-radius: 999px;
+    position: relative;
+    overflow: hidden;
+  }
+  .currency-progress > .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: linear-gradient(90deg, var(--accent-deep), var(--accent-bright));
+    border-radius: inherit;
+    transition: width var(--motion-base) var(--ease-soft);
+  }
+  .currency-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  /* Action button row */
+  .action-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--gap-normal);
+  }
+  .action-btn {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    padding: 1.25rem var(--gap-tight);
+    cursor: pointer;
+    transition:
+      border-color var(--motion-fast) var(--ease-soft),
+      color        var(--motion-fast) var(--ease-soft),
+      transform    var(--motion-fast) var(--ease-soft);
+  }
+  .action-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent-bright);
+  }
+  .action-btn:active { transform: translateY(1px); }
+  .action-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+  /* Two-column lower panels */
+  .panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap-normal);
+    min-height: 0;
+  }
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    padding: var(--gap-normal);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-tight);
+    min-height: 0;
+    overflow: hidden;
+  }
+  .panel h2 {
+    margin: 0 0 var(--gap-tight) 0;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .panel ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-tight);
+  }
+  .panel li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    border-bottom: 1px dashed rgba(95, 95, 95, 0.2);
+    padding: 0.25rem 0;
+  }
+  .panel li.complete { color: var(--success); }
+  .panel li .reward { font-weight: 700; color: var(--accent); }
+  .panel .empty {
+    color: var(--text-dim);
+    font-style: italic;
+    font-size: 0.85rem;
+  }
+
+  /* Hero card placeholder — used when no NPC is recommended.
+   * The dm-card hero case has its own styling in dm-card.css. */
+  .hero-card.placeholder {
+    width: min(380px, 90%);
+    aspect-ratio: var(--card-aspect);
+    background: var(--bg-panel);
+    border: 2px solid var(--border-hero);
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 0 60px rgba(240, 196, 88, 0.15),
+      0 8px 24px rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 2rem;
+    letter-spacing: 0.4em;
+    color: var(--accent-deep);
+  }
+
+  /* Footer */
+  .menu-footer {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    border-top: 1px solid var(--border-rest);
+    padding-top: var(--gap-tight);
+    letter-spacing: 0.1em;
+  }
+
+}

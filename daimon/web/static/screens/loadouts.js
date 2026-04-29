@@ -1,11 +1,7 @@
-// Loadouts screen — saved-loadouts list + 6-card editor.
-//
-// View modes:
-//   list   → saved loadouts grid + "+ NEW" button + per-row LOAD / SET ACTIVE / DELETE
-//   editor → catalog grid (left, paged) + 6-slot loadout strip (right) + Save/Quit.
-//            Click a catalog card to add to the next empty slot. Click a slot
-//            card to remove it. The validation chip shows READY / NEED N
-//            so the user knows when Save is enabled.
+// Loadouts screen — list view + 6-card editor. Phase 5 redesign:
+// every card-shaped surface (catalog grid, slot strip) renders via
+// <dm-card>. Layout chrome stays in this screen; card visuals are
+// the primitive's responsibility.
 
 import { backButton, el, fetchJSON, postJSON } from "/screens/_dom.js";
 
@@ -14,17 +10,15 @@ const CATALOG_PAGE_SIZE = 12;
 
 let state = {
   view: "list",        // "list" | "editor"
-  loadouts: [],        // list payload from /api/loadouts
+  loadouts: [],
   activeName: null,
-  catalog: [],         // cards from /api/catalog
+  catalog: [],
   page: 0,
-  editingName: "",     // name of the loadout being edited
-  slots: [],           // card_ids currently in the editor; length ≤ LOADOUT_SIZE
+  editingName: "",
+  slots: [],           // card_ids in the editor; length ≤ LOADOUT_SIZE
   saving: false,
   error: null,
 };
-
-function go(hash) { location.hash = hash; }
 
 // ---------------------------------------------------------------------------
 // list view
@@ -160,28 +154,21 @@ function editorView(root) {
 
 function catalogTile(card, root) {
   const inDeck = state.slots.includes(card.card_id);
-  const full = state.slots.length >= LOADOUT_SIZE;
-  return el("button", {
-    class: `catalog-tile rarity-${card.rarity || "common"}${inDeck ? " in-deck" : ""}`,
+  const full   = state.slots.length >= LOADOUT_SIZE;
+  const node = el("button", {
+    class: `catalog-tile${inDeck ? " in-deck" : ""}`,
     disabled: (full && !inDeck) ? true : false,
     onClick: () => {
       if (state.slots.length >= LOADOUT_SIZE) return;
       state.slots = [...state.slots, card.card_id];
       rerender(root);
     },
-  },
-    (() => {
-      const a = document.createElement("card-art");
-      a.setAttribute("card-id", card.card_id);
-      return a;
-    })(),
-    el("div", { class: "catalog-tile-name" }, card.card_id),
-    (() => {
-      const c = document.createElement("rarity-chip");
-      c.setAttribute("rarity", card.rarity || "common");
-      return c;
-    })(),
-  );
+  });
+  const dm = document.createElement("dm-card");
+  dm.setAttribute("card-id", card.card_id);
+  dm.setAttribute("size", "tile");
+  node.appendChild(dm);
+  return node;
 }
 
 function slotTile(idx, root) {
@@ -189,21 +176,19 @@ function slotTile(idx, root) {
   if (!cardId) {
     return el("div", { class: "slot-tile empty" }, `slot ${idx + 1}`);
   }
-  return el("button", {
+  const node = el("button", {
     class: "slot-tile filled",
     title: "click to remove",
     onClick: () => {
       state.slots = state.slots.filter((_, i) => i !== idx);
       rerender(root);
     },
-  },
-    (() => {
-      const a = document.createElement("card-art");
-      a.setAttribute("card-id", cardId);
-      return a;
-    })(),
-    el("div", { class: "slot-tile-name" }, cardId),
-  );
+  });
+  const dm = document.createElement("dm-card");
+  dm.setAttribute("card-id", cardId);
+  dm.setAttribute("size", "tile");
+  node.appendChild(dm);
+  return node;
 }
 
 async function saveCurrent(root) {

@@ -590,6 +590,11 @@ def _recommended_npc(
                 "rank": npc.rank,
                 "flavor": npc.flavor,
                 "reason": reason,
+                # Lead card from the NPC's loadout — the menu hero
+                # renders this via /art/{card_id}. NPCs have no portrait
+                # in the card art-pack, so we surface their first card
+                # as a visual stand-in.
+                "cover_card_id": npc.loadout[0] if npc.loadout else None,
             }
     return None
 
@@ -805,7 +810,7 @@ def dm_home() -> Dict[str, Any]:
        "recent_pulls":   [{"ts", "state_id", "card_id",
                            "rarity", "note"}, ...] (newest-first, ≤5),
        "recommended_npc": {"npc_id", "name", "tier", "rank",
-                           "flavor", "reason"} | null,
+                           "flavor", "reason", "cover_card_id"} | null,
        "saved_loadouts": [{"name", "card_count", "active"}, ...],
        "daily_quests": [{"quest_id", "template_id", "title", "tier",
                          "reward", "progress", "target",

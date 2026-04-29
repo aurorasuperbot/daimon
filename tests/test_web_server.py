@@ -28,6 +28,14 @@ def test_root_serves_index_html():
 def test_static_assets_served():
     from daimon.web.server import create_app
     client = TestClient(create_app())
-    for asset in ("/app.css", "/app.js"):
+    for asset in (
+        "/app.js",
+        "/store.js",
+        "/styles/tokens.css",
+        "/styles/base.css",
+        "/styles/components/dm-card.css",
+        "/styles/components/screen-chrome.css",
+        "/components/dm-card.js",
+    ):
         r = client.get(asset)
         assert r.status_code == 200, f"{asset} returned {r.status_code}"

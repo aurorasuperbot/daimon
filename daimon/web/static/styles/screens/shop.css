@@ -1,0 +1,123 @@
+/* Shop screen layout — owns grid + detail-panel chrome only.
+ * Card visuals live in <dm-card>. */
+
+@scope (.shop-screen) {
+
+  .shop-body {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: var(--gap-loose);
+    min-height: 0;
+  }
+  .shop-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 1fr;
+    gap: var(--gap-normal);
+  }
+
+  .shop-tile {
+    position: relative;
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    cursor: pointer;
+    padding: 0;
+    aspect-ratio: var(--card-aspect);
+    transition:
+      border-color var(--motion-fast) var(--ease-soft),
+      transform    var(--motion-fast) var(--ease-soft);
+  }
+  .shop-tile:hover { border-color: var(--accent); }
+  .shop-tile.selected {
+    border-color: var(--accent-bright);
+    box-shadow: 0 0 18px rgba(240, 196, 88, 0.30);
+  }
+  .shop-tile.sold { opacity: 0.5; }
+
+  .shop-tile-overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    background: linear-gradient(180deg, transparent 0%, rgba(10,12,24,0.92) 60%);
+    padding: var(--gap-normal) var(--gap-tight) var(--gap-tight);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    pointer-events: none;
+  }
+  .shop-tile-name {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    color: var(--text);
+    letter-spacing: 0.1em;
+  }
+  .shop-tile-cost {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+  .shop-tile-cost.owned {
+    color: var(--success);
+    letter-spacing: 0.2em;
+    font-size: 0.75rem;
+  }
+
+  .shop-detail {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    padding: var(--gap-loose);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-normal);
+    min-height: 0;
+  }
+  .shop-detail.empty {
+    color: var(--text-dim);
+    align-items: center;
+    justify-content: center;
+  }
+  .shop-detail-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+  .shop-detail-meta { display: flex; flex-direction: column; gap: var(--gap-tight); }
+  .shop-detail-name {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--accent);
+  }
+  .shop-detail-axis {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .shop-buy-btn {
+    background: var(--accent);
+    color: var(--bg-deep);
+    border: none;
+    border-radius: var(--radius);
+    padding: 0.8rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-soft),
+      transform  var(--motion-fast) var(--ease-soft);
+  }
+  .shop-buy-btn:hover { background: var(--accent-bright); }
+  .shop-buy-btn:active { transform: translateY(1px); }
+  .shop-buy-btn[disabled] {
+    background: var(--bg-raised);
+    color: var(--text-dim);
+    cursor: not-allowed;
+  }
+
+}

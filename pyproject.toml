@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daimon-engine"
-version = "2.0.3"
+version = "2.1.0"
 description = "DAIMON — open-source agentic-first autobattler with native pywebview UI"
 readme = "README.md"
 requires-python = ">=3.11"

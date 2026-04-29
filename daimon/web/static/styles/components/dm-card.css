@@ -1,0 +1,300 @@
+/* <dm-card> — light-DOM card primitive.
+ *
+ * Styles scoped via @scope so they cannot leak past the component root.
+ * The element exposes three knobs:
+ *   size  : hero | tile | full   — layout density
+ *   face  : front | back         — which side faces the camera
+ *   data-rarity : (set by JS)    — drives --rarity-* tokens for the frame
+ */
+
+@scope (dm-card) {
+
+  /* Component root --------------------------------------------------- */
+
+  :scope {
+    display: block;
+    position: relative;
+    aspect-ratio: var(--card-aspect);
+    color: var(--text);
+    font-family: var(--font-body);
+    width: 100%;
+    /* Perspective gives the frame a real 3D depth when it rotates
+     * (face transitions). 1200px is the cinematic-feeling default;
+     * lower = more dramatic, higher = subtler. */
+    perspective: 1200px;
+  }
+
+  /* Frame: the bordered, rarity-glowing container that holds both
+   * faces of the card. Rotates between 0deg (back-facing camera) and
+   * 180deg (front-facing camera) on the `face` attribute. */
+  .dm-card-frame {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--rarity-frame);
+    background: var(--bg-panel);
+    box-shadow: var(--rarity-glow);
+    transform-style: preserve-3d;
+    transition: transform var(--motion-flip) var(--ease-snap);
+    /* face attribute rotates this; defaults below cover the "no attr"
+     * case (initial mount before connectedCallback assigns face=front). */
+  }
+
+  /* The inner faces clip themselves so corner radius applies cleanly.
+   * The frame itself avoids overflow:hidden so 3D children aren't
+   * flattened during rotation (Chromium quirk). */
+  .dm-card-front,
+  .dm-card-back {
+    border-radius: calc(var(--radius-lg) - 2px);
+    overflow: hidden;
+  }
+
+  /* Each face of the card sits in 3D space such that the frame's
+   * single rotateY rotation reveals exactly one of them. The back is
+   * at 0deg and faces the camera by default; the front is rotated
+   * 180deg so it only becomes visible after the frame flips. */
+  .dm-card-front,
+  .dm-card-back {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .dm-card-back {
+    transform: rotateY(0deg);
+  }
+  .dm-card-front {
+    transform: rotateY(180deg);
+  }
+
+  /* Face toggle: rotate the frame.
+   * Default (no attr) and face=front: frame at 180deg → front visible.
+   * face=back: frame at 0deg → back visible. */
+  :scope:not([face]) .dm-card-frame,
+  :scope[face="front"] .dm-card-frame {
+    transform: rotateY(180deg);
+  }
+  :scope[face="back"] .dm-card-frame {
+    transform: rotateY(0deg);
+  }
+
+  /* Back-of-card ---------------------------------------------------- */
+
+  .dm-card-back {
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(240,196,88,0.20), transparent 70%),
+      linear-gradient(135deg, #181e30 25%, #10142a 50%, #181e30 75%);
+    background-size: 8px 8px, 100% 100%;
+  }
+  .dm-card-back-mark {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: 0.4em;
+    color: var(--accent-deep);
+    font-size: 1.5rem;
+  }
+
+  /* Front-of-card layout (size=hero/full) -------------------------- */
+
+  .dm-card-front {
+    padding: var(--gap-tight);
+    gap: var(--gap-tight);
+  }
+
+  /* Art region — top half of the card. */
+  .dm-card-art {
+    position: relative;
+    flex: 0 0 50%;
+    overflow: hidden;
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+  }
+  .dm-card-art-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity var(--motion-base) var(--ease-soft);
+  }
+  /* When no card-id has loaded yet, show a quiet placeholder backdrop. */
+  :scope:not([data-loaded]) .dm-card-art-img {
+    opacity: 0;
+  }
+
+  /* Headline: name + element/archetype subtitle. */
+  .dm-card-headline {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-bottom: 1px solid var(--rarity-frame);
+    padding-bottom: 2px;
+  }
+  .dm-card-name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    color: var(--rarity-color);
+    line-height: 1.1;
+    /* Long names truncate gracefully. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dm-card-sub {
+    display: flex;
+    gap: var(--gap-tight);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 0.18em;
+  }
+  .dm-card-element { font-weight: 700; }
+  .dm-card-archetype { color: var(--text-dim); }
+
+  /* Stat row — fixed 4-column grid. Always rendered, even with "—". */
+  .dm-card-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+  .dm-card-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--bg-deep);
+    border-radius: var(--radius-sm);
+    padding: 2px 0;
+  }
+  .dm-card-stat-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+  }
+  .dm-card-stat-value {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Abilities (triggers + moves). Each list grows/shrinks to fit
+   * the loaded card; layout is stable when length doesn't change. */
+  .dm-card-abilities {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+  }
+  .dm-card-triggers,
+  .dm-card-moves {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .dm-card-trigger,
+  .dm-card-move {
+    font-size: 0.65rem;
+    line-height: 1.25;
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.03);
+    display: flex;
+    gap: var(--gap-tight);
+  }
+  .dm-card-trigger {
+    border-left: 2px solid var(--rarity-color);
+  }
+  .dm-card-move {
+    border-left: 2px solid var(--accent-deep);
+  }
+  .dm-card-trigger-when,
+  .dm-card-move-when {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+  .dm-card-trigger-op {
+    color: var(--rarity-color);
+    font-style: italic;
+  }
+  .dm-card-move-name {
+    color: var(--text);
+    font-weight: 600;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dm-card-flavor {
+    font-style: italic;
+    font-size: 0.65rem;
+    line-height: 1.3;
+    color: var(--text-dim);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 2px;
+    /* Clamp to two lines max — overflow becomes a quiet ellipsis. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Hero size: fixed display width, used for the menu hero card and
+   * the pull-card front. View Transitions can morph between these
+   * two appearances because the view-transition-name is the same. */
+  :scope[size="hero"] {
+    width: min(380px, 90%);
+    /* The hero card is the canonical morph target between menu → pull. */
+    view-transition-name: dm-card-hero;
+  }
+
+  /* Full size: fills its container (e.g. detail panes). */
+  :scope[size="full"] {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Tile size: compact — art + nameplate only, no stats / abilities /
+   * flavor. Used for grids (shop, collection, loadouts). */
+  :scope[size="tile"] {
+    width: 100%;
+    cursor: inherit;
+  }
+  :scope[size="tile"] .dm-card-front {
+    padding: 0;
+  }
+  :scope[size="tile"] .dm-card-art {
+    flex: 1;
+    border-radius: 0;
+  }
+  :scope[size="tile"] .dm-card-headline {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: var(--gap-normal) var(--gap-tight) var(--gap-tight);
+    background: linear-gradient(180deg, transparent 0%, rgba(10,12,24,0.92) 60%);
+    border-bottom: none;
+  }
+  :scope[size="tile"] .dm-card-name {
+    font-size: 0.8rem;
+  }
+  :scope[size="tile"] .dm-card-stats,
+  :scope[size="tile"] .dm-card-abilities,
+  :scope[size="tile"] .dm-card-flavor {
+    display: none;
+  }
+
+}

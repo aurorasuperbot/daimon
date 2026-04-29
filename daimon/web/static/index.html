@@ -7,13 +7,26 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/app.css" />
+  <!-- Load order:
+       1. tokens — design variables (colors, spacing, motion, rarities).
+       2. base   — resets, #root grid, View Transitions defaults.
+       3. components/* — primitives that screens compose.
+       4. screens/*    — per-screen layout chrome.
+       Inside each layer, files are independent (no order dependencies). -->
+  <link rel="stylesheet" href="/styles/tokens.css" />
+  <link rel="stylesheet" href="/styles/base.css" />
+  <link rel="stylesheet" href="/styles/components/dm-card.css" />
+  <link rel="stylesheet" href="/styles/components/screen-chrome.css" />
+  <link rel="stylesheet" href="/styles/screens/menu.css" />
+  <link rel="stylesheet" href="/styles/screens/shop.css" />
+  <link rel="stylesheet" href="/styles/screens/collection.css" />
+  <link rel="stylesheet" href="/styles/screens/pull.css" />
+  <link rel="stylesheet" href="/styles/screens/loadouts.css" />
+  <link rel="stylesheet" href="/styles/screens/match.css" />
 </head>
 <body>
   <div id="root"></div>
-  <script type="module" src="/components/card-art.js"></script>
-  <script type="module" src="/components/rarity-chip.js"></script>
-  <script type="module" src="/components/stat-bar.js"></script>
+  <script type="module" src="/components/dm-card.js"></script>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

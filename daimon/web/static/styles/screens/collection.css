@@ -1,0 +1,94 @@
+/* Collection screen layout — owns the grid + detail-panel chrome only.
+ * Card visuals live entirely inside <dm-card>. */
+
+@scope (.coll-screen) {
+
+  .coll-body {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: var(--gap-loose);
+    min-height: 0;
+  }
+
+  .coll-left {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: var(--gap-normal);
+    min-height: 0;
+  }
+
+  .coll-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 1fr;
+    gap: var(--gap-normal);
+    min-height: 0;
+  }
+
+  .coll-tile {
+    position: relative;
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    cursor: pointer;
+    padding: 0;
+    aspect-ratio: var(--card-aspect);
+    transition: border-color var(--motion-fast) var(--ease-soft);
+  }
+  .coll-tile:hover { border-color: var(--accent); }
+  .coll-tile.selected {
+    border-color: var(--accent-bright);
+    box-shadow: 0 0 18px rgba(240, 196, 88, 0.30);
+  }
+
+  /* Duplicate-count badge — top-right corner pill. */
+  .coll-tile-count {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: var(--bg-deep);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    pointer-events: none;
+  }
+
+  .coll-detail {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    padding: var(--gap-loose);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-normal);
+    min-height: 0;
+  }
+  .coll-detail.empty {
+    color: var(--text-dim);
+    justify-content: center;
+    align-items: center;
+  }
+  /* The full card fills the available vertical space; the meta strip
+   * sits below it. */
+  .coll-detail-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+  .coll-detail-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-tight);
+  }
+  .coll-detail-count {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+}

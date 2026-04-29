@@ -1,0 +1,140 @@
+/* Match screen — picker, running, and result states.
+ * No <dm-card> usage yet; the Phase-3 picker shows NPC names + a FIGHT
+ * button. When per-round play UX lands, this file will gain card-grid
+ * rules similar to shop/collection. */
+
+@scope (.match-screen) {
+
+  .match-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-loose);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .match-loadout-pick {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-normal);
+  }
+  .match-loadout-pick h3 {
+    margin: 0;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    font-family: var(--font-display);
+  }
+
+  .loadout-select {
+    background: var(--bg-panel);
+    color: var(--text);
+    border: 1px solid var(--border-rest);
+    padding: 0.4rem 0.7rem;
+    font-family: inherit;
+    border-radius: var(--radius-sm);
+  }
+
+  .empty {
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  .match-npc-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-loose);
+  }
+
+  .tier-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-tight);
+  }
+  .tier-section h3 {
+    margin: 0;
+    color: var(--accent);
+    font-family: var(--font-display);
+    letter-spacing: 0.08em;
+  }
+
+  .npc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--gap-tight);
+  }
+
+  .npc-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    align-items: flex-start;
+    transition: border-color var(--motion-fast) var(--ease-soft);
+  }
+  .npc-card:hover { border-color: var(--accent); }
+  .npc-name { font-weight: 600; }
+  .npc-tier { color: var(--text-muted); font-size: 0.85rem; }
+
+}
+
+@scope (.match-running) {
+
+  :scope {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: var(--gap-loose);
+  }
+  h2 {
+    font-family: var(--font-display);
+    color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+  .spinner {
+    color: var(--text-muted);
+    animation: match-spinner-pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes match-spinner-pulse {
+    0%, 100% { opacity: 0.4; }
+    50%      { opacity: 1; }
+  }
+
+}
+
+@scope (.match-result) {
+
+  :scope { display: flex; flex-direction: column; }
+
+  .match-result-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-normal);
+    padding: var(--gap-loose);
+  }
+  .match-result-line {
+    color: var(--text);
+    font-size: 1.05rem;
+  }
+  .match-result-flavor {
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+    max-width: 480px;
+  }
+  .match-result-actions {
+    display: flex;
+    gap: var(--gap-normal);
+    margin-top: var(--gap-loose);
+  }
+
+}

@@ -76,6 +76,39 @@ def test_catalog_unknown_expansion_404s(env):
 
 
 # ---------------------------------------------------------------------------
+# /api/card/{card_id} — single-card lookup for the dm-card cache
+# ---------------------------------------------------------------------------
+
+def test_card_returns_full_payload_with_triggers(env):
+    card_id = _six_card_ids()[0]
+    r = _client().get(f"/api/card/{card_id}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["card_id"] == card_id
+    assert body["rarity"]
+    assert body["pack"]
+    p = body["payload"]
+    # Stat fields the dm-card renderer relies on must be present.
+    for k in ("name", "atk", "def", "hp", "spd", "rarity"):
+        assert k in p, f"payload missing {k!r}"
+    # Triggers + moves are lists (possibly empty) — preserved verbatim,
+    # unlike /api/catalog which collapses them to a count.
+    assert isinstance(p.get("triggers", []), list)
+    assert isinstance(p.get("moves", []), list)
+
+
+def test_card_unknown_id_404s(env):
+    r = _client().get("/api/card/this_card_does_not_exist_xyz")
+    assert r.status_code == 404
+
+
+def test_card_unknown_expansion_404s(env):
+    card_id = _six_card_ids()[0]
+    r = _client().get(f"/api/card/{card_id}?expansion=nonexistent_pack")
+    assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # /api/loadouts CRUD
 # ---------------------------------------------------------------------------
 

@@ -1,0 +1,61 @@
+/* DAIMON base layer — resets, root grid, typography, generic utilities.
+ *
+ * Lives below tokens.css and above components/*.css.
+ * Anything here applies globally; component-specific rules belong
+ * inside the component's own @scope block.
+ */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  /* Prevent body-level scroll — every screen owns its own scroll regions. */
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  display: grid;
+  /* Single child per route. View Transitions handles the swap. */
+  grid-template-rows: 1fr;
+}
+
+/* ---------- View Transitions defaults --------------------------------- */
+/*
+ * Same-document SPA route swaps wrapped in document.startViewTransition()
+ * pick these up automatically. Per-element morphs (e.g. menu hero card →
+ * pull card front) opt in by setting view-transition-name in component CSS.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--motion-base);
+  animation-timing-function: var(--ease-soft);
+}
+
+/* ---------- Generic loading + error states ---------------------------- */
+.loading, .error {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-normal);
+  color: var(--text-muted);
+}
+.error { color: var(--danger); }
+
+/* Reduced motion — honour the OS-level preference. Animations still run
+ * but each becomes near-instant, killing motion-sickness for users who
+ * opt out without breaking the app's transition logic. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

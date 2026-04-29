@@ -1,0 +1,111 @@
+/* DAIMON design tokens — colors, type, spacing, motion, rarity bundles.
+ *
+ * Single source of truth. A redesign edits this file and nothing else.
+ * Components and screens read these via `var(--token)` only — no hardcoded
+ * colors below this layer.
+ *
+ * Rarity bundles: setting `data-rarity="X"` on any element pushes a
+ * matching set of `--rarity-*` variables into scope. The card primitive
+ * reads them; nothing else needs to know about rarities.
+ */
+
+:root {
+  /* Surfaces */
+  --bg-deep:        #0a0c18;
+  --bg-panel:       #10142a;
+  --bg-raised:      #181e30;
+  --bg-overlay:     rgba(10, 12, 24, 0.92);
+
+  /* Ink */
+  --text:           #ffffff;
+  --text-muted:     #9b9b9b;
+  --text-dim:       #5f5f5f;
+
+  /* Accent (DAIMON gold) */
+  --accent:         #f0c458;
+  --accent-bright:  #ffdc78;
+  --accent-deep:    #b48220;
+
+  /* Status */
+  --danger:         #d93636;
+  --success:        #6cd96c;
+
+  /* Borders */
+  --border-rest:    var(--text-dim);
+  --border-active:  var(--accent);
+  --border-hero:    var(--accent);
+
+  /* Spacing */
+  --gap-tight:      0.5rem;
+  --gap-normal:     1rem;
+  --gap-loose:      1.5rem;
+
+  /* Radii */
+  --radius-sm:      4px;
+  --radius:         6px;
+  --radius-lg:      12px;
+
+  /* Type */
+  --font-display:   "Cinzel", Georgia, serif;
+  --font-body:      "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:      ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Motion durations — pair these with cubic-bezier eases below */
+  --motion-fast:    120ms;
+  --motion-base:    220ms;
+  --motion-slow:    400ms;
+  --motion-flip:    700ms;
+
+  --ease-snap:      cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-soft:      cubic-bezier(0.4, 0.0, 0.2, 1);
+
+  /* Card aspect — every card-shaped surface uses this token, not a literal */
+  --card-aspect:    5 / 7;
+
+  /* Default rarity bundle (common). Overridden by [data-rarity="..."]
+   * blocks below — but *every* element that reads --rarity-* gets these
+   * fallbacks even before its rarity attribute is set. */
+  --rarity-color:   #cfd2d8;
+  --rarity-bg:      #2a2f44;
+  --rarity-glow:    0 0 16px rgba(207, 210, 216, 0.20);
+  --rarity-frame:   var(--rarity-color);
+}
+
+/* ----- Rarity bundles -----------------------------------------------------
+ *
+ * Apply `data-rarity="legendary"` (etc.) to any element and its descendants
+ * inherit the bundle through CSS custom-property inheritance. The card
+ * primitive uses these to paint the frame, glow, and chip without
+ * branching in JS.
+ */
+
+[data-rarity="common"] {
+  --rarity-color:   #cfd2d8;
+  --rarity-bg:      #2a2f44;
+  --rarity-glow:    0 0 16px rgba(207, 210, 216, 0.20);
+  --rarity-frame:   var(--rarity-color);
+}
+[data-rarity="uncommon"] {
+  --rarity-color:   #9bd9a3;
+  --rarity-bg:      #243a2c;
+  --rarity-glow:    0 0 24px rgba(155, 217, 163, 0.35);
+  --rarity-frame:   var(--rarity-color);
+}
+[data-rarity="rare"] {
+  --rarity-color:   #7ab8ff;
+  --rarity-bg:      #1f2c4a;
+  --rarity-glow:    0 0 36px rgba(122, 184, 255, 0.45);
+  --rarity-frame:   var(--rarity-color);
+}
+[data-rarity="epic"] {
+  --rarity-color:   #cf9bff;
+  --rarity-bg:      #322347;
+  --rarity-glow:    0 0 50px rgba(207, 155, 255, 0.50);
+  --rarity-frame:   var(--rarity-color);
+}
+[data-rarity="legendary"] {
+  --rarity-color:   #ffdc78;
+  --rarity-bg:      #3d2c0f;
+  --rarity-glow:    0 0 60px rgba(255, 220, 120, 0.55);
+  --rarity-frame:   var(--rarity-color);
+}

@@ -14,6 +14,7 @@ Endpoints:
   POST /api/skin/unequip      — revert to canonical art
   GET  /api/collection        — owned card serials
   GET  /api/catalog           — full card catalog (for the loadout editor)
+  GET  /api/card/{card_id}    — single card payload (for the dm-card cache)
   GET  /api/loadouts          — list saved loadouts
   GET  /api/loadout/{name}    — fetch one
   POST /api/loadout/{name}    — save (body: {"cards": [...]})
@@ -154,6 +155,34 @@ def get_catalog(expansion: Optional[str] = None) -> Dict[str, Any]:
             }
             for c in cat.cards
         ],
+    }
+
+
+@router.get("/api/card/{card_id}")
+def get_card(card_id: str, expansion: Optional[str] = None) -> Dict[str, Any]:
+    """Return the full catalog payload for one card.
+
+    Used by the frontend ``cardStore`` to populate ``<dm-card>`` instances
+    on demand. Unlike ``/api/catalog`` this preserves ``triggers`` and
+    every other payload field so the card renderer has everything it
+    needs in one round-trip per unique id.
+    """
+    from daimon.catalog import DEFAULT_CATALOG_ID, load_catalog
+    cid = expansion or DEFAULT_CATALOG_ID
+    try:
+        cat = load_catalog(cid)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"unknown catalog {cid!r}")
+    card = cat.by_id.get(card_id)
+    if card is None:
+        raise HTTPException(
+            status_code=404, detail=f"unknown card {card_id!r} in {cid!r}",
+        )
+    return {
+        "card_id": card.card_id,
+        "rarity": card.rarity,
+        "pack": card.pack,
+        "payload": card.payload,
     }
 
 

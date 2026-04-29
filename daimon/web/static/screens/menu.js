@@ -1,8 +1,15 @@
-// Menu screen — dashboard. Phase 2: action buttons navigate to real
-// screens. Currency strip listens for daimon:balance events.
+// Menu screen — dashboard. Built on the redesign primitives:
+//   - <dm-card size="hero"> for the recommended-NPC hero (shared
+//     view-transition-name with the pull-card front, so the
+//     menu→pull route swap morphs the same element).
+//   - liveStore.subscribe for balance ticking (replaces the
+//     legacy `daimon:balance` custom-event indirection).
+// The screen mounts ONE stable DOM tree and patches text-node
+// content as live balance arrives. No re-renders.
 
 import { go } from "/app.js";
-import { el } from "/screens/_dom.js";
+import { el, fetchJSON } from "/screens/_dom.js";
+import { liveStore } from "/store.js";
 
 const PULL_COST = 100;
 
@@ -21,28 +28,30 @@ function shortPubkey(hex) {
 
 function renderHeader(payload) {
   const ident = payload.identity || {};
-  const rank = payload.rank || {};
+  const rank  = payload.rank || {};
   return el("header", { class: "menu-header" },
     el("h1", { class: "menu-title" }, "DAIMON"),
     el("div", { class: "menu-identity" },
       el("div", { class: "handle" }, ident.handle || "<unregistered>"),
-      el("div", null, `${rank.tier || "Rookie"} #${rank.rank ?? "?"} of ${rank.total_players ?? "?"}`),
+      el("div", null,
+        `${rank.tier || "Rookie"} #${rank.rank ?? "?"} of ${rank.total_players ?? "?"}`),
       el("div", { class: "pubkey" }, shortPubkey(ident.pubkey_hex)),
     ),
   );
 }
 
 function renderCurrencyStrip(payload) {
-  const balance = payload.balance ?? 0;
-  const pull = payload.pull || {};
-  const cost = pull.cost ?? PULL_COST;
+  const balance   = payload.balance ?? 0;
+  const pull      = payload.pull || {};
+  const cost      = pull.cost ?? PULL_COST;
   const remaining = pull.balance_to_next_pull ?? cost;
-  const fraction = 1 - Math.max(0, Math.min(remaining, cost)) / cost;
-  const ready = pull.pulls_available > 0;
+  const fraction  = 1 - Math.max(0, Math.min(remaining, cost)) / cost;
+  const ready     = pull.pulls_available > 0;
   return el("div", { class: "currency-strip", id: "currency-strip" },
     el("div", { class: "currency-amount", id: "currency-amount" }, String(balance)),
     el("div", { class: "currency-progress" },
-      el("div", { class: "fill", id: "currency-fill", style: `width:${(fraction * 100).toFixed(1)}%` }),
+      el("div", { class: "fill", id: "currency-fill",
+                  style: `width:${(fraction * 100).toFixed(1)}%` }),
     ),
     el("div", { class: "currency-label", id: "currency-label" },
       ready
@@ -78,14 +87,10 @@ function renderQuestsPanel(payload) {
 
 function renderActivityPanel(payload) {
   const matches = (payload.recent_matches || []).slice(0, 4);
-  const pulls = (payload.recent_pulls || []).slice(0, 4);
+  const pulls   = (payload.recent_pulls   || []).slice(0, 4);
   const items = [];
-  for (const m of matches) {
-    items.push(`vs ${m.opponent || "?"} — ${m.outcome || "?"}`);
-  }
-  for (const p of pulls) {
-    items.push(`pulled ${p.card_id || "?"} (${p.rarity || "?"})`);
-  }
+  for (const m of matches) items.push(`vs ${m.opponent || "?"} — ${m.outcome || "?"}`);
+  for (const p of pulls)   items.push(`pulled ${p.card_id || "?"} (${p.rarity || "?"})`);
   return el("section", { class: "panel" },
     el("h2", null, "RECENT ACTIVITY"),
     items.length === 0
@@ -96,18 +101,18 @@ function renderActivityPanel(payload) {
   );
 }
 
+/** The hero card uses <dm-card size="hero">; that size CSS includes
+ *  view-transition-name=dm-card-hero so the menu→pull swap morphs
+ *  this exact card into the pull-front when the user pulls. */
 function renderHero(payload) {
-  const npc = payload.recommended_npc;
-  const cardId = npc?.npc_id;
-  const node = el("div", { class: "hero-card" });
-  if (cardId) {
-    const art = document.createElement("card-art");
-    art.setAttribute("card-id", cardId);
-    node.appendChild(art);
-  } else {
-    node.appendChild(el("div", { class: "placeholder" }, "DAIMON"));
+  const cardId = payload.recommended_npc?.cover_card_id;
+  if (!cardId) {
+    return el("div", { class: "hero-card placeholder" }, "DAIMON");
   }
-  return node;
+  const card = document.createElement("dm-card");
+  card.setAttribute("card-id", cardId);
+  card.setAttribute("size", "hero");
+  return card;
 }
 
 function renderFooter(payload) {
@@ -118,18 +123,24 @@ function renderFooter(payload) {
   );
 }
 
+/** Subscribe the currency strip to liveStore. The strip is a fixed DOM
+ *  tree built once; the subscription patches the three live nodes
+ *  (amount, fill width, label). Returns an unsubscribe function so
+ *  app.js can detach when the user navigates away. */
 function listenForBalance(payload) {
-  const handler = (e) => {
-    const balance = e.detail?.balance;
-    if (typeof balance !== "number") return;
+  const cost = payload.pull?.cost ?? PULL_COST;
+  return liveStore.subscribe(state => {
+    if (typeof state.balance !== "number") return;
+    const balance   = state.balance;
+    const remaining = Math.max(0, cost - (balance % cost));
+    const fraction  = 1 - remaining / cost;
+
     const amt = document.getElementById("currency-amount");
     if (amt) amt.textContent = String(balance);
-    // Recompute progress relative to PULL_COST.
-    const cost = payload.pull?.cost ?? PULL_COST;
-    const remaining = Math.max(0, cost - (balance % cost));
-    const fraction = 1 - remaining / cost;
+
     const fill = document.getElementById("currency-fill");
     if (fill) fill.style.width = `${(fraction * 100).toFixed(1)}%`;
+
     const label = document.getElementById("currency-label");
     if (label) {
       const ready = balance >= cost;
@@ -137,16 +148,13 @@ function listenForBalance(payload) {
         ? `${Math.floor(balance / cost)}× ready to pull`
         : `next pull in ${remaining}¤`;
     }
-  };
-  document.addEventListener("daimon:balance", handler);
+  });
 }
 
 export async function render(root) {
   let payload;
   try {
-    const r = await fetch("/api/home");
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    payload = await r.json();
+    payload = await fetchJSON("/api/home");
   } catch (err) {
     root.innerHTML = `<div class="error">backend unreachable: ${err}</div>`;
     return;
@@ -175,5 +183,7 @@ export async function render(root) {
     renderFooter(payload),
   );
   root.appendChild(app);
-  listenForBalance(payload);
+
+  const unsubscribe = listenForBalance(payload);
+  return unsubscribe;
 }
