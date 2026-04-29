@@ -236,6 +236,64 @@ function whenInfo(when) {
   };
 }
 
+// Status-keyword vocabulary — used inline in body text. A dedicated
+// "status" family color (teal) so the keywords pop the way Hearthstone's
+// bolded keywords (Poisonous, Taunt, Stealth) do — they read as the
+// game's ruleset language, not flavor prose. Status family is distinct
+// from the three timing families (active/reactive/passive) to avoid
+// muddling "WHEN does it fire?" with "WHAT does it apply?".
+const _STATUS = {
+  BURN:      { label: "burn",      family: "status" },
+  POISON:    { label: "poison",    family: "status" },
+  STUN:      { label: "stun",      family: "status" },
+  SILENCE:   { label: "silence",   family: "status" },
+  TAUNT:     { label: "taunt",     family: "status" },
+  CHARGE:    { label: "charge",    family: "status" },
+  CHILL:     { label: "chill",     family: "status" },
+  ROOT:      { label: "root",      family: "status" },
+  THORNS:    { label: "thorns",    family: "status" },
+  LIFESTEAL: { label: "lifesteal", family: "status" },
+  SHIELD:    { label: "shield",    family: "status" },
+};
+
+/** Resolve a {TOKEN} into {label, family}, or null for unknown tokens
+ *  (renderRich leaves those literal so a typo is visible, not silent). */
+function keywordInfo(token) {
+  if (_STATUS[token]) return _STATUS[token];
+  if (_WHEN[token])   return _WHEN[token];
+  if (token.startsWith("RULE_CHANGE_")) return _PASSIVE_WHEN;
+  return null;
+}
+
+/** Render a string with inline {TOKEN} keywords into `parent` as a
+ *  mix of text nodes and colored spans. Tokens reference either the
+ *  `when` enum (ON_ALLY_DEATH → "ally falls", reactive color) or the
+ *  status enum (BURN → "burn", status color). Unknown tokens render
+ *  as their literal `{FOO}` so authoring typos are visible. */
+const _TOKEN_RE = /\{([A-Z_]+)\}/g;
+function renderRich(parent, text) {
+  parent.textContent = "";
+  if (!text) return;
+  let last = 0;
+  let m;
+  _TOKEN_RE.lastIndex = 0;
+  while ((m = _TOKEN_RE.exec(text)) !== null) {
+    if (m.index > last) parent.append(text.slice(last, m.index));
+    const info = keywordInfo(m[1]);
+    if (info) {
+      const span = document.createElement("span");
+      span.className = "dm-card-ability-keyword";
+      span.setAttribute("data-family", info.family);
+      span.textContent = info.label;
+      parent.appendChild(span);
+    } else {
+      parent.append(m[0]);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parent.append(text.slice(last));
+}
+
 /** Humanize a TargetFilter into a noun phrase. */
 const _TARGET_LABEL = {
   SELF:              "self",
@@ -250,13 +308,16 @@ function targetLabel(t) {
   return _TARGET_LABEL[t] || (t || "").toLowerCase().replace(/_/g, " ");
 }
 
-/** Translate one (op, target, value) tuple into one English sentence.
- *  Verb-leading where natural so the row reads as an instruction. */
+/** Translate one (op, target, value) tuple into one English sentence,
+ *  with `{KEYWORD}` tokens marking status / mechanic words for inline
+ *  coloring (renderRich resolves them at paint time). Verb-leading
+ *  where natural so the row reads as an instruction. */
 function effectSentence(trig) {
   if (!trig) return "";
   const op = trig.op;
   const tgt = targetLabel(trig.target);
   const v = trig.value;
+  const r = (n) => `${n} round${n === 1 ? "" : "s"}`;
   switch (op) {
     case "DAMAGE":             return `deal ${v} damage to ${tgt}`;
     case "HEAL":               return `heal ${tgt} for ${v}`;
@@ -265,16 +326,16 @@ function effectSentence(trig) {
     case "BUFF_DEF":           return `+${v} DEF on ${tgt}`;
     case "DEBUFF_DEF":         return `−${v} DEF on ${tgt}`;
     case "BUFF_SPD":           return `+${v} SPD on ${tgt}`;
-    case "ADD_SHIELD":         return `shield ${tgt} for ${v}`;
-    case "APPLY_BURN":         return `burn ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
-    case "APPLY_POISON":       return `poison ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
-    case "APPLY_STUN":         return `stun ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
-    case "APPLY_SILENCE":      return `silence ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
-    case "APPLY_TAUNT":        return `taunt ${tgt} for ${v} round${v === 1 ? "" : "s"}`;
-    case "LIFESTEAL":          return `lifesteal — heal half of damage dealt`;
-    case "APPLY_BURN_STACK":   return `+${v} burn stack on ${tgt}`;
-    case "THORNS":             return `thorns ${v} on self`;
-    case "GRANT_EXTRA_ACTION": return `grant extra action to ${tgt}`;
+    case "ADD_SHIELD":         return `{SHIELD} ${tgt} for ${v}`;
+    case "APPLY_BURN":         return `{BURN} ${tgt} for ${r(v)}`;
+    case "APPLY_POISON":       return `{POISON} ${tgt} for ${r(v)}`;
+    case "APPLY_STUN":         return `{STUN} ${tgt} for ${r(v)}`;
+    case "APPLY_SILENCE":      return `{SILENCE} ${tgt} for ${r(v)}`;
+    case "APPLY_TAUNT":        return `{TAUNT} ${tgt} for ${r(v)}`;
+    case "LIFESTEAL":          return `{LIFESTEAL} — heal half of damage dealt`;
+    case "APPLY_BURN_STACK":   return `+${v} {BURN} stack on ${tgt}`;
+    case "THORNS":             return `{THORNS} ${v} on self`;
+    case "GRANT_EXTRA_ACTION": return `grant bonus action to ${tgt}`;
     case "SACRIFICE_SELF":     return `sacrifice self`;
   }
   // Unknown op — fall back to the raw enum so it's still legible.
@@ -550,7 +611,9 @@ class DMCard extends HTMLElement {
         condEl.textContent = "";
         condEl.setAttribute("hidden", "");
       }
-      effectEl.textContent = a.body || "";
+      // Body is rendered via the rich-text helper so {TOKEN} keywords
+      // (status names, when phases) become inline colored spans.
+      renderRich(effectEl, a.body || "");
       // Hide the whole body row only when both halves are empty
       // (move without a matching trigger and no rule text).
       if (cond || a.body) body.removeAttribute("hidden");

@@ -194,6 +194,7 @@
   .dm-card-ability-body,
   .dm-card-ability-cond,
   .dm-card-ability-effect,
+  .dm-card-ability-keyword,
   .dm-card-flavor {
     paint-order: stroke fill;
     -webkit-text-stroke: 2.5px rgba(0, 0, 0, 0.92);
@@ -365,6 +366,28 @@
   .dm-card-ability-effect {
     font-style: italic;
     opacity: 0.92;
+  }
+
+  /* Inline keyword spans inside ability bodies / rule text — driven
+   * by `renderRich({TOKEN})` in dm-card.js. Upright + bold + family-
+   * colored so the keyword reads as a *ruleset term* rather than
+   * flavor prose. Status keywords (BURN, POISON, ...) additionally
+   * get small-caps tracking — Hearthstone's bolded-keyword treatment.
+   * The when keywords (ON_ALLY_DEATH → "ally falls") inherit the
+   * timing-family color so the same word reads coral inside a body
+   * the way the chip reads coral in the row's head. */
+  .dm-card-ability-keyword {
+    font-style: normal;
+    font-weight: 700;
+    color: var(--ability-accent);
+  }
+  .dm-card-ability-keyword[data-family="active"]   { color: #ffdc78; }
+  .dm-card-ability-keyword[data-family="reactive"] { color: #ff9a7a; }
+  .dm-card-ability-keyword[data-family="passive"]  { color: #c9a4ff; }
+  .dm-card-ability-keyword[data-family="status"] {
+    color: #7adfd0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   .dm-card-flavor {

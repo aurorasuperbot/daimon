@@ -184,15 +184,20 @@ RULE_CHANGE_IDS: tuple[str, ...] = ("L1", "L2", "L3", "L4", "L5", "L6")
 # read these — they're a render-only registry so the UI can show players what
 # a legendary's rule_change actually does. Source-of-truth dispatch logic
 # lives in `daimon/engine/combat.py` (`_team_has_mutation` + per-op branches);
-# these strings are the authored summary that mirrors the mechanic. Keep them
-# short — the card detail panel uses them inline.
+# these strings are the authored summary that mirrors the mechanic.
+#
+# Strings may carry inline `{TOKEN}` keywords resolved by the renderer:
+#   `{ON_ALLY_DEATH}` → colored "ally falls" chip-style span
+#   `{BURN}` / `{POISON}` / `{THORNS}` → status-colored keyword span
+# See dm-card.js `renderRich` + the _STATUS / _WHEN registries for the
+# token vocabulary. Plain strings still work — tokens are opt-in.
 RULE_CHANGE_DESCRIPTIONS: dict[str, str] = {
-    "L1": "every damage instance applies +1 burn stack",
-    "L2": "every ally gains THORNS 2",
+    "L1": "every damage instance applies +1 {BURN} stack",
+    "L2": "every ally gains {THORNS} 2",
     "L3": "every heal trickles +1 to all allies",
     "L4": "extra-action cap raised from 1 to 2",
-    "L5": "ON_ALLY_DEATH triggers fire twice",
-    "L6": "team.distinct_elements +2 when reading SYNCRETIC cards",
+    "L5": "{ON_ALLY_DEATH} triggers fire twice",
+    "L6": "your team counts as +2 elements when reading SYNCRETIC cards",
 }
 
 
