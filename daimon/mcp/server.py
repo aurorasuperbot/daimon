@@ -518,6 +518,44 @@ def _recent_from_buffer(kind: str, limit: int) -> List[Dict[str, Any]]:
     return out
 
 
+def _pick_cover_card(loadout: List[str]) -> Optional[str]:
+    """Pick a card from the loadout whose art is verified-on-disk.
+
+    The upstream art-pack manifest lists 200 cards but several entries
+    have no PNG asset published yet (404 on fetch). Manifest membership
+    alone isn't a reliable signal that art will render; the only source
+    of truth is "do we already have a PNG cached locally?". We prefer:
+
+      1. The first loadout card that ``is_card_cached`` says is on disk.
+      2. Else the first card in the manifest (best-effort — JIT fetch
+         may succeed for established players).
+      3. Else ``loadout[0]`` (cold-start / net-down fallback).
+
+    Result: an established player sees real art on the menu hero
+    instead of the data-art-error placeholder for upstream-missing
+    cards like ``dashmouse`` / ``ehecatl_mouse``.
+    """
+    if not loadout:
+        return None
+    try:
+        from daimon.update.lazy import is_card_cached
+        for cid in loadout:
+            if is_card_cached(cid):
+                return cid
+    except Exception:  # noqa: BLE001 — best-effort
+        pass
+    try:
+        from daimon.update.manifest import load_manifest
+        m = load_manifest()
+        if m is not None:
+            for cid in loadout:
+                if cid in m.cards:
+                    return cid
+    except Exception:  # noqa: BLE001
+        pass
+    return loadout[0]
+
+
 def _recommended_npc(
     *,
     current_tier: str,
@@ -591,10 +629,13 @@ def _recommended_npc(
                 "flavor": npc.flavor,
                 "reason": reason,
                 # Lead card from the NPC's loadout — the menu hero
-                # renders this via /art/{card_id}. NPCs have no portrait
-                # in the card art-pack, so we surface their first card
-                # as a visual stand-in.
-                "cover_card_id": npc.loadout[0] if npc.loadout else None,
+                # renders this via /art/{card_id}. Some catalog cards
+                # aren't in the upstream art-pack manifest, so we walk
+                # the loadout and pick the first one that DOES have
+                # available art rather than a guaranteed-broken
+                # placeholder. Falls back to loadout[0] if nothing
+                # matches (manifest unreachable, fresh install).
+                "cover_card_id": _pick_cover_card(npc.loadout),
             }
     return None
 
