@@ -47,6 +47,8 @@ ART_PURE_COMMANDS = frozenset({
     "collection", "catalog", "loadout", "home",
     # Window commands fetch art lazily on demand from inside the daemon.
     "menu", "_daemon_internal",
+    # `daimon ui ...` only talks to a running daemon over HTTP.
+    "ui",
 })
 
 
@@ -1502,6 +1504,73 @@ def loadout_new(out: str | None, catalog: str | None) -> None:
         return
 
     click.echo(text, nl=False)
+
+
+# ---------------------------------------------------------------------------
+# `daimon ui ...` — drive the running pywebview window from outside
+# ---------------------------------------------------------------------------
+
+@main.group("ui")
+def ui_group() -> None:
+    """Drive the live DAIMON window (requires a running ``daimon menu``).
+
+    \b
+    Subcommands:
+      daimon ui goto <screen> [param...]   navigate to a screen
+    """
+
+
+_UI_SCREENS = ("menu", "shop", "collection", "loadouts", "pull", "match")
+
+
+@ui_group.command("goto")
+@click.argument("screen", type=click.Choice(_UI_SCREENS))
+@click.argument("params", nargs=-1)
+def ui_goto(screen: str, params: tuple[str, ...]) -> None:
+    """Navigate the running window to ``#<screen>[/<param>...]``.
+
+    \b
+    Examples:
+      daimon ui goto menu
+      daimon ui goto shop
+      daimon ui goto match villager_seer
+    """
+    import json as _json
+    from urllib.error import HTTPError, URLError
+    from urllib.request import Request, urlopen
+
+    from daimon.daemon.lock import alive_lock
+
+    info = alive_lock()
+    if info is None:
+        click.echo(
+            "error: no running daimon window. Start one with `daimon menu`.",
+            err=True,
+        )
+        sys.exit(1)
+
+    body = _json.dumps({"screen": screen, "params": list(params)}).encode("utf-8")
+    req = Request(
+        f"http://127.0.0.1:{info.port}/api/_dev/goto",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=5.0) as r:
+            payload = _json.loads(r.read().decode("utf-8"))
+    except HTTPError as e:
+        try:
+            detail = _json.loads(e.read().decode("utf-8")).get("detail", str(e))
+        except Exception:  # noqa: BLE001
+            detail = str(e)
+        click.echo(f"error: daemon refused goto: {detail}", err=True)
+        sys.exit(2)
+    except URLError as e:
+        click.echo(f"error: cannot reach daemon at port {info.port}: {e}", err=True)
+        sys.exit(1)
+
+    click.echo(f"window now at {payload.get('window_hash', payload.get('hash'))}")
 
 
 if __name__ == "__main__":

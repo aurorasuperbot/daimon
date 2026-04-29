@@ -29,7 +29,8 @@ Endpoints:
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+import re
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
@@ -353,6 +354,88 @@ def get_art(card_id: str) -> FileResponse:
     if path is None:
         raise HTTPException(status_code=404, detail=f"no art for card_id {card_id!r}")
     return FileResponse(path, media_type="image/png")
+
+
+# ---------------------------------------------------------------------------
+# Dev surface — agent-driven UI navigation
+# ---------------------------------------------------------------------------
+#
+# Lets a CLI / test driver navigate the running pywebview window without
+# manual clicking. Bound to 127.0.0.1 like the rest of the API; the
+# screen + params allowlists below are belt-and-braces against the
+# evaluate_js call (string-interpolated JS, so we want strict input).
+
+_ALLOWED_SCREENS = frozenset({
+    "menu", "shop", "collection", "loadouts", "pull", "match",
+})
+_PARAM_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+
+
+class GotoBody(BaseModel):
+    screen: str
+    params: Optional[List[str]] = None
+
+
+@router.post("/api/_dev/goto")
+def post_dev_goto(body: GotoBody) -> Dict[str, Any]:
+    """Navigate the live pywebview window to ``#<screen>[/<param>...]``.
+
+    Only available when the daemon owns a real pywebview window — in
+    browser-fallback mode we can't reach the renderer process.
+    """
+    if body.screen not in _ALLOWED_SCREENS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown screen {body.screen!r}; "
+                   f"allowed: {sorted(_ALLOWED_SCREENS)}",
+        )
+    params = body.params or []
+    for p in params:
+        if not _PARAM_RE.match(p):
+            raise HTTPException(
+                status_code=400,
+                detail=f"param {p!r} contains forbidden chars; "
+                       f"allowed: [A-Za-z0-9_-]",
+            )
+
+    hash_val = "#" + "/".join([body.screen, *params])
+
+    try:
+        import webview  # type: ignore[import-not-found]
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="pywebview is not available in this process",
+        )
+    windows = list(getattr(webview, "windows", []) or [])
+    if not windows:
+        raise HTTPException(
+            status_code=503,
+            detail="no pywebview window open (daemon may be in browser-fallback mode)",
+        )
+
+    # Set the hash and force a hashchange dispatch — same-hash navigation
+    # otherwise wouldn't re-trigger the router. Inputs already passed
+    # the allowlist regex above, so this string interpolation is safe.
+    js = (
+        f"(function(){{"
+        f"  var h = {json.dumps(hash_val)};"
+        f"  if (location.hash === h) {{"
+        f"    window.dispatchEvent(new HashChangeEvent('hashchange'));"
+        f"  }} else {{"
+        f"    location.hash = h;"
+        f"  }}"
+        f"  return location.hash;"
+        f"}})()"
+    )
+    try:
+        result = windows[0].evaluate_js(js)
+    except Exception as e:  # noqa: BLE001 — pywebview wraps platform errors
+        raise HTTPException(
+            status_code=500,
+            detail=f"evaluate_js failed: {type(e).__name__}: {e}",
+        )
+    return {"status": "ok", "hash": hash_val, "window_hash": result}
 
 
 # ---------------------------------------------------------------------------
