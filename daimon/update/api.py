@@ -71,12 +71,13 @@ class ReleaseInfo:
 
 
 def _auth_headers() -> dict[str, str]:
+    from daimon.update.fetcher import _gh_token
     h = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": USER_AGENT,
     }
-    tok = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    tok = _gh_token()
     if tok:
         h["Authorization"] = f"Bearer {tok}"
     return h

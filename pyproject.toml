@@ -71,10 +71,12 @@ daimon = [
     "npcs/*/*.json",
     # Bundled web frontend (Phase 0+ of the pywebview migration).
     "web/static/*.html",
-    "web/static/*.css",
     "web/static/*.js",
     "web/static/components/*.js",
     "web/static/screens/*.js",
+    "web/static/styles/*.css",
+    "web/static/styles/components/*.css",
+    "web/static/styles/screens/*.css",
     "web/static/fonts/*",
     "web/static/audio/*",
 ]

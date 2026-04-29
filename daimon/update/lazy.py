@@ -41,6 +41,7 @@ from urllib.error import HTTPError, URLError
 
 from daimon.update.fetcher import (
     ArtUpdateError,
+    _gh_token,
     _http_open,
     atomic_swap,
     download_with_progress,
@@ -160,9 +161,7 @@ def _resolve_card_url(manifest: Manifest, asset_name: str) -> tuple[str, bool]:
 
     Returns ``(url, octet_stream)``.
     """
-    has_token = bool(
-        os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    )
+    has_token = bool(_gh_token())
     if has_token:
         m_repo = _REPO_FROM_BASE_URL.match(manifest.asset_base_url)
         if m_repo:

@@ -25,6 +25,7 @@ fetcher and the per-card fetcher.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import os
 import re
@@ -60,6 +61,80 @@ class ArtUpdateError(RuntimeError):
 # HTTP download
 # ---------------------------------------------------------------------------
 
+def _run_silent(args: list[str], stdin_text: str = "") -> Optional[str]:
+    """Run a subcommand silently; return stdout on success, None on any failure.
+
+    Used to query auth helpers (``gh auth token``, ``git credential fill``)
+    without leaking output to the user's terminal. Times out at 5 s.
+    """
+    import subprocess
+    try:
+        proc = subprocess.run(
+            args,
+            input=stdin_text,
+            text=True,
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+@functools.lru_cache(maxsize=1)
+def _gh_token_via_helper() -> Optional[str]:
+    """Best-effort GitHub token from local helpers. Cached per process.
+
+    Tries each source in order — first non-empty wins. Path-specific git
+    credential queries come FIRST: if the user has a per-repo PAT cached
+    (Windows Credential Manager keys credentials on the path component
+    when ``credential.useHttpPath = true``, and many users have separate
+    PATs per org), that's almost certainly the right token for this
+    repo; ``gh auth token`` returns whatever account the CLI happens to
+    be logged into globally and won't have access to repos owned by
+    other accounts.
+
+      1. ``git credential fill`` with the daimon-cards path
+      2. ``git credential fill`` host-only (github.com)
+      3. ``gh auth token``
+
+    None of these prompt: if no helper is configured, they exit non-zero
+    and we fall through. Setting ``GITHUB_TOKEN`` in the environment
+    bypasses this layer entirely.
+    """
+    for query in (
+        "protocol=https\nhost=github.com\npath=aurorasuperbot/daimon-cards.git\n\n",
+        "protocol=https\nhost=github.com\n\n",
+    ):
+        out = _run_silent(["git", "credential", "fill"], stdin_text=query)
+        if not out:
+            continue
+        for line in out.splitlines():
+            if line.startswith("password="):
+                tok = line[len("password="):].strip()
+                if tok:
+                    return tok
+
+    out = _run_silent(["gh", "auth", "token"])
+    if out:
+        tok = out.strip()
+        if tok:
+            return tok
+    return None
+
+
+def _gh_token() -> Optional[str]:
+    """Resolve a GitHub token: env first, then local auth helpers."""
+    return (
+        os.environ.get("GITHUB_TOKEN")
+        or os.environ.get("GH_TOKEN")
+        or _gh_token_via_helper()
+    )
+
+
 def _http_open(url: str, *, octet_stream: bool = False):
     """Open ``url`` for streaming. Adds GH auth header if a token is set.
 
@@ -73,7 +148,7 @@ def _http_open(url: str, *, octet_stream: bool = False):
     if octet_stream:
         headers["Accept"] = "application/octet-stream"
     req = Request(url, headers=headers)
-    tok = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    tok = _gh_token()
     if tok:
         req.add_header("Authorization", f"Bearer {tok}")
     return urlopen(req, timeout=HTTP_TIMEOUT)
@@ -93,7 +168,7 @@ def _pick_asset_url(
     path that works for public repos (it 302-redirects to a signed S3
     URL; the API URL would 404 anonymously on public-not-in-org repos).
     """
-    has_token = bool(os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN"))
+    has_token = bool(_gh_token())
     if has_token and api_url:
         return api_url, True
     return browser_url or api_url, False
