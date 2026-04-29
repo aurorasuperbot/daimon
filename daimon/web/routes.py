@@ -357,7 +357,12 @@ async def post_match_start(body: MatchStartBody) -> Dict[str, Any]:
             return loaded
         loadout_payload = {"cards": loaded.get("cards", [])}
 
-    out = _call_tool(dm_match_npc, npc_id=body.npc_id, loadout=loadout_payload)
+    out = _call_tool(
+        dm_match_npc,
+        npc_id=body.npc_id,
+        loadout=loadout_payload,
+        include_transcript=True,
+    )
     if "error" not in out:
         await broadcaster.push({
             "kind": "match",

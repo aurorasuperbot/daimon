@@ -132,6 +132,307 @@
 
 }
 
+/* ---------------------------------------------------------------------------
+ * Cinematic — live battle replay
+ *
+ * Layout: opponent team strip (top), action log (middle), player team
+ * strip (bottom). Each unit cell carries its own HP bar, flash overlay,
+ * and floating-number anchor. The cinematic walker mutates these in
+ * place via refs — no re-rendering during playback.
+ * ---------------------------------------------------------------------------
+ */
+
+@scope (.match-cinematic) {
+
+  :scope {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: var(--gap-loose);
+    gap: var(--gap-normal);
+  }
+
+  .screen-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--gap-normal);
+    border-bottom: 1px solid var(--border-rest);
+    padding-bottom: var(--gap-normal);
+  }
+  .screen-header h1 {
+    margin: 0;
+    text-align: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.4rem;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+  }
+  .cinematic-header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-normal);
+  }
+  .round-chip {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    font-size: 0.85rem;
+    color: var(--accent);
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--accent-deep);
+    border-radius: 999px;
+    background: var(--bg-panel);
+    transition: transform 0.3s var(--ease-snap), box-shadow 0.3s var(--ease-soft);
+  }
+  .round-chip.pulse {
+    transform: scale(1.15);
+    box-shadow: 0 0 24px rgba(240, 196, 88, 0.55);
+  }
+
+  .cinematic-body {
+    flex: 1;
+    display: grid;
+    /* opponent label / opponent row / your-team label / player row /
+     * battle-log header / battle-log feed (takes remaining space). */
+    grid-template-rows: auto auto auto auto auto 1fr;
+    gap: var(--gap-tight);
+    min-height: 0;
+  }
+
+  .team-label {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .team-label.opponent { color: #ff9a7a; }
+  .team-label.player   { color: var(--success); }
+
+  .unit-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--gap-tight);
+    align-items: stretch;
+  }
+
+  /* Each cell hosts a <dm-card size="full"> + an HP strip + a flash
+   * overlay. The frame holds the dm-card; the HP strip lives below. */
+  .unit-cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition:
+      transform    200ms var(--ease-soft),
+      filter       400ms var(--ease-soft),
+      opacity      400ms var(--ease-soft);
+  }
+  .unit-card-frame {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: box-shadow 200ms var(--ease-soft);
+  }
+  .unit-card-frame dm-card {
+    width: 100%;
+    /* dm-card root has cursor:pointer; in the cinematic the cards
+     * aren't clickable so disable it for clarity. */
+    pointer-events: none;
+  }
+  .unit-cell.acting {
+    transform: translateY(-4px) scale(1.03);
+    z-index: 2;
+  }
+  .unit-cell.acting .unit-card-frame {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 24px rgba(240, 196, 88, 0.55);
+  }
+  .unit-cell.dead {
+    filter: grayscale(1) brightness(0.45);
+    opacity: 0.5;
+  }
+
+  .unit-hp-bar {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .unit-hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6cd16e, #9bd9a3);
+    border-radius: inherit;
+    transition: width 280ms var(--ease-soft), background 200ms var(--ease-soft);
+  }
+  .unit-hp-fill.low  { background: linear-gradient(90deg, #d6a647, #ffd66e); }
+  .unit-hp-fill.crit { background: linear-gradient(90deg, #c44, #ff9a7a); }
+
+  .unit-hp-text {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+  }
+
+  /* Flash overlay — colored tint that fades during a hit. Sits over the
+   * card frame only (not the HP strip below). */
+  .unit-flash {
+    position: absolute;
+    inset: 0 0 auto 0;
+    aspect-ratio: 5 / 7;
+    pointer-events: none;
+    border-radius: var(--radius);
+    background: transparent;
+    transition: background 100ms var(--ease-soft), opacity 200ms var(--ease-soft);
+    opacity: 0;
+    z-index: 1;
+  }
+  .unit-flash.active        { opacity: 1; }
+  .unit-flash.active.damage { background: rgba(255, 90, 90, 0.45); }
+  .unit-flash.active.heal   { background: rgba(120, 240, 140, 0.4); }
+  .unit-flash.active.buff   { background: rgba(255, 220, 120, 0.4); }
+  .unit-flash.active.debuff { background: rgba(207, 155, 255, 0.4); }
+  .unit-flash.active.status { background: rgba(122, 184, 255, 0.4); }
+  .unit-flash.active.shield { background: rgba(122, 223, 208, 0.45); }
+
+  /* Floating numbers — damage/heal/status tag rises above the cell. */
+  .float-num {
+    position: absolute;
+    top: 12%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 800;
+    pointer-events: none;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+    animation: float-rise 880ms var(--ease-soft) forwards;
+    z-index: 3;
+  }
+  .float-num.damage { color: #ff5a5a; }
+  .float-num.heal   { color: #6cd16e; }
+  .float-num.buff   { color: #ffdc78; }
+  .float-num.debuff { color: #cf9bff; }
+  .float-num.shield { color: #7adfd0; }
+  .float-num.status {
+    color: #7ab8ff;
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    padding: 2px 6px;
+    background: rgba(15, 25, 45, 0.85);
+    border: 1px solid #7ab8ff;
+    border-radius: 999px;
+  }
+  @keyframes float-rise {
+    0%   { opacity: 0; transform: translate(-50%, 6px); }
+    20%  { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -34px); }
+  }
+
+  /* Battle log — live play-by-play feed that lives below the player
+   * row. Bigger and more readable than the in-grid log: the cinematic
+   * is meant to be watched + reread, not skimmed. Each entry fades in
+   * as the walker visits its event. */
+  .log-header {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--accent-deep);
+    margin-top: var(--gap-tight);
+    padding-top: var(--gap-tight);
+    border-top: 1px solid var(--border-rest);
+  }
+  .cinematic-log {
+    min-height: 0;
+    overflow-y: auto;
+    background: var(--bg-deep);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    padding: var(--gap-tight) var(--gap-normal);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .log-line {
+    animation: log-fade-in 220ms var(--ease-soft);
+    line-height: 1.4;
+    color: var(--text);
+  }
+  .log-line.trigger {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    border-left: 2px solid rgba(255, 255, 255, 0.08);
+  }
+  .log-line.log-damage { color: #ff9a7a; }
+  .log-line.log-heal   { color: #9bd9a3; }
+  .log-line.log-buff   { color: #ffdc78; }
+  .log-line.log-debuff { color: #cf9bff; }
+  .log-line.log-death  { color: #ff5a5a; font-weight: 700; }
+  .log-line.log-status { color: #7ab8ff; }
+  .log-line.log-shield { color: #7adfd0; }
+  .log-line.log-passive { color: var(--text-muted); font-style: italic; }
+  @keyframes log-fade-in {
+    from { opacity: 0; transform: translateX(-4px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* Speed controls — pause + 0.5×/1×/2× buttons. Live in the header
+   * next to the round chip. The active speed is highlighted; clicking
+   * pause replaces the icon with ▶ until resumed. */
+  .speed-controls {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    padding: 3px;
+  }
+  .speed-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 120ms var(--ease-soft), color 120ms var(--ease-soft);
+  }
+  .speed-btn:hover { color: var(--accent); }
+  .speed-btn.active {
+    background: var(--accent);
+    color: var(--bg-deep);
+  }
+  .speed-btn.pause-btn { font-size: 0.7rem; }
+
+  /* Skip + back styles inherited from pull (.pull-skip / .pull-back-btn).
+   * They live here too so the cinematic uses the same visual idiom. */
+  .pull-skip {
+    background: transparent;
+    border: 1px solid var(--border-rest);
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .pull-skip:hover { border-color: var(--accent); color: var(--accent); }
+
+}
+
 @scope (.match-result) {
 
   :scope { display: flex; flex-direction: column; }

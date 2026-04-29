@@ -1535,6 +1535,7 @@ def dm_match_npc(
     loadout: Any = None,
     seed: Optional[str] = None,
     include_round_log: bool = False,
+    include_transcript: bool = False,
 ) -> Dict[str, Any]:
     """Play your loadout against a named NPC opponent.
 
@@ -1713,6 +1714,28 @@ def dm_match_npc(
     }
     if include_round_log:
         out["rounds"] = full_rounds
+    if include_transcript:
+        # Build the schema-validated transcript (the same one the play
+        # HUD consumes). The cinematic frontend walks rounds[].actions[]
+        # to animate event-by-event; participant.loadout[] gives the unit
+        # grid. JSON-mode dump to keep enums as strings.
+        try:
+            from daimon.play.adapter import (
+                ParticipantInfo,
+                match_result_to_match,
+            )
+            match = match_result_to_match(
+                result, a_lo, npc_lo,
+                match_id=state_id,
+                player=ParticipantInfo(name="player", rank="player"),
+                opponent=ParticipantInfo(
+                    name=npc.name,
+                    rank=f"{npc.tier} #{npc.rank}",
+                ),
+            )
+            out["transcript"] = match.model_dump(mode="json")
+        except Exception as e:  # noqa: BLE001 — never block the result
+            out["transcript_error"] = f"{type(e).__name__}: {e}"
     return out
 
 
