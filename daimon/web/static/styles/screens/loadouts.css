@@ -58,6 +58,19 @@
     display: flex;
     gap: var(--gap-tight);
   }
+  .loadout-actions .btn-activate {
+    border-color: var(--accent-deep);
+    color: var(--accent);
+  }
+  .loadout-actions .btn-activate:hover {
+    background: var(--accent);
+    color: var(--bg-deep);
+    border-color: var(--accent);
+  }
+  .loadout-actions .btn-danger:hover {
+    border-color: #ff9a7a;
+    color: #ff9a7a;
+  }
 
   .empty {
     color: var(--text-dim);

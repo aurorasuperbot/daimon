@@ -46,6 +46,22 @@ function listView(root) {
 
 function loadoutRow(lo, root) {
   const isActive = lo.active;
+  const actions = [];
+  if (!isActive && !lo.corrupt) {
+    actions.push(el("button", {
+      class: "btn-small btn-activate",
+      onClick: () => activateLoadout(lo.name, root),
+    }, "SET ACTIVE"));
+  }
+  actions.push(el("button", {
+    class: "btn-small",
+    onClick: () => beginEditLoadout(lo.name, root),
+  }, "EDIT"));
+  actions.push(el("button", {
+    class: "btn-small btn-danger",
+    onClick: () => deleteLoadout(lo.name, root),
+  }, "DELETE"));
+
   return el("li", { class: `loadout-row${isActive ? " active" : ""}` },
     el("div", { class: "loadout-name" },
       lo.name,
@@ -56,16 +72,33 @@ function loadoutRow(lo, root) {
         ? el("span", { class: "error-line" }, `corrupt: ${lo.message}`)
         : `${lo.card_count} cards`,
     ),
-    el("div", { class: "loadout-actions" },
-      el("button", { class: "btn-small",
-        onClick: () => beginEditLoadout(lo.name, root) }, "EDIT"),
-      el("button", { class: "btn-small",
-        onClick: () => deleteLoadout(lo.name, root) }, "DELETE"),
-    ),
+    el("div", { class: "loadout-actions" }, ...actions),
   );
 }
 
+async function activateLoadout(name, root) {
+  state.error = null;
+  try {
+    const out = await postJSON(`/api/loadout/${encodeURIComponent(name)}/activate`);
+    if (out.error) state.error = out.message || out.error;
+  } catch (err) {
+    state.error = String(err);
+  }
+  await loadList();
+  rerender(root);
+}
+
 async function deleteLoadout(name, root) {
+  // Destructive + irreversible: route through the dm-prompt modal so a
+  // misclick on the list view doesn't silently wipe a deck.
+  const confirm = await promptText({
+    title: "DELETE LOADOUT",
+    label: `Type the loadout name to confirm: ${name}`,
+    placeholder: name,
+    confirmLabel: "DELETE",
+    validate: (v) => (v === name ? null : "name doesn't match"),
+  });
+  if (confirm !== name) return;
   try {
     await fetch(`/api/loadout/${encodeURIComponent(name)}`, { method: "DELETE" });
   } catch (err) {

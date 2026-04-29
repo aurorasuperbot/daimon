@@ -265,6 +265,24 @@ async def post_loadout(name: str, body: LoadoutSaveBody) -> Dict[str, Any]:
     return out
 
 
+@router.post("/api/loadout/{name}/activate")
+async def post_loadout_activate(name: str) -> Dict[str, Any]:
+    """Designate the named loadout as the active one (used as the player
+    deck for ``dm_match_npc`` calls without an explicit loadout)."""
+    from daimon.mcp.server import dm_loadout_set
+    out = _call_tool(dm_loadout_set, name=name)
+    if out.get("error") == "unknown_loadout":
+        raise HTTPException(status_code=404, detail=out)
+    if out.get("error") == "invalid_name":
+        raise HTTPException(status_code=400, detail=out)
+    await broadcaster.push({
+        "kind": "loadout",
+        "action": "activate",
+        "name": out.get("active_loadout") or name,
+    })
+    return out
+
+
 @router.delete("/api/loadout/{name}")
 async def delete_loadout(name: str) -> Dict[str, Any]:
     from daimon.identity.keys import CONFIG_DIR
