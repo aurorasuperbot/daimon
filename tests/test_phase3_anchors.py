@@ -268,17 +268,13 @@ class TestVoidkingMorr:
         assert "voidking_morr" in log
         assert "buffs ATK of voidking_morr by +4" in log
 
-    def test_battle_start_debuff_applies(self):
-        attacker = Card(
-            card_id="enemy", species="enemy", element=Element.NATURE,
-            atk=10, defense=5, hp=30, spd=8,
-        )
-        team_a = solo(anchor("voidking_morr"))
-        team_b = solo(attacker)
-        result = resolve_match(team_a, team_b, SEED_ZERO)
-        log = all_logs(result)
-        # Voidking debuffs ATK of all enemies by 3 on battle start.
-        assert "voidking_morr debuffs ATK of enemy by -3" in log
+    # `test_battle_start_debuff_applies` retired 2026-04-29 — voidking_morr
+    # was trimmed from 3 triggers (ON_BATTLE_START debuff + ON_ALLY_DEATH
+    # buff + ON_DEATH AoE) down to its iconic ON_ALLY_DEATH self-buff.
+    # The legendary's combat contribution is now (a) the ON_ALLY_DEATH
+    # self-amplifier and (b) the L5 mutation that doubles every team-wide
+    # ON_ALLY_DEATH trigger. The retired triggers were generic apex bloat,
+    # not REVENANT identity. See test_buffs_self_on_ally_death above.
 
 
 # ---------------------------------------------------------------------------

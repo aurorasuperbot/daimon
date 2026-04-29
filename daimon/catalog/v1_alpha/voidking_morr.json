@@ -8,22 +8,10 @@
   "spd": 7,
   "triggers": [
     {
-      "when": "ON_BATTLE_START",
-      "op": "DEBUFF_ATK",
-      "target": "ALL_ENEMIES",
-      "value": 3
-    },
-    {
       "when": "ON_ALLY_DEATH",
       "op": "BUFF_ATK",
       "target": "SELF",
       "value": 4
-    },
-    {
-      "when": "ON_DEATH",
-      "op": "DAMAGE",
-      "target": "ALL_ENEMIES",
-      "value": 8
     }
   ],
   "rule_change": "L5",
@@ -35,16 +23,8 @@
   "art": "art/v1_alpha/voidking_morr/base.png",
   "moves": [
     {
-      "name": "Pall of the Unseen",
-      "when": "ON_BATTLE_START"
-    },
-    {
       "name": "Toll for the Crossing",
       "when": "ON_ALLY_DEATH"
-    },
-    {
-      "name": "Throne Beneath the Stone",
-      "when": "ON_DEATH"
     }
   ]
 }

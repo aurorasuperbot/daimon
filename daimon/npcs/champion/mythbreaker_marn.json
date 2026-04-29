@@ -4,7 +4,7 @@
   "tier": "champion",
   "rank": 5,
   "flavor": "Old kings die loudly.",
-  "bio": "voidking_morr (ON_BATTLE_START + ON_ALLY_DEATH + ON_DEATH) is the deepest legendary in the pool. crypt_wraith epic + four VOID rares (echo_lich, nullhound, riftwraith, mindroot) turn every death into a wave of payoffs. The most synergistic champion in the field.",
+  "bio": "voidking_morr (ON_ALLY_DEATH self-buff + L5 mutation doubling every ally death) anchors a team built to feed it. crypt_wraith epic + four VOID rares (echo_lich, nullhound, riftwraith, mindroot) turn every fall into a wave of payoffs amplified by L5. The most synergistic champion in the field.",
   "loadout": [
     "voidking_morr",
     "crypt_wraith",

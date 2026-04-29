@@ -420,11 +420,12 @@ class TestL5MutationCatalogBound:
         big_pad = [punching_bag(f"pad{i}", hp=999, spd=1)
                    for i in range(3, TEAM_SIZE)]
         team_a = Loadout(cards=(morr, void, bishop) + tuple(big_pad))
-        # atk=22: voidking_morr's ON_BATTLE_START DEBUFF_ATK ALL_ENEMIES -3
-        # drops hammer to 19 effective atk → 19-3(def) = 16 dmg landed →
-        # voidling 18-16 = 2 HP (≤ 25% threshold of 18 = 4.5) → ON_LOW_HP
-        # fires → SACRIFICE_SELF zeroes voidling and fires the cascade.
-        team_b = loadout_with(attacker("hammer", atk=22, hp=200, spd=99))
+        # atk=19: hammer's effective atk is 19 (voidking_morr no longer
+        # carries an ON_BATTLE_START debuff post-2026-04-29 trim) →
+        # 19-3(def) = 16 dmg landed → voidling 18-16 = 2 HP
+        # (≤ 25% threshold of 18 = 4.5) → ON_LOW_HP fires →
+        # SACRIFICE_SELF zeroes voidling and fires the cascade.
+        team_b = loadout_with(attacker("hammer", atk=19, hp=200, spd=99))
         result = resolve_match(team_a, team_b, SEED_ZERO)
         log = all_logs(result)
         assert "voidling sacrifices itself" in log, (
@@ -433,8 +434,8 @@ class TestL5MutationCatalogBound:
         # L5 doubles ON_ALLY_DEATH triggers → bishop's BUFF_ATK fires ×2.
         # voidling's death triggers ON_ALLY_DEATH on every alive teammate
         # (= morr + bishop + 3 pads). bishop fires its BUFF, doubled by L5.
-        # Voidking_morr also has ON_ALLY_DEATH triggers per its catalog
-        # design (BUFF_ATK on death) — ignore those, focus on bishop.
+        # Voidking_morr also fires ON_ALLY_DEATH (BUFF_ATK SELF +4 ×2),
+        # but that's a self-buff — focus the assertion on bishop's line.
         bishop_buff_count = log.count(
             "shadebishop buffs ATK of shadebishop by +3"
         )
