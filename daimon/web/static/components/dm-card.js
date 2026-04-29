@@ -155,28 +155,19 @@ function buildShell(host) {
   // Spring" + "ON_BATTLE_START / APPLY_POISON" render as a single
   // entry, not two disconnected lines. Triggers without a flavor move
   // and moves without a mechanic still render, just with one half
-  // missing. See _buildAbilities below for the pairing logic.
+  // missing. Legendary `rule_change` mutations also fold into this
+  // list as a "passive" row. See `buildAbilities` for the pairing
+  // logic.
   const abilities = el("ul", "dm-card-abilities");
-
-  // Rule line — only present on legendaries with a rule_change tag.
-  // Holds the human-readable mutation description (e.g. "every heal
-  // trickles +1 to all allies") fetched from the engine registry via
-  // /api/card. Hidden until populated.
-  const rule      = el("div", "dm-card-rule");
-  const ruleTag   = el("span", "dm-card-rule-tag");
-  const ruleText  = el("span", "dm-card-rule-text");
-  rule.appendChild(ruleTag);
-  rule.appendChild(ruleText);
 
   const flavor = el("div", "dm-card-flavor");
 
-  // Bottom info panel — stats + abilities + rule (legendary only) +
-  // flavor. Visible only at size="detail" (the modal). Other sizes
-  // collapse to "art + name" per the Snap-style hierarchy.
+  // Bottom info panel — stats + abilities + flavor. Visible only at
+  // size="detail" (the modal). Other sizes collapse to "art + name"
+  // per the Snap-style hierarchy.
   const info = el("div", "dm-card-info");
   info.appendChild(stats);
   info.appendChild(abilities);
-  info.appendChild(rule);
   info.appendChild(flavor);
 
   const front = el("div", "dm-card-front");
@@ -202,7 +193,7 @@ function buildShell(host) {
   return {
     frame, front, back,
     artImg, name, elementTxt, archetype,
-    statRefs, abilities, rule, ruleTag, ruleText, flavor,
+    statRefs, abilities, flavor,
   };
 }
 
@@ -211,28 +202,38 @@ function buildShell(host) {
 // readable English and pairs them with their flavor names.
 // ---------------------------------------------------------------------------
 
-/** Humanize a TriggerWhen tag for the small label on each ability row. */
-const _WHEN_LABEL = {
-  ON_BATTLE_START:        "battle start",
-  ON_ROUND_START:         "round start",
-  ON_ATTACK:              "on attack",
-  ON_TAKE_DAMAGE:         "when hit",
-  ON_DEATH:               "on death",
-  ON_ALLY_DEATH:          "on ally death",
-  ON_TURN_END:            "turn end",
-  ON_KILL:                "on kill",
-  ON_LOW_HP:              "low HP",
-  ON_OPENING_ATTACK:      "first attack",
-  ON_HEAL_RECEIVED:       "when healed",
-  ON_DAMAGE_TAKEN:        "when damaged",
-  ON_EXTRA_ACTION_GRANTED:"extra action",
+// Timing-chip vocabulary. Each `when` enum maps to a short verbal phrase
+// (the chip text) plus a "family" classifier the CSS uses to color-code
+// the chip. Three families: ACTIVE (proactive — fires on this unit's own
+// turn or phase), REACTIVE (fires in response to events done TO this
+// unit), PASSIVE (continuous rule mutation, legendary-only). Players
+// can scan a card and tell at a glance which abilities they trigger
+// versus which fire reactively versus which are always-on.
+const _WHEN = {
+  ON_BATTLE_START:         { label: "battle start", family: "active"   },
+  ON_ROUND_START:          { label: "round start",  family: "active"   },
+  ON_ATTACK:               { label: "on attack",    family: "active"   },
+  ON_OPENING_ATTACK:       { label: "first strike", family: "active"   },
+  ON_KILL:                 { label: "on kill",      family: "active"   },
+  ON_TURN_END:             { label: "turn end",     family: "active"   },
+  ON_EXTRA_ACTION_GRANTED: { label: "bonus action", family: "active"   },
+  ON_TAKE_DAMAGE:          { label: "when attacked",family: "reactive" },
+  ON_DAMAGE_TAKEN:         { label: "when hurt",    family: "reactive" },
+  ON_DEATH:                { label: "on death",     family: "reactive" },
+  ON_ALLY_DEATH:           { label: "ally falls",   family: "reactive" },
+  ON_HEAL_RECEIVED:        { label: "when healed",  family: "reactive" },
+  ON_LOW_HP:               { label: "low HP",       family: "reactive" },
 };
-function whenLabel(when) {
-  if (!when) return "";
-  if (_WHEN_LABEL[when]) return _WHEN_LABEL[when];
-  if (when.startsWith("RULE_CHANGE_")) return "passive (rule)";
-  // Fallback: lowercase + spaces.
-  return when.replace(/^ON_/, "on ").replace(/_/g, " ").toLowerCase();
+const _PASSIVE_WHEN = { label: "passive", family: "passive" };
+
+function whenInfo(when) {
+  if (!when) return { label: "", family: "" };
+  if (_WHEN[when]) return _WHEN[when];
+  if (when.startsWith("RULE_CHANGE_")) return _PASSIVE_WHEN;
+  return {
+    label: when.replace(/^ON_/, "on ").replace(/_/g, " ").toLowerCase(),
+    family: "active",
+  };
 }
 
 /** Humanize a TargetFilter into a noun phrase. */
@@ -280,22 +281,112 @@ function effectSentence(trig) {
   return `${(op || "").toLowerCase()} ${tgt} ${v}`.trim();
 }
 
-/** Pair triggers with moves by `when`. Returns one row per ability:
- *    {name, when, trigger}
+/** Translate an engine-DSL condition string into a player-facing
+ *  prefix clause. The DSL is a small grammar (see
+ *  daimon/engine/conditions.py); we hand-translate the common forms.
+ *  Falls back to the raw string when we don't recognize the shape so
+ *  the player still gets _something_. Output format: "if X" — the
+ *  caller renders it as "if X, …" via the surrounding sentence. */
+function conditionPhrase(cond) {
+  if (!cond) return "";
+  // team.distinct_elements (>=|>|=|<=|<) N
+  let m = cond.match(/^team\.distinct_elements\s*(>=|>|<=|<|==|=)\s*(\d+)$/);
+  if (m) {
+    const op  = m[1];
+    const n   = m[2];
+    const phrase = {
+      ">=": `your team has ≥${n} elements`,
+      ">":  `your team has >${n} elements`,
+      "<=": `your team has ≤${n} elements`,
+      "<":  `your team has <${n} elements`,
+      "==": `your team has exactly ${n} elements`,
+      "=":  `your team has exactly ${n} elements`,
+    }[op];
+    return `if ${phrase}`;
+  }
+  // self.hp == self.hp_max
+  if (/^self\.hp\s*==\s*self\.hp_max$/.test(cond)) return "if at full HP";
+  // self.hp < self.hp_max * 0.5  →  "if below half HP"
+  if (/^self\.hp\s*<\s*self\.hp_max\s*\*\s*0\.5$/.test(cond))
+    return "if below half HP";
+  // enemies.alive_count <= N
+  m = cond.match(/^enemies\.alive_count\s*(<=|<|>=|>|==|=)\s*(\d+)$/);
+  if (m) {
+    const op = m[1], n = m[2];
+    const phrase = {
+      "<=": `≤${n} enemies remain`,
+      "<":  `<${n} enemies remain`,
+      ">=": `≥${n} enemies remain`,
+      ">":  `>${n} enemies remain`,
+      "==": `exactly ${n} enemies remain`,
+      "=":  `exactly ${n} enemies remain`,
+    }[op];
+    return `if ${phrase}`;
+  }
+  // Unknown shape — keep the raw DSL so it's still legible.
+  return `if ${cond}`;
+}
+
+/** Pair triggers with moves by `when`, AND fold the legendary
+ *  `rule_change` mutation into the same list. Returns one row per
+ *  ability:
+ *    { name, when, family, trigger?, body }
  *  - moves with a matching trigger absorb that trigger's mechanic
  *  - extra triggers (no flavor name) get rendered with name=null
- *  - extra moves (no matching trigger) get a row with trigger=null
- *    (just the flavor name + when tag, no body) */
-function buildAbilities(triggerArr, moveArr) {
+ *  - extra moves (no matching trigger) get a row with body=""
+ *  - rule_change becomes one extra row (family="passive"). If a move
+ *    has when="RULE_CHANGE_L*" it becomes the row's flavor name —
+ *    otherwise the row has no name (just the chip + body). */
+function buildAbilities(triggerArr, moveArr, ruleChange, ruleChangeText) {
   const rows = [];
-  const pool = (triggerArr || []).slice();
-  for (const m of (moveArr || [])) {
-    const idx = pool.findIndex(t => t.when === m.when);
-    const trig = idx >= 0 ? pool.splice(idx, 1)[0] : null;
-    rows.push({ name: m.name || null, when: m.when, trigger: trig });
+  const triggers = (triggerArr || []).slice();
+  const moves    = (moveArr || []).slice();
+
+  // Pull the rule_change-flavored move out FIRST (before normal pairing)
+  // so it can't accidentally pair to a trigger via fallback ordering.
+  let passiveName = null;
+  if (ruleChange) {
+    const passiveTag = `RULE_CHANGE_${ruleChange}`;
+    const idx = moves.findIndex(m => m.when === passiveTag);
+    if (idx >= 0) {
+      passiveName = moves[idx].name || null;
+      moves.splice(idx, 1);
+    }
   }
-  for (const t of pool) {
-    rows.push({ name: null, when: t.when, trigger: t });
+
+  for (const m of moves) {
+    const idx = triggers.findIndex(t => t.when === m.when);
+    const trig = idx >= 0 ? triggers.splice(idx, 1)[0] : null;
+    const info = whenInfo(m.when);
+    rows.push({
+      name:    m.name || null,
+      when:    m.when,
+      family:  info.family,
+      trigger: trig,
+      body:    trig ? effectSentence(trig) : "",
+    });
+  }
+  for (const t of triggers) {
+    const info = whenInfo(t.when);
+    rows.push({
+      name:    null,
+      when:    t.when,
+      family:  info.family,
+      trigger: t,
+      body:    effectSentence(t),
+    });
+  }
+
+  // Push the passive row last — players read top-to-bottom and
+  // active triggers usually feel more concrete than always-on rules.
+  if (ruleChange) {
+    rows.push({
+      name:    passiveName,
+      when:    `RULE_CHANGE_${ruleChange}`,
+      family:  "passive",
+      trigger: null,
+      body:    ruleChangeText || `mutation ${ruleChange}`,
+    });
   }
   return rows;
 }
@@ -379,9 +470,6 @@ class DMCard extends HTMLElement {
     r.archetype.textContent = "";
     for (const v of Object.values(r.statRefs)) v.textContent = "—";
     syncSlots(r.abilities, 0, () => el("li", "dm-card-ability"));
-    r.rule.setAttribute("hidden", "");
-    r.ruleTag.textContent = "";
-    r.ruleText.textContent = "";
     r.flavor.textContent = "";
     this.removeAttribute("data-rarity");
     this.removeAttribute("data-element");
@@ -406,12 +494,17 @@ class DMCard extends HTMLElement {
     r.statRefs.hp.textContent  = String(p.hp  ?? "—");
     r.statRefs.spd.textContent = String(p.spd ?? "—");
 
-    // Abilities — pair each move with the trigger of the same `when`.
-    // Each row reads as: flavor name (top) + when tag (top right) +
-    // mechanic in plain English (bottom). Cards usually have 1–3.
+    // Abilities — pair each move with the trigger of the same `when`,
+    // AND fold rule_change in as one row. Each row reads as:
+    //   [flavor name]                              [WHEN-CHIP]
+    //   [if condition,] effect body
+    // The chip's color comes from the `family` (active / reactive /
+    // passive) — see dm-card.css :scope .dm-card-ability[data-family].
     const triggerArr = Array.isArray(p.triggers) ? p.triggers : [];
     const moveArr    = Array.isArray(p.moves)    ? p.moves    : [];
-    const abilityRows = buildAbilities(triggerArr, moveArr);
+    const abilityRows = buildAbilities(
+      triggerArr, moveArr, p.rule_change, p.rule_change_text
+    );
 
     syncSlots(r.abilities, abilityRows.length, () => {
       const li     = el("li",   "dm-card-ability");
@@ -419,6 +512,10 @@ class DMCard extends HTMLElement {
       const nm     = el("span", "dm-card-ability-name");
       const tag    = el("span", "dm-card-ability-when");
       const body   = el("div",  "dm-card-ability-body");
+      const cond   = el("span", "dm-card-ability-cond");
+      const effect = el("span", "dm-card-ability-effect");
+      body.appendChild(cond);
+      body.appendChild(effect);
       head.appendChild(nm);
       head.appendChild(tag);
       li.appendChild(head);
@@ -429,36 +526,36 @@ class DMCard extends HTMLElement {
       const li     = r.abilities.children[i];
       const [head, body] = li.children;
       const [nameEl, tagEl] = head.children;
-      // No flavor name → fall back to the when label as the headline
-      // so the row still has a top line.
+      const [condEl, effectEl] = body.children;
+      const info = whenInfo(a.when);
+      li.setAttribute("data-family", a.family || info.family || "");
+      // No flavor name → use the chip text as the headline so the row
+      // still has a top line, and hide the (now redundant) chip.
       if (a.name) {
         nameEl.textContent = a.name;
-        tagEl.textContent  = whenLabel(a.when);
+        tagEl.textContent  = info.label;
         tagEl.removeAttribute("hidden");
       } else {
-        nameEl.textContent = whenLabel(a.when).toUpperCase();
+        nameEl.textContent = info.label.toUpperCase();
         tagEl.textContent  = "";
         tagEl.setAttribute("hidden", "");
       }
-      body.textContent = effectSentence(a.trigger);
-      // Hide the body line entirely when there's no mechanic to show
-      // (move without a matching trigger) so the row is just one line.
-      if (body.textContent) body.removeAttribute("hidden");
-      else                  body.setAttribute("hidden", "");
+      // Conditions become an italic "if X," prefix on the body line.
+      const cond = a.trigger && a.trigger.condition
+        ? conditionPhrase(a.trigger.condition) : "";
+      if (cond) {
+        condEl.textContent = `${cond}, `;
+        condEl.removeAttribute("hidden");
+      } else {
+        condEl.textContent = "";
+        condEl.setAttribute("hidden", "");
+      }
+      effectEl.textContent = a.body || "";
+      // Hide the whole body row only when both halves are empty
+      // (move without a matching trigger and no rule text).
+      if (cond || a.body) body.removeAttribute("hidden");
+      else                body.setAttribute("hidden", "");
     });
-
-    // Rule-change description (legendary mutations only). The opaque
-    // ID (e.g. "L3") is meaningless to a player on its own — the
-    // routes layer joins it with the engine description registry.
-    if (p.rule_change && p.rule_change_text) {
-      r.ruleTag.textContent  = `RULE ${p.rule_change}`;
-      r.ruleText.textContent = p.rule_change_text;
-      r.rule.removeAttribute("hidden");
-    } else {
-      r.ruleTag.textContent  = "";
-      r.ruleText.textContent = "";
-      r.rule.setAttribute("hidden", "");
-    }
 
     r.flavor.textContent = p.flavor || "";
 

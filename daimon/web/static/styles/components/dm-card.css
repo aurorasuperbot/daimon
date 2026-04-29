@@ -192,8 +192,8 @@
   .dm-card-ability-name,
   .dm-card-ability-when,
   .dm-card-ability-body,
-  .dm-card-rule-tag,
-  .dm-card-rule-text,
+  .dm-card-ability-cond,
+  .dm-card-ability-effect,
   .dm-card-flavor {
     paint-order: stroke fill;
     -webkit-text-stroke: 2.5px rgba(0, 0, 0, 0.92);
@@ -284,14 +284,21 @@
     line-height: 1.1;
   }
 
-  /* Abilities — one row per ability, pairing a move's flavor name with
-   * its trigger's mechanic. Layout per row:
-   *   [name] ────────────────── [when tag]
-   *   [mechanic in plain English]
-   * The name acts as the headline; the tag in the top-right grounds
+  /* Abilities — one row per ability. Layout per row:
+   *   [name] ────────────────── [when chip]
+   *   [if condition,] effect body
+   * The name acts as the headline; the chip in the top-right grounds
    * the player ("when does this fire?"); the body explains what
-   * happens. Rows without a flavor name fall back to using the when
-   * tag as the headline. Rows without a mechanic hide the body line. */
+   * happens (with an optional italic "if X," prefix when the trigger
+   * has a condition). Rows without a flavor name use the chip text
+   * as the headline. Rows without a mechanic hide the body line.
+   *
+   * The when-chip is color-coded by `data-family` (set per row by JS):
+   *   active   — gold     (proactive: this unit fires it)
+   *   reactive — coral    (response: triggered by something done TO it)
+   *   passive  — violet   (legendary rule mutation, always-on)
+   * The left accent border on the row matches the chip color so the
+   * whole row reads as belonging to one family. */
   .dm-card-abilities {
     list-style: none;
     margin: 0;
@@ -307,11 +314,17 @@
     padding: 5px 8px;
     border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.04);
-    border-left: 2px solid var(--rarity-color);
+    /* Default border + chip color is the rarity hue; the data-family
+     * rules below override per row category. */
+    --ability-accent: var(--rarity-color);
+    border-left: 2px solid var(--ability-accent);
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
+  .dm-card-ability[data-family="active"]   { --ability-accent: #ffdc78; }
+  .dm-card-ability[data-family="reactive"] { --ability-accent: #ff9a7a; }
+  .dm-card-ability[data-family="passive"]  { --ability-accent: #c9a4ff; }
   .dm-card-ability-head {
     display: flex;
     align-items: baseline;
@@ -327,48 +340,31 @@
   .dm-card-ability-when {
     font-family: var(--font-mono);
     font-size: 0.78em;
-    color: #ffdc78;
+    color: var(--ability-accent);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-weight: 700;
     flex-shrink: 0;
-    opacity: 0.92;
+    opacity: 0.95;
   }
   .dm-card-ability-when[hidden] { display: none; }
   .dm-card-ability-body {
     color: #ffffff;
-    font-style: italic;
-    opacity: 0.88;
     overflow-wrap: anywhere;
   }
   .dm-card-ability-body[hidden] { display: none; }
-
-  /* Legendary rule-change row — "RULE L3 · every heal trickles +1 to
-   * all allies". Visually distinct from triggers and moves: a single
-   * paragraph with the gold accent tag, no list bullet. Hidden until
-   * the JS populates it (only legendaries with rule_change set). */
-  .dm-card-rule[hidden] { display: none; }
-  .dm-card-rule {
-    font-size: clamp(0.78rem, 3cqi, 1rem);
-    line-height: 1.4;
-    border-top: 1px solid rgba(255, 220, 120, 0.45);
-    padding: 7px 0 2px;
-    overflow-wrap: anywhere;
-    text-align: center;
-  }
-  .dm-card-rule-tag {
-    display: inline-block;
-    font-family: var(--font-mono);
-    font-weight: 800;
-    color: #ffdc78;
-    letter-spacing: 0.12em;
-    margin-right: 0.5em;
-    /* The tag reads as a "stamp" — flat gold, no italic, max contrast. */
-  }
-  .dm-card-rule-text {
-    color: #ffffff;
+  /* Italic "if X," prefix — different shade from the effect body so
+   * the conditional reads as scaffolding, not the effect itself. */
+  .dm-card-ability-cond {
     font-style: italic;
-    opacity: 0.96;
+    color: var(--ability-accent);
+    opacity: 0.95;
+    margin-right: 0.15em;
+  }
+  .dm-card-ability-cond[hidden] { display: none; }
+  .dm-card-ability-effect {
+    font-style: italic;
+    opacity: 0.92;
   }
 
   .dm-card-flavor {
