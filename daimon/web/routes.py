@@ -22,6 +22,14 @@ Endpoints:
   GET  /api/match/recommended — next-NPC recommendation
   POST /api/match/start       — resolve a loadout-vs-NPC match
   POST /api/pull              — perform a gacha pull
+  GET  /api/pvp/leaderboard   — arena leaderboard
+  GET  /api/pvp/my-rank       — local player's arena standing
+  GET  /api/pvp/matches       — open + recent PvP challenges
+  GET  /api/pvp/status/{id}   — single challenge status
+  POST /api/pvp/register      — register identity on the arena
+  POST /api/pvp/challenge     — open a new PvP challenge
+  POST /api/pvp/accept        — accept an incoming challenge
+  POST /api/pvp/reveal        — reveal loadout for a challenge
   GET  /art/{card_id}         — equipped-skin-aware PNG
   WS   /ws                    — live balance + receipt push (post-pull, post-buy)
 """
@@ -391,6 +399,95 @@ async def post_pull() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# PvP Arena
+# ---------------------------------------------------------------------------
+
+
+class PvpRegisterBody(BaseModel):
+    handle: Optional[str] = None
+
+
+class PvpChallengeBody(BaseModel):
+    opponent_pubkey: str
+    loadout_name: str
+    memo: Optional[str] = None
+
+
+class PvpAcceptBody(BaseModel):
+    challenge_id: str
+    loadout_name: str
+
+
+class PvpRevealBody(BaseModel):
+    challenge_id: str
+
+
+@router.get("/api/pvp/leaderboard")
+def get_pvp_leaderboard(limit: int = 25) -> Dict[str, Any]:
+    from daimon.mcp.server import dm_leaderboard
+    return _call_tool(dm_leaderboard, limit=limit)
+
+
+@router.get("/api/pvp/my-rank")
+def get_pvp_my_rank() -> Dict[str, Any]:
+    from daimon.mcp.server import dm_my_rank
+    return _call_tool(dm_my_rank)
+
+
+@router.get("/api/pvp/matches")
+def get_pvp_matches(limit: int = 20) -> Dict[str, Any]:
+    from daimon.mcp.server import dm_pvp_my_matches
+    return _call_tool(dm_pvp_my_matches, limit=limit)
+
+
+@router.get("/api/pvp/status/{challenge_id}")
+def get_pvp_status(challenge_id: str) -> Dict[str, Any]:
+    from daimon.mcp.server import dm_pvp_status
+    return _call_tool(dm_pvp_status, challenge_id=challenge_id)
+
+
+@router.post("/api/pvp/register")
+def post_pvp_register(body: PvpRegisterBody) -> Dict[str, Any]:
+    from daimon.mcp.server import dm_register
+    return _call_tool(dm_register, handle=body.handle)
+
+
+@router.post("/api/pvp/challenge")
+def post_pvp_challenge(body: PvpChallengeBody) -> Dict[str, Any]:
+    from daimon.mcp.server import dm_loadout_load, dm_pvp_challenge
+    loaded = _call_tool(dm_loadout_load, name=body.loadout_name)
+    if loaded.get("error"):
+        return loaded
+    loadout_payload = {"cards": loaded.get("cards", [])}
+    return _call_tool(
+        dm_pvp_challenge,
+        opponent_pubkey=body.opponent_pubkey,
+        loadout=loadout_payload,
+        memo=body.memo,
+    )
+
+
+@router.post("/api/pvp/accept")
+def post_pvp_accept(body: PvpAcceptBody) -> Dict[str, Any]:
+    from daimon.mcp.server import dm_loadout_load, dm_pvp_accept
+    loaded = _call_tool(dm_loadout_load, name=body.loadout_name)
+    if loaded.get("error"):
+        return loaded
+    loadout_payload = {"cards": loaded.get("cards", [])}
+    return _call_tool(
+        dm_pvp_accept,
+        challenge_id=body.challenge_id,
+        loadout=loadout_payload,
+    )
+
+
+@router.post("/api/pvp/reveal")
+def post_pvp_reveal(body: PvpRevealBody) -> Dict[str, Any]:
+    from daimon.mcp.server import dm_pvp_reveal
+    return _call_tool(dm_pvp_reveal, challenge_id=body.challenge_id)
+
+
+# ---------------------------------------------------------------------------
 # Art
 # ---------------------------------------------------------------------------
 
@@ -426,7 +523,7 @@ def get_art(card_id: str) -> FileResponse:
 # evaluate_js call (string-interpolated JS, so we want strict input).
 
 _ALLOWED_SCREENS = frozenset({
-    "menu", "shop", "collection", "loadouts", "pull", "match",
+    "menu", "shop", "collection", "loadouts", "pull", "match", "pvp",
 })
 _PARAM_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 

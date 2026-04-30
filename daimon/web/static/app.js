@@ -12,6 +12,7 @@
 //   #loadouts        → screens/loadouts.js
 //   #pull            → screens/pull.js
 //   #match/<npc_id>  → screens/match.js (npc id passed via URL)
+//   #pvp[/<id>]      → screens/pvp.js  (optional challenge id for deep-link)
 
 import { startLiveSocket } from "/store.js";
 
@@ -24,6 +25,7 @@ const routes = {
   "loadouts":   () => import("/screens/loadouts.js"),
   "pull":       () => import("/screens/pull.js"),
   "match":      () => import("/screens/match.js"),
+  "pvp":        () => import("/screens/pvp.js"),
 };
 
 let currentCleanup = null;

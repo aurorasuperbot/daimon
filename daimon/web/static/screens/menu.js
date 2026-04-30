@@ -16,6 +16,7 @@ const PULL_COST = 100;
 const ACTIONS = [
   { id: "pull",       label: "PULL",       hash: "#pull"       },
   { id: "match",      label: "MATCH",      hash: "#match"      },
+  { id: "pvp",        label: "ARENA",      hash: "#pvp"        },
   { id: "loadouts",   label: "LOADOUTS",   hash: "#loadouts"   },
   { id: "collection", label: "COLLECTION", hash: "#collection" },
   { id: "shop",       label: "SHOP",       hash: "#shop"       },
