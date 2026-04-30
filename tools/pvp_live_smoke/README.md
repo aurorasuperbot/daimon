@@ -7,7 +7,7 @@ GitHub repo and waits for settlement.
 
 ## When to run
 
-- Before any V1 launch tag.
+- Before any release tag.
 - After any change to `daimon/arena/encoding.py`,
   `daimon/arena/ops.py`, or any of the four arena workflows
   (`arbiter.yml`, `validator.yml`, `mining-audit.yml`,
@@ -25,7 +25,7 @@ before V1 ships.
 
 - `gh` CLI authenticated as `aurorasuperbot` (or anyone with write
   access to the arena).
-- Engine venv at `nullpoint/.venv` (or activate manually).
+- Engine installed (`pip install daimon` or `uv pip install daimon`).
 - Network access to `api.github.com`.
 - The arena's `ENGINE_READ_TOKEN` secret must be set, otherwise the
   arbiter falls back to self-test only and never settles real matches.
@@ -33,8 +33,8 @@ before V1 ships.
 ## Run
 
 ```bash
-cd /opt/agents/projects/nullpoint-workspace/nullpoint
-.venv/bin/python tools/pvp_live_smoke/run.py
+cd daimon
+python tools/pvp_live_smoke/run.py
 ```
 
 Expect ~60-180s end to end (most of which is waiting for the GitHub
