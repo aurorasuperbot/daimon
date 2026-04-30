@@ -26,6 +26,7 @@ import json
 import shutil
 import subprocess
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 from daimon._winspawn import windowless_creationflags
 
@@ -272,10 +273,13 @@ def fetch_repo_file(repo: str,
     On other gh failure:
       ``{"ok": False, "error": "<gh_*>", "message": "..."}``
     """
+    if ".." in path or path.startswith("/"):
+        return {"ok": False, "error": "invalid_input",
+                "message": "path must not contain '..' or start with '/'"}
     if ref == "main":
         endpoint = f"repos/{repo}/contents/{path}"
     else:
-        endpoint = f"repos/{repo}/contents/{path}?ref={ref}"
+        endpoint = f"repos/{repo}/contents/{path}?ref={quote(ref, safe='')}"
     res = _run(["gh", "api", endpoint, "--jq", ".content"], timeout=timeout)
     if not res["ok"]:
         # The contents endpoint returns 404 for missing files; gh surfaces

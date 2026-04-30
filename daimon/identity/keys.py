@@ -85,6 +85,9 @@ class Identity:
     def sign_bytes(self, data: bytes) -> bytes:
         return self.private_key.sign(data)
 
+    def __repr__(self) -> str:
+        return f"Identity(pubkey_hex={self.pubkey_hex!r})"
+
 
 def _ensure_config_dir() -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)

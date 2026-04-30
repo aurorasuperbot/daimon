@@ -38,16 +38,59 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
+import threading
+import time
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from daimon.web.live import broadcaster
 
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Rate limiter — sliding-window, thread-safe
+# ---------------------------------------------------------------------------
+
+class _RateLimiter:
+    """Per-endpoint sliding-window rate limiter.
+
+    ``max_calls`` is the ceiling within ``window_seconds``.  The limiter is
+    process-global (single server, single user) so there is no per-IP
+    dimension — every call from any source shares the window.
+    """
+
+    def __init__(self, max_calls: int, window_seconds: float):
+        self._max = max_calls
+        self._window = window_seconds
+        self._lock = threading.Lock()
+        self._timestamps: list[float] = []
+
+    def acquire_or_raise(self) -> None:
+        now = time.monotonic()
+        with self._lock:
+            self._timestamps = [
+                t for t in self._timestamps if now - t < self._window
+            ]
+            if len(self._timestamps) >= self._max:
+                retry = self._window - (now - self._timestamps[0])
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"rate limited — retry in {retry:.0f}s",
+                    headers={"Retry-After": str(int(retry))},
+                )
+            self._timestamps.append(now)
+
+
+_ISSUE_CREATE_LIMITER = _RateLimiter(max_calls=3, window_seconds=60)
+_COMMENT_LIMITER = _RateLimiter(max_calls=6, window_seconds=60)
+
+_CARD_ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 
 
 def _call_tool(tool, **kwargs):
@@ -342,8 +385,8 @@ def _call_home_safe() -> Dict[str, Any]:
     from daimon.mcp.server import dm_home
     try:
         return _call_tool(dm_home)
-    except Exception as e:  # noqa: BLE001
-        return {"error": "internal_error", "message": f"{type(e).__name__}: {e}"}
+    except Exception:  # noqa: BLE001
+        return {"error": "internal_error", "message": "failed to load home data"}
 
 
 class MatchStartBody(BaseModel):
@@ -404,26 +447,28 @@ async def post_pull() -> Dict[str, Any]:
 
 
 class PvpRegisterBody(BaseModel):
-    handle: Optional[str] = None
+    handle: Optional[str] = Field(None, max_length=32)
 
 
 class PvpChallengeBody(BaseModel):
-    opponent_pubkey: str
-    loadout_name: str
-    memo: Optional[str] = None
+    opponent_pubkey: str = Field(
+        ..., min_length=64, max_length=64, pattern=r"^[0-9a-fA-F]{64}$",
+    )
+    loadout_name: str = Field(..., max_length=48)
+    memo: Optional[str] = Field(None, max_length=280)
 
 
 class PvpAcceptBody(BaseModel):
-    challenge_id: str
-    loadout_name: str
+    challenge_id: str = Field(..., max_length=16, pattern=r"^\d+$")
+    loadout_name: str = Field(..., max_length=48)
 
 
 class PvpRevealBody(BaseModel):
-    challenge_id: str
+    challenge_id: str = Field(..., max_length=16, pattern=r"^\d+$")
 
 
 @router.get("/api/pvp/leaderboard")
-def get_pvp_leaderboard(limit: int = 25) -> Dict[str, Any]:
+def get_pvp_leaderboard(limit: int = Query(25, ge=1, le=100)) -> Dict[str, Any]:
     from daimon.mcp.server import dm_leaderboard
     return _call_tool(dm_leaderboard, limit=limit)
 
@@ -435,7 +480,7 @@ def get_pvp_my_rank() -> Dict[str, Any]:
 
 
 @router.get("/api/pvp/matches")
-def get_pvp_matches(limit: int = 20) -> Dict[str, Any]:
+def get_pvp_matches(limit: int = Query(20, ge=1, le=100)) -> Dict[str, Any]:
     from daimon.mcp.server import dm_pvp_my_matches
     return _call_tool(dm_pvp_my_matches, limit=limit)
 
@@ -448,12 +493,14 @@ def get_pvp_status(challenge_id: str) -> Dict[str, Any]:
 
 @router.post("/api/pvp/register")
 def post_pvp_register(body: PvpRegisterBody) -> Dict[str, Any]:
+    _ISSUE_CREATE_LIMITER.acquire_or_raise()
     from daimon.mcp.server import dm_register
     return _call_tool(dm_register, handle=body.handle)
 
 
 @router.post("/api/pvp/challenge")
 def post_pvp_challenge(body: PvpChallengeBody) -> Dict[str, Any]:
+    _ISSUE_CREATE_LIMITER.acquire_or_raise()
     from daimon.mcp.server import dm_loadout_load, dm_pvp_challenge
     loaded = _call_tool(dm_loadout_load, name=body.loadout_name)
     if loaded.get("error"):
@@ -469,6 +516,7 @@ def post_pvp_challenge(body: PvpChallengeBody) -> Dict[str, Any]:
 
 @router.post("/api/pvp/accept")
 def post_pvp_accept(body: PvpAcceptBody) -> Dict[str, Any]:
+    _COMMENT_LIMITER.acquire_or_raise()
     from daimon.mcp.server import dm_loadout_load, dm_pvp_accept
     loaded = _call_tool(dm_loadout_load, name=body.loadout_name)
     if loaded.get("error"):
@@ -483,6 +531,7 @@ def post_pvp_accept(body: PvpAcceptBody) -> Dict[str, Any]:
 
 @router.post("/api/pvp/reveal")
 def post_pvp_reveal(body: PvpRevealBody) -> Dict[str, Any]:
+    _COMMENT_LIMITER.acquire_or_raise()
     from daimon.mcp.server import dm_pvp_reveal
     return _call_tool(dm_pvp_reveal, challenge_id=body.challenge_id)
 
@@ -493,23 +542,15 @@ def post_pvp_reveal(body: PvpRevealBody) -> Dict[str, Any]:
 
 @router.get("/art/{card_id}")
 def get_art(card_id: str) -> FileResponse:
-    """Serve a card's PNG. JIT-fetches via the lazy art pipeline if needed.
-
-    First request for a card_id triggers an in-process download from the
-    art-pack release (~50–500 KB). The 4-phase pull reveal animation is
-    >2s long, so the fetch lands well before the user sees the front of
-    the card. Subsequent requests are local-disk reads.
-
-    Returns 404 only when the manifest doesn't list this card OR the fetch
-    failed (network down, asset missing). Renderers fall through to a
-    placeholder block on 404.
-    """
+    """Serve a card's PNG. JIT-fetches via the lazy art pipeline if needed."""
+    if not _CARD_ID_RE.match(card_id):
+        raise HTTPException(status_code=400, detail="invalid card_id")
     from daimon.cards import art_path_for
     from daimon.update.lazy import ensure_art_for
-    ensure_art_for(card_id)  # noop if already cached; soft-fails on net err
+    ensure_art_for(card_id)
     path = art_path_for(card_id)
     if path is None:
-        raise HTTPException(status_code=404, detail=f"no art for card_id {card_id!r}")
+        raise HTTPException(status_code=404, detail="no art found")
     return FileResponse(path, media_type="image/png")
 
 
@@ -537,14 +578,34 @@ class EvalBody(BaseModel):
     js: str
 
 
-@router.post("/api/_dev/eval")
-def post_dev_eval(body: EvalBody) -> Dict[str, Any]:
-    """Run an arbitrary JS expression in the live pywebview window.
+def _require_session_token(token: str) -> None:
+    from daimon.web.server import get_session_token
+    if not secrets.compare_digest(token, get_session_token()):
+        raise HTTPException(status_code=403, detail="invalid session token")
 
-    Local-only debugging surface — bound to 127.0.0.1, no auth. Used by
-    the agent driver to inspect the rendered DOM (resolved CSS variables,
-    attribute values, computed styles) without manual devtools poking.
+
+@router.get("/api/_dev/token")
+def get_dev_token() -> Dict[str, Any]:
+    """Return the per-process session token.
+
+    Only reachable from same-origin requests (the _LocalOriginMiddleware
+    blocks cross-origin callers), so a malicious website cannot obtain the
+    token even by probing localhost ports.
     """
+    from daimon.web.server import get_session_token
+    return {"token": get_session_token()}
+
+
+@router.post("/api/_dev/eval")
+def post_dev_eval(
+    body: EvalBody,
+    x_session_token: str = Header(...),
+) -> Dict[str, Any]:
+    """Run a JS expression in the live pywebview window.
+
+    Requires the per-process session token (obtain via GET /api/_dev/token).
+    """
+    _require_session_token(x_session_token)
     try:
         import webview  # type: ignore[import-not-found]
     except ImportError:
@@ -554,21 +615,18 @@ def post_dev_eval(body: EvalBody) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="no pywebview window open")
     try:
         result = windows[0].evaluate_js(body.js)
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(
-            status_code=500,
-            detail=f"evaluate_js failed: {type(e).__name__}: {e}",
-        )
+    except Exception:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail="evaluate_js failed")
     return {"result": result}
 
 
 @router.post("/api/_dev/goto")
-def post_dev_goto(body: GotoBody) -> Dict[str, Any]:
-    """Navigate the live pywebview window to ``#<screen>[/<param>...]``.
-
-    Only available when the daemon owns a real pywebview window — in
-    browser-fallback mode we can't reach the renderer process.
-    """
+def post_dev_goto(
+    body: GotoBody,
+    x_session_token: str = Header(...),
+) -> Dict[str, Any]:
+    """Navigate the live pywebview window to ``#<screen>[/<param>...]``."""
+    _require_session_token(x_session_token)
     if body.screen not in _ALLOWED_SCREENS:
         raise HTTPException(
             status_code=400,
@@ -616,11 +674,8 @@ def post_dev_goto(body: GotoBody) -> Dict[str, Any]:
     )
     try:
         result = windows[0].evaluate_js(js)
-    except Exception as e:  # noqa: BLE001 — pywebview wraps platform errors
-        raise HTTPException(
-            status_code=500,
-            detail=f"evaluate_js failed: {type(e).__name__}: {e}",
-        )
+    except Exception:  # noqa: BLE001 — pywebview wraps platform errors
+        raise HTTPException(status_code=500, detail="evaluate_js failed")
     return {"status": "ok", "hash": hash_val, "window_hash": result}
 
 

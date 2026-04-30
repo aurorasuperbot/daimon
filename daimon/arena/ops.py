@@ -69,22 +69,33 @@ def _new_nonce_hex() -> str:
     return os.urandom(32).hex()
 
 
+_REQUIRED_CARD_COUNT = 6
+
+
 def _validated_loadout(loadout: Any) -> Dict[str, Any]:
     """Coerce input into a canonical ``{"cards": [...]}`` dict for hashing.
 
-    Accepts either ``{"cards": [...]}`` or a bare list. Re-wrapping a bare
-    list ensures the canonical bytes are stable regardless of caller form.
+    Accepts either ``{"cards": [...]}`` or a bare list. Enforces exactly
+    6 cards — rejects early instead of letting the engine do it, preventing
+    an attacker from stuffing thousands of card objects into a commit hash.
     Raises ``ValueError`` on garbage.
     """
     if isinstance(loadout, dict):
         if "cards" not in loadout or not isinstance(loadout["cards"], list):
             raise ValueError("loadout dict must have 'cards' list")
-        return {"cards": loadout["cards"]}
-    if isinstance(loadout, list):
-        return {"cards": loadout}
-    raise ValueError(
-        f"loadout must be dict or list, got {type(loadout).__name__}"
-    )
+        cards = loadout["cards"]
+    elif isinstance(loadout, list):
+        cards = loadout
+    else:
+        raise ValueError(
+            f"loadout must be dict or list, got {type(loadout).__name__}"
+        )
+    if len(cards) != _REQUIRED_CARD_COUNT:
+        raise ValueError(
+            f"loadout must have exactly {_REQUIRED_CARD_COUNT} cards, "
+            f"got {len(cards)}"
+        )
+    return {"cards": cards}
 
 
 def _load_identity_or_error() -> Dict[str, Any]:
@@ -310,11 +321,12 @@ def pvp_reveal(challenge_id: str) -> Dict[str, Any]:
                          "dm_pvp_challenge or accepted with dm_pvp_accept")}
 
     if record.get("pubkey_hex") != identity.pubkey_hex:
+        stored = record.get("pubkey_hex", "")
         return {"error": "identity_mismatch",
                 "message": ("local state was created under a different "
                             "identity"),
-                "stored_pubkey": record.get("pubkey_hex"),
-                "current_pubkey": identity.pubkey_hex}
+                "stored_pubkey_prefix": stored[:16] if stored else "",
+                "current_pubkey_prefix": identity.pubkey_hex[:16]}
 
     nonce = record["nonce"]
     loadout_canon = record["loadout"]
