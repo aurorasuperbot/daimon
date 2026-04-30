@@ -228,12 +228,20 @@ function matchesView(root) {
 // ---------------------------------------------------------------------------
 
 function challengeView(root) {
+  function updateSubmitBtn() {
+    const btn = document.getElementById("pvp-submit");
+    if (!btn) return;
+    btn.disabled = !(state.challengeForm.opponent.trim().length === 64
+                  && state.selectedLoadout
+                  && !state.loading);
+  }
+
   const opponentInput = el("input", {
     class: "challenge-input",
     type: "text",
     placeholder: "64-character hex public key",
     value: state.challengeForm.opponent,
-    onInput: (e) => { state.challengeForm.opponent = e.target.value; },
+    onInput: (e) => { state.challengeForm.opponent = e.target.value; updateSubmitBtn(); },
   });
 
   const memoInput = el("input", {
@@ -266,6 +274,7 @@ function challengeView(root) {
     memoInput,
     el("div", { class: "challenge-actions" },
       el("button", {
+        id: "pvp-submit",
         class: "pvp-btn",
         disabled: !canSubmit,
         onClick: () => submitChallenge(root),
