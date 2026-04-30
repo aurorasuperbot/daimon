@@ -1417,18 +1417,17 @@ def dm_match(
 # NPC tier roster (V1 alpha)
 # ---------------------------------------------------------------------------
 
-def _npc_summary(npc, *, include_loadout_ids: bool = False) -> Dict[str, Any]:
-    """Render an NPC row for the list endpoints (no card payloads)."""
-    out: Dict[str, Any] = {
+def _npc_summary(npc) -> Dict[str, Any]:
+    """Render an NPC row for list + picker endpoints."""
+    return {
         "npc_id": npc.npc_id,
         "name": npc.name,
         "tier": npc.tier,
         "rank": npc.rank,
         "flavor": npc.flavor,
+        "loadout": list(npc.loadout),
+        "cover_card_id": _pick_cover_card(npc.loadout),
     }
-    if include_loadout_ids:
-        out["loadout"] = list(npc.loadout)
-    return out
 
 
 @mcp.tool()
@@ -1523,7 +1522,7 @@ def dm_npc(npc_id: str) -> Dict[str, Any]:
             "npc_id": npc_id,
         }
 
-    out = _npc_summary(npc, include_loadout_ids=True)
+    out = _npc_summary(npc)
     out["bio"] = npc.bio
     out["cards"] = cards
     return out
@@ -2388,9 +2387,15 @@ def dm_loadout_list() -> Dict[str, Any]:
             cards = doc.get("cards", [])
             if not isinstance(cards, list):
                 raise ValueError("cards not a list")
+            card_ids = [
+                c.get("card_id") or c.get("species", "")
+                for c in cards
+                if isinstance(c, dict)
+            ]
             out.append({
                 "name": name,
                 "card_count": len(cards),
+                "card_ids": card_ids,
                 "path": str(entry),
                 "mtime": entry.stat().st_mtime,
                 "active": is_active,

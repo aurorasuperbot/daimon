@@ -1,41 +1,45 @@
-// Pull screen — stable-DOM redesign.
+// Pull screen — cinematic gacha reveal.
 //
-// Mount sequence:
-//   1. render() builds the screen DOM ONCE: header + flipper +
-//      detail panel. Card starts face="back" (face-down) and
-//      empty (no card-id yet).
-//   2. POST /api/pull → receipt with card_id, rarity, payload, etc.
-//      Set card-id on the dm-card while it's still face="back" so
-//      the front quietly populates behind the scenes; the user
-//      doesn't see anything change.
-//   3. Run the orchestration sequence:
-//        draw     (0–900ms)   — face-down card subtly idles
-//        tension  (900–1500ms)— rarity hint pulses in
-//        reveal   (1500–2200ms)— face flips to "front"; rarity burst
-//        settled  (2200ms+)   — final, CTA visible
-//   4. SKIP aborts the sequence and jumps straight to settled.
+// Phases: fetching → draw → tension → freeze → reveal → settled
 //
-// Animation philosophy:
-//   - Phase progression is data-phase on the screen root. CSS reads it
-//     and runs declarative keyframes/transitions. No DOM rebuilds, no
-//     paint() loop, no requestAnimationFrame in JS land.
-//   - Phase timing is sleep() awaits with an AbortController so SKIP /
-//     navigate-away can cleanly cancel mid-sequence.
-//   - The face flip itself is the dm-card's built-in rotateY transition;
-//     setting face="front" is the only thing this screen does to flip it.
+// The reveal is a multi-layered spectacle driven by data-phase + data-rarity
+// on the screen root. Every visual effect is CSS-only; JS manages phase
+// timing and DOM construction.
+//
+// Effect layers (back to front):
+//   - Ambient background glow (CSS gradient on :scope)
+//   - Light rays (conic-gradient, epic+)
+//   - Vignette overlay (radial darkening)
+//   - Card with rarity glow halo
+//   - Converging sparks (tension phase)
+//   - Radial burst × 2
+//   - Expanding rings × 2
+//   - Scatter particles (40)
+//   - Radial streaks (8)
+//   - White flash overlay
+//   - Shimmer sweep + ambient sparkles (settled, rare+)
 
 import { backButton, el, postJSON } from "/screens/_dom.js";
 
-const DRAW_MS    = 900;
-const TENSION_MS = 600;   // 900 → 1500
-const REVEAL_MS  = 700;   // 1500 → 2200
+const RARITY_TIMING = {
+  common:    { draw: 500,  tension: 400,  freeze: 0,   reveal: 500  },
+  uncommon:  { draw: 600,  tension: 600,  freeze: 80,  reveal: 600  },
+  rare:      { draw: 700,  tension: 800,  freeze: 120, reveal: 650  },
+  epic:      { draw: 800,  tension: 1100, freeze: 160, reveal: 750  },
+  legendary: { draw: 900,  tension: 1500, freeze: 200, reveal: 850  },
+};
+const DEFAULT_TIMING = RARITY_TIMING.rare;
+
+const PARTICLE_COUNT = 40;
+const SPARK_COUNT    = 16;
+const STREAK_COUNT   = 8;
 
 // ---------------------------------------------------------------------------
 // Tiny async helpers
 // ---------------------------------------------------------------------------
 
-/** Sleep that rejects on abort signal so callers can cancel cleanly. */
 function abortableSleep(ms, signal) {
+  if (ms <= 0) return Promise.resolve();
   return new Promise((resolve, reject) => {
     if (signal.aborted) return reject(new DOMException("aborted", "AbortError"));
     const t = setTimeout(() => {
@@ -56,7 +60,7 @@ function abortableSleep(ms, signal) {
 // ---------------------------------------------------------------------------
 
 function buildScreen(refs) {
-  const back = backButton();   // "← BACK"
+  const back = backButton();
   back.classList.add("pull-back-btn");
 
   const skip = el("button", { class: "pull-skip", type: "button" }, "SKIP");
@@ -67,30 +71,77 @@ function buildScreen(refs) {
     skip,
   );
 
-  // The card itself — face=back at mount; switched to face=front during
-  // the reveal phase. Same element through every phase. Same view-
-  // transition-name as the menu hero, so the route swap morphs.
+  // Card
   const card = document.createElement("dm-card");
   card.setAttribute("size", "hero");
   card.setAttribute("face", "back");
 
-  // Burst flash + rarity hint live alongside the card; both are pure
-  // CSS-driven on data-phase so they cost no JS at runtime.
-  const burst = el("div", { class: "pull-burst" });
+  // Effect layers inside card-wrap
+  const burst      = el("div", { class: "pull-burst" });
+  const burstInner = el("div", { class: "pull-burst-inner" });
+  const rays       = el("div", { class: "pull-rays" });
+  const ring1      = el("div", { class: "pull-ring" });
+  const ring2      = el("div", { class: "pull-ring pull-ring-2" });
+
+  // Scatter particles — explode outward on reveal
+  const particles = el("div", { class: "pull-particles" });
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const angle = (i / PARTICLE_COUNT) * Math.PI * 2;
+    const dist = 120 + Math.random() * 250;
+    const p = el("div", { class: "pull-particle" });
+    p.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+    p.style.setProperty("--dy", `${Math.sin(angle) * dist}px`);
+    p.style.setProperty("--delay", `${Math.random() * 250}ms`);
+    p.style.setProperty("--size", `${2 + Math.random() * 6}px`);
+    particles.appendChild(p);
+  }
+
+  // Converging sparks — energy drawn toward card during tension
+  const sparks = el("div", { class: "pull-sparks" });
+  for (let i = 0; i < SPARK_COUNT; i++) {
+    const angle = (i / SPARK_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+    const dist = 180 + Math.random() * 160;
+    const s = el("div", { class: "pull-spark" });
+    s.style.setProperty("--sx", `${Math.cos(angle) * dist}px`);
+    s.style.setProperty("--sy", `${Math.sin(angle) * dist}px`);
+    s.style.setProperty("--delay", `${Math.random() * 400}ms`);
+    s.style.setProperty("--size", `${2 + Math.random() * 3}px`);
+    sparks.appendChild(s);
+  }
+
+  // Radial streaks — light lines shooting outward on reveal
+  const streaks = el("div", { class: "pull-streaks" });
+  for (let i = 0; i < STREAK_COUNT; i++) {
+    const angle = (i / STREAK_COUNT) * 360 + Math.random() * 15;
+    const dist = 180 + Math.random() * 170;
+    const s = el("div", { class: "pull-streak" });
+    s.style.setProperty("--angle", `${angle}deg`);
+    s.style.setProperty("--dist", `${dist}px`);
+    s.style.setProperty("--delay", `${Math.random() * 120}ms`);
+    streaks.appendChild(s);
+  }
+
+  const cardWrap = el("div", { class: "pull-card-wrap" },
+    card, rays, burst, burstInner, ring1, ring2, particles, sparks, streaks);
+
   const hint  = el("div", { class: "pull-rarity-hint" });
+  const stage = el("div", { class: "pull-stage" }, cardWrap, hint);
 
-  const cardWrap = el("div", { class: "pull-card-wrap" }, card, burst, hint);
+  // Overlays (sit above all stage content)
+  const vignette = el("div", { class: "pull-vignette" });
+  const flash    = el("div", { class: "pull-flash" });
 
-  // Detail panel — text-only nodes that get patched in updateDetail().
-  // Built once, mutated leaf-only thereafter.
-  const detailName    = el("h2", { class: "pull-detail-name" }, "—");
-  const detailRarity  = el("div", { class: "pull-detail-rarity" }, "");
-  const detailMeta    = el("div", { class: "pull-detail-meta" });
-  const metaSerial    = el("div", null, "serial —");
-  const metaCost      = el("div", null, "cost —");
-  const metaBalance   = el("div", null, "balance —");
+  // Detail panel
+  const detailName   = el("h2", { class: "pull-detail-name" }, "—");
+  const detailRarity = el("div", { class: "pull-detail-rarity" }, "");
+  const detailMeta   = el("div", { class: "pull-detail-meta" });
+  const metaSerial   = el("span", null, "serial —");
+  const metaCost     = el("span", null, "cost —");
+  const metaBalance  = el("span", null, "balance —");
   detailMeta.appendChild(metaSerial);
+  detailMeta.appendChild(el("span", { class: "pull-meta-sep" }, "·"));
   detailMeta.appendChild(metaCost);
+  detailMeta.appendChild(el("span", { class: "pull-meta-sep" }, "·"));
   detailMeta.appendChild(metaBalance);
   const cta = el("div", { class: "pull-cta" }, "PRESS SPACE TO CONTINUE");
   const errLine = el("div", { class: "error-line pull-error" }, "");
@@ -99,14 +150,13 @@ function buildScreen(refs) {
     detailName, detailRarity, detailMeta, errLine, cta,
   );
 
-  const body = el("div", { class: "pull-body" }, cardWrap, detail);
+  const body = el("div", { class: "pull-body" }, vignette, flash, stage, detail);
   const screen = el("div", { class: "screen pull-screen" }, header, body);
-
-  // Initial phase — the CSS reveals/hides progressively as data-phase advances.
   screen.dataset.phase = "fetching";
 
   Object.assign(refs, {
-    screen, card, burst, hint, skip, back,
+    screen, card, burst, burstInner, hint, skip, back, rays, particles,
+    sparks, streaks, ring1, ring2, vignette, flash,
     detailName, detailRarity, metaSerial, metaCost, metaBalance, errLine, cta,
   });
   return screen;
@@ -116,21 +166,27 @@ function buildScreen(refs) {
 // Reveal-sequence orchestration
 // ---------------------------------------------------------------------------
 
-async function runReveal(refs, signal) {
+async function runReveal(refs, signal, rarity) {
   const { screen, card } = refs;
+  const timing = RARITY_TIMING[rarity] || DEFAULT_TIMING;
+
+  screen.style.setProperty("--tension-ms", `${timing.tension}ms`);
+
   screen.dataset.phase = "draw";
   try {
-    await abortableSleep(DRAW_MS, signal);
+    await abortableSleep(timing.draw, signal);
     screen.dataset.phase = "tension";
-    await abortableSleep(TENSION_MS, signal);
+    await abortableSleep(timing.tension, signal);
+    if (timing.freeze > 0) {
+      screen.dataset.phase = "freeze";
+      await abortableSleep(timing.freeze, signal);
+    }
     screen.dataset.phase = "reveal";
     card.setAttribute("face", "front");
-    await abortableSleep(REVEAL_MS, signal);
+    await abortableSleep(timing.reveal, signal);
     screen.dataset.phase = "settled";
   } catch (err) {
     if (err.name === "AbortError") {
-      // Skip pressed (or screen unmounted). Jump straight to settled
-      // unless we were torn down (in which case the screen is gone).
       if (screen.isConnected) {
         screen.dataset.phase = "settled";
         card.setAttribute("face", "front");
@@ -154,15 +210,12 @@ function applyReceipt(refs, receipt) {
   refs.metaSerial.textContent   = `serial ${r.serial || "?"}`;
   refs.metaCost.textContent     = `cost ${r.cost ?? "?"}¤`;
   refs.metaBalance.textContent  = `balance ${r.balance_after ?? "?"}¤`;
-  // Pipe rarity to the screen root so .pull-burst etc. inherit
-  // --rarity-* tokens.
   refs.screen.dataset.rarity = (r.rarity || "common");
 }
 
 function applyError(refs, msg) {
   refs.errLine.textContent = msg || "pull failed";
   refs.errLine.style.display = "block";
-  // Skip past the animation — show the error in settled state.
   refs.screen.dataset.phase = "settled";
 }
 
@@ -171,16 +224,11 @@ function applyError(refs, msg) {
 // ---------------------------------------------------------------------------
 
 export async function render(root) {
-  // The router primes root with `<div class="loading">` before awaiting
-  // us — every other screen replaces that, so do the same. Without
-  // this, the loading glyph stacks under the pull-screen because we
-  // append rather than reset.
   root.innerHTML = "";
   const refs = {};
   const screen = buildScreen(refs);
   root.appendChild(screen);
 
-  // Cancellation harness — covers both SKIP and screen unmount.
   const ctl = new AbortController();
 
   refs.skip.addEventListener("click", () => ctl.abort());
@@ -199,8 +247,6 @@ export async function render(root) {
   }
   document.addEventListener("keydown", onKey);
 
-  // Kick off the network call. The card mounts face=back so the user
-  // doesn't see the data populate before the dramatic reveal.
   let receipt;
   try {
     receipt = await postJSON("/api/pull");
@@ -214,9 +260,7 @@ export async function render(root) {
   }
   applyReceipt(refs, receipt);
 
-  // Run the reveal. Errors other than AbortError surface in the
-  // detail strip; AbortError is the SKIP path and is handled inline.
-  runReveal(refs, ctl.signal).catch(err => {
+  runReveal(refs, ctl.signal, receipt.rarity || "common").catch(err => {
     if (err.name !== "AbortError") {
       console.error("reveal sequence", err);
       applyError(refs, "animation error — see console");

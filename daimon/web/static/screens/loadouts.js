@@ -1,9 +1,14 @@
-// Loadouts screen — list view + 6-card editor. Phase 5 redesign:
-// every card-shaped surface (catalog grid, slot strip) renders via
-// <dm-card>. Layout chrome stays in this screen; card visuals are
-// the primitive's responsibility.
+// Loadouts screen — visual list + 2-panel deck editor.
+//
+// List view: each loadout is a card panel showing its 6 card art
+// thumbnails, name, and actions. The active loadout gets accent glow.
+//
+// Editor view: two panels — catalog browse (tiles with add/remove
+// toggle) and the 6-slot deck strip. Clicking a tile opens the
+// full-detail card modal so players can read abilities before deciding.
 
 import { backButton, el, fetchJSON, postJSON, promptText } from "/screens/_dom.js";
+import { openCardModal } from "/components/dm-card.js";
 import { liveStore } from "/store.js";
 
 const LOADOUT_SIZE = 6;
@@ -16,7 +21,7 @@ let state = {
   catalog: [],
   page: 0,
   editingName: "",
-  slots: [],           // card_ids in the editor; length ≤ LOADOUT_SIZE
+  slots: [],           // card_ids in the editor; length <= LOADOUT_SIZE
   saving: false,
   error: null,
 };
@@ -37,43 +42,84 @@ function listView(root) {
     ),
     el("div", { class: "loadouts-body" },
       state.loadouts.length === 0
-        ? el("div", { class: "empty" }, "no saved loadouts — click + NEW")
-        : el("ul", { class: "loadouts-list" },
-            ...state.loadouts.map(lo => loadoutRow(lo, root))),
+        ? emptyState(root)
+        : el("div", { class: "loadouts-grid" },
+            ...state.loadouts.map(lo => loadoutPanel(lo, root))),
     ),
   );
 }
 
-function loadoutRow(lo, root) {
-  const isActive = lo.active;
-  const actions = [];
-  if (!isActive && !lo.corrupt) {
-    actions.push(el("button", {
-      class: "btn-small btn-activate",
-      onClick: () => activateLoadout(lo.name, root),
-    }, "SET ACTIVE"));
-  }
-  actions.push(el("button", {
-    class: "btn-small",
-    onClick: () => beginEditLoadout(lo.name, root),
-  }, "EDIT"));
-  actions.push(el("button", {
-    class: "btn-small btn-danger",
-    onClick: () => deleteLoadout(lo.name, root),
-  }, "DELETE"));
-
-  return el("li", { class: `loadout-row${isActive ? " active" : ""}` },
-    el("div", { class: "loadout-name" },
-      lo.name,
-      isActive ? el("span", { class: "active-pill" }, "ACTIVE") : null,
-    ),
-    el("div", { class: "loadout-meta" },
-      lo.corrupt
-        ? el("span", { class: "error-line" }, `corrupt: ${lo.message}`)
-        : `${lo.card_count} cards`,
-    ),
-    el("div", { class: "loadout-actions" }, ...actions),
+function emptyState(root) {
+  return el("div", { class: "loadouts-empty" },
+    el("div", { class: "empty-icon" }, "⚔"),
+    el("div", { class: "empty-title" }, "NO LOADOUTS YET"),
+    el("div", { class: "empty-hint" },
+      "Build a team of 6 cards to bring into battle."),
+    el("button", {
+      class: "primary-btn",
+      onClick: () => beginNewLoadout(root),
+    }, "CREATE FIRST LOADOUT"),
   );
+}
+
+function loadoutPanel(lo, root) {
+  const isActive = lo.active;
+  const cardIds = lo.card_ids || [];
+
+  const panel = el("div", {
+    class: `loadout-panel${isActive ? " active" : ""}${lo.corrupt ? " corrupt" : ""}`,
+  },
+    el("div", { class: "loadout-header" },
+      el("div", { class: "loadout-name" }, lo.name),
+      isActive
+        ? el("span", { class: "active-pill" }, "ACTIVE")
+        : null,
+    ),
+    lo.corrupt
+      ? el("div", { class: "error-line" }, lo.message || "corrupt file")
+      : el("div", { class: "loadout-art-strip" },
+          ...cardIds.map(cid =>
+            el("img", {
+              class: "loadout-art-thumb",
+              src: `/art/${encodeURIComponent(cid)}`,
+              alt: cid,
+              draggable: "false",
+              loading: "lazy",
+            })
+          ),
+          ...Array.from({ length: Math.max(0, LOADOUT_SIZE - cardIds.length) }, () =>
+            el("div", { class: "loadout-art-empty" })
+          ),
+        ),
+    el("div", { class: "loadout-footer" },
+      el("span", { class: "loadout-count" },
+        lo.corrupt ? "" : `${lo.card_count} cards`),
+      el("div", { class: "loadout-actions" },
+        !isActive && !lo.corrupt
+          ? el("button", {
+              class: "btn-small btn-activate",
+              onClick: (e) => { e.stopPropagation(); activateLoadout(lo.name, root); },
+            }, "SET ACTIVE")
+          : null,
+        !lo.corrupt
+          ? el("button", {
+              class: "btn-small",
+              onClick: (e) => { e.stopPropagation(); beginEditLoadout(lo.name, root); },
+            }, "EDIT")
+          : null,
+        el("button", {
+          class: "btn-small btn-danger",
+          onClick: (e) => { e.stopPropagation(); deleteLoadout(lo.name, root); },
+        }, "DELETE"),
+      ),
+    ),
+  );
+
+  if (!lo.corrupt) {
+    panel.addEventListener("click", () => beginEditLoadout(lo.name, root));
+    panel.style.cursor = "pointer";
+  }
+  return panel;
 }
 
 async function activateLoadout(name, root) {
@@ -89,8 +135,6 @@ async function activateLoadout(name, root) {
 }
 
 async function deleteLoadout(name, root) {
-  // Destructive + irreversible: route through the dm-prompt modal so a
-  // misclick on the list view doesn't silently wipe a deck.
   const confirm = await promptText({
     title: "DELETE LOADOUT",
     label: `Type the loadout name to confirm: ${name}`,
@@ -109,13 +153,10 @@ async function deleteLoadout(name, root) {
 }
 
 // ---------------------------------------------------------------------------
-// editor view
+// editor view — 2-panel: catalog | slots
 // ---------------------------------------------------------------------------
 
 async function beginNewLoadout(root) {
-  // Existing loadout names — the validate callback rejects collisions
-  // before the modal closes, so the user gets immediate feedback rather
-  // than a server-side 409 after they thought they were done.
   const existing = new Set((state.loadouts || []).map(lo => lo.name));
   const name = await promptText({
     title: "NEW LOADOUT",
@@ -166,23 +207,41 @@ function editorView(root) {
     el("header", { class: "screen-header" },
       el("button", { class: "back-btn",
         onClick: () => { state.view = "list"; rerender(root); } }, "← BACK"),
-      el("h1", null, `EDIT — ${state.editingName}`),
+      el("h1", null, state.editingName),
       el("div", { class: `validity-chip ${ready ? "ready" : "incomplete"}` },
         ready ? "READY" : `NEED ${remaining}`),
     ),
     el("div", { class: "editor-body" },
       el("div", { class: "editor-catalog" },
+        el("div", { class: "catalog-header" },
+          el("span", { class: "catalog-title" }, "CATALOG"),
+          el("span", { class: "catalog-hint" }, "click to inspect · ➕ to add"),
+          el("span", { class: "catalog-page-num" },
+            `${state.page + 1} / ${totalPages}`),
+        ),
         el("div", { class: "catalog-grid" },
           ...visible.map(c => catalogTile(c, root))),
-        el("div", { class: "page-dots" },
-          ...Array.from({ length: totalPages }, (_, i) =>
-            el("button", {
-              class: `page-dot${i === state.page ? " active" : ""}`,
-              onClick: () => { state.page = i; rerender(root); },
-            }))),
+        el("div", { class: "page-controls" },
+          el("button", {
+            class: "page-arrow",
+            disabled: state.page === 0 ? true : false,
+            onClick: () => { state.page = Math.max(0, state.page - 1); rerender(root); },
+          }, "◀"),
+          el("div", { class: "page-dots" },
+            ...Array.from({ length: totalPages }, (_, i) =>
+              el("button", {
+                class: `page-dot${i === state.page ? " active" : ""}`,
+                onClick: () => { state.page = i; rerender(root); },
+              }))),
+          el("button", {
+            class: "page-arrow",
+            disabled: state.page >= totalPages - 1 ? true : false,
+            onClick: () => { state.page = Math.min(totalPages - 1, state.page + 1); rerender(root); },
+          }, "▶"),
+        ),
       ),
       el("div", { class: "editor-slots" },
-        el("h3", null, `LOADOUT (${filled}/${LOADOUT_SIZE})`),
+        el("h3", null, `DECK (${filled}/${LOADOUT_SIZE})`),
         el("div", { class: "slot-strip" },
           ...Array.from({ length: LOADOUT_SIZE }, (_, i) => slotTile(i, root))),
         state.error ? el("div", { class: "error-line" }, state.error) : null,
@@ -205,30 +264,43 @@ function editorView(root) {
 function catalogTile(card, root) {
   const inDeck = state.slots.includes(card.card_id);
   const full   = state.slots.length >= LOADOUT_SIZE;
+  const dimmed = full && !inDeck;
   const node = el("button", {
-    class: `catalog-tile${inDeck ? " in-deck" : ""}`,
-    disabled: (full && !inDeck) ? true : false,
-    onClick: () => {
-      if (inDeck) {
-        state.slots = state.slots.filter(id => id !== card.card_id);
-      } else {
-        if (state.slots.length >= LOADOUT_SIZE) return;
-        state.slots = [...state.slots, card.card_id];
-      }
-      rerender(root);
-    },
+    class: `catalog-tile${inDeck ? " in-deck" : ""}${dimmed ? " dimmed" : ""}`,
+    onClick: () => openCardModal(card.card_id),
   });
   const dm = document.createElement("dm-card");
   dm.setAttribute("card-id", card.card_id);
   dm.setAttribute("size", "tile");
   node.appendChild(dm);
+
+  const toggleBtn = el("button", {
+    class: `tile-toggle ${inDeck ? "remove" : "add"}`,
+    title: inDeck ? "Remove from deck" : "Add to deck",
+    onClick: (e) => {
+      e.stopPropagation();
+      if (inDeck) {
+        state.slots = state.slots.filter(id => id !== card.card_id);
+      } else if (!full) {
+        state.slots = [...state.slots, card.card_id];
+      }
+      rerender(root);
+    },
+  }, inDeck ? "−" : "+");
+  node.appendChild(toggleBtn);
+
+  if (inDeck) {
+    node.appendChild(el("div", { class: "tile-in-deck-badge" }, "✓"));
+  }
   return node;
 }
 
 function slotTile(idx, root) {
   const cardId = state.slots[idx];
   if (!cardId) {
-    return el("div", { class: "slot-tile empty" }, `slot ${idx + 1}`);
+    return el("div", { class: "slot-tile empty" },
+      el("span", { class: "slot-num" }, `${idx + 1}`),
+    );
   }
   const node = el("button", {
     class: "slot-tile filled",
@@ -311,9 +383,6 @@ export async function render(root) {
   }
   rerender(root);
 
-  // Refetch on agent-driven loadout writes. Stay in the editor if
-  // the user is mid-edit — only repaint the list view, since blowing
-  // away a half-typed editor would be hostile.
   const unsubscribe = liveStore.subscribe((_s, frame) => {
     if (frame?.kind !== "loadout") return;
     loadList().then(() => {

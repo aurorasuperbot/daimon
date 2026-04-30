@@ -12,95 +12,361 @@
     overflow-y: auto;
     flex: 1;
     min-height: 0;
+    padding-bottom: var(--gap-loose);
   }
+
+  /* ── Hero banner (recommended NPC) ──────────────────────────────── */
+
+  .hero-banner {
+    position: relative;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    cursor: pointer;
+    min-height: 170px;
+    display: flex;
+    align-items: flex-end;
+    border: 1px solid rgba(240, 196, 88, 0.15);
+    transition: box-shadow var(--motion-base) var(--ease-soft);
+  }
+  .hero-banner:hover {
+    box-shadow: 0 0 48px rgba(240, 196, 88, 0.2);
+  }
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 20%;
+    filter: blur(10px) brightness(0.3) saturate(1.3);
+    transform: scale(1.15);
+    pointer-events: none;
+  }
+  .hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to right,
+      rgba(10, 12, 24, 0.92) 0%,
+      rgba(10, 12, 24, 0.55) 45%,
+      rgba(10, 12, 24, 0.2) 100%
+    );
+    pointer-events: none;
+  }
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    padding: 1.4rem var(--gap-loose);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    flex: 1;
+  }
+  .hero-pill {
+    font-family: var(--font-display);
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.35em;
+    color: var(--accent);
+    text-shadow: 0 0 16px rgba(240, 196, 88, 0.5);
+  }
+  .hero-name {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--text);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+  }
+  .hero-detail {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+  }
+  .hero-flavor {
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    font-style: italic;
+    max-width: 380px;
+    line-height: 1.35;
+  }
+  .hero-fight-btn {
+    align-self: flex-start;
+    margin-top: 0.6rem;
+    background: var(--accent);
+    color: var(--bg-deep);
+    border: none;
+    border-radius: var(--radius);
+    padding: 0.55rem 2rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.25em;
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-soft),
+      transform var(--motion-fast) var(--ease-soft),
+      box-shadow var(--motion-fast) var(--ease-soft);
+  }
+  .hero-fight-btn:hover {
+    background: var(--accent-bright);
+    box-shadow: 0 0 20px rgba(240, 196, 88, 0.4);
+  }
+  .hero-fight-btn:active { transform: translateY(1px); }
+
+  .hero-team {
+    position: absolute;
+    right: var(--gap-loose);
+    bottom: 1rem;
+    display: flex;
+    gap: 6px;
+    z-index: 1;
+    opacity: 0.7;
+    transition: opacity var(--motion-base) var(--ease-soft);
+  }
+  .hero-banner:hover .hero-team { opacity: 1; }
+  .hero-team-thumb {
+    width: 44px;
+    height: 62px;
+    object-fit: cover;
+    object-position: center top;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--bg-panel);
+  }
+
+  /* ── Loadout picker ─────────────────────────────────────────────── */
 
   .match-loadout-pick {
     display: flex;
     align-items: center;
     gap: var(--gap-normal);
   }
-  .match-loadout-pick h3 {
-    margin: 0;
+  .loadout-label {
     color: var(--accent);
-    letter-spacing: 0.06em;
     font-family: var(--font-display);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    flex-shrink: 0;
   }
-
-  .loadout-select {
+  .loadout-pills {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .loadout-pill {
     background: var(--bg-panel);
-    color: var(--text);
+    color: var(--text-muted);
     border: 1px solid var(--border-rest);
-    padding: 0.4rem 0.7rem;
-    font-family: inherit;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
+    padding: 0.3rem 0.85rem;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-soft),
+      color var(--motion-fast) var(--ease-soft),
+      border-color var(--motion-fast) var(--ease-soft);
   }
-
+  .loadout-pill:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .loadout-pill.active {
+    background: var(--accent);
+    color: var(--bg-deep);
+    border-color: var(--accent);
+  }
   .empty {
     color: var(--text-dim);
     font-style: italic;
+    font-size: 0.82rem;
   }
+
+  /* ── NPC tier list ──────────────────────────────────────────────── */
 
   .match-npc-list {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-loose);
+    gap: 1.8rem;
   }
 
   .tier-section {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-tight);
+    gap: var(--gap-normal);
   }
-  .tier-section h3 {
+  .tier-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .tier-accent {
+    width: 3px;
+    height: 2.2rem;
+    border-radius: 999px;
+    background: var(--rarity-color);
+    box-shadow: var(--rarity-glow);
+    flex-shrink: 0;
+  }
+  .tier-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+  .tier-header-text h3 {
     margin: 0;
-    color: var(--accent);
     font-family: var(--font-display);
-    letter-spacing: 0.08em;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--rarity-color);
+    font-size: 0.95rem;
   }
+  .tier-rule {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── NPC portrait grid ──────────────────────────────────────────── */
 
   .npc-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: var(--gap-tight);
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--gap-normal);
   }
 
   .npc-card {
     position: relative;
+    aspect-ratio: var(--card-aspect);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
     background: var(--bg-panel);
-    border: 1px solid var(--border-rest);
-    border-radius: var(--radius-sm);
-    padding: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    align-items: flex-start;
-    transition: border-color var(--motion-fast) var(--ease-soft);
+    transition:
+      transform var(--motion-base) var(--ease-snap),
+      border-color var(--motion-fast) var(--ease-soft),
+      box-shadow var(--motion-base) var(--ease-soft);
   }
-  .npc-card:hover { border-color: var(--accent); }
+  .npc-card:hover {
+    transform: translateY(-6px) scale(1.03);
+    border-color: var(--rarity-color);
+    box-shadow: var(--rarity-glow);
+    z-index: 2;
+  }
   .npc-card.recommended {
     border-color: var(--accent);
-    box-shadow: 0 0 18px rgba(240, 196, 88, 0.20);
+    box-shadow: 0 0 24px rgba(240, 196, 88, 0.25);
   }
-  .npc-recommended-pill {
+  .npc-card.recommended:hover {
+    box-shadow: 0 0 36px rgba(240, 196, 88, 0.4);
+  }
+
+  .npc-art {
     position: absolute;
-    top: -8px;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    pointer-events: none;
+  }
+  .npc-art-placeholder {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(160deg, var(--bg-panel) 0%, var(--bg-raised) 100%);
+  }
+
+  .npc-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(10, 12, 24, 0.92) 0%,
+      rgba(10, 12, 24, 0.35) 45%,
+      transparent 70%
+    );
+    pointer-events: none;
+    transition: background var(--motion-base) var(--ease-soft);
+  }
+  .npc-card:hover .npc-gradient {
+    background: linear-gradient(
+      to top,
+      rgba(10, 12, 24, 0.95) 0%,
+      rgba(10, 12, 24, 0.55) 55%,
+      rgba(10, 12, 24, 0.15) 80%
+    );
+  }
+
+  .npc-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.55rem 0.7rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    z-index: 1;
+  }
+  .npc-name-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.3rem;
+  }
+  .npc-name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.82rem;
+    letter-spacing: 0.03em;
+    color: var(--text);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .npc-rank {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .npc-flavor {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-style: italic;
+    line-height: 1.35;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition:
+      max-height var(--motion-base) var(--ease-soft),
+      opacity var(--motion-base) var(--ease-soft);
+  }
+  .npc-card:hover .npc-flavor {
+    max-height: 3.5rem;
+    opacity: 1;
+  }
+
+  .npc-rec-badge {
+    position: absolute;
+    top: 8px;
     right: 8px;
     background: var(--accent);
     color: var(--bg-deep);
     font-family: var(--font-display);
-    font-size: 0.6rem;
+    font-size: 0.5rem;
     font-weight: 700;
-    letter-spacing: 0.18em;
-    padding: 2px 8px;
+    letter-spacing: 0.2em;
+    padding: 2px 7px;
     border-radius: 999px;
-  }
-  .npc-name { font-weight: 600; }
-  .npc-tier { color: var(--text-muted); font-size: 0.85rem; }
-  .npc-flavor {
-    color: var(--text-dim);
-    font-size: 0.78rem;
-    font-style: italic;
-    line-height: 1.3;
+    z-index: 1;
+    box-shadow: 0 0 12px rgba(240, 196, 88, 0.4);
   }
 
 }
@@ -203,7 +469,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--gap-tight);
-    overflow-y: auto;
     min-height: 0;
   }
 
@@ -226,7 +491,7 @@
 
   .unit-row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: var(--gap-tight);
     align-items: stretch;
   }

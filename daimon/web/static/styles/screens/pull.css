@@ -1,23 +1,117 @@
-/* Pull screen — orchestrated reveal driven by data-phase on the
- * .pull-screen root. Phases: fetching | draw | tension | reveal | settled.
+/* Pull screen — cinematic gacha reveal.
  *
- * Design rules:
- *   - Stable DOM. The screen is mounted once; CSS reads data-phase
- *     and progressively shows/hides things via opacity + transforms.
- *   - The card flip itself is owned by <dm-card> (face attribute);
- *     this file controls the OUT OF CARD effects only (burst, hint,
- *     CTA, BACK/SKIP visibility).
- */
+ * Phases: fetching → draw → tension → freeze → reveal → settled
+ *
+ * Every visual effect is driven by data-phase + data-rarity on the
+ * .pull-screen root. Layers are ordered back-to-front:
+ *   ambient glow → rays → vignette → card + glow → sparks →
+ *   burst × 2 → rings → particles → streaks → flash → shimmer.
+ *
+ * Rarity intensity scales through --rarity-color (from tokens.css)
+ * and selector specificity on [data-rarity="..."]. Higher rarities
+ * get more effects, longer animations, and bigger explosions. */
 
 @scope (.pull-screen) {
+
+  /* ==================================================================
+   * 1. SCREEN ROOT — layout, ambient glow, tremor, shake
+   * ================================================================ */
 
   :scope {
     height: 100vh;
     display: grid;
     grid-template-rows: auto 1fr;
     padding: var(--gap-loose);
-    gap: var(--gap-loose);
+    gap: var(--gap-normal);
+    overflow: hidden;
+    position: relative;
   }
+
+  /* Ambient background glow — ramps up through phases */
+  :scope[data-phase="tension"],
+  :scope[data-phase="freeze"] {
+    background:
+      radial-gradient(ellipse 50% 45% at 50% 40%,
+        color-mix(in srgb, var(--rarity-color) 8%, transparent) 0%,
+        transparent 100%),
+      var(--bg-deep);
+  }
+  :scope[data-phase="reveal"] {
+    background:
+      radial-gradient(ellipse 70% 65% at 50% 40%,
+        color-mix(in srgb, var(--rarity-color) 18%, transparent) 0%,
+        transparent 100%),
+      var(--bg-deep);
+  }
+  :scope[data-phase="settled"] {
+    background:
+      radial-gradient(ellipse 55% 50% at 50% 40%,
+        color-mix(in srgb, var(--rarity-color) 10%, transparent) 0%,
+        transparent 100%),
+      var(--bg-deep);
+  }
+
+  /* Screen tremor during tension (epic/legendary) */
+  :scope[data-phase="tension"][data-rarity="epic"] {
+    animation: pull-tremor 0.12s infinite steps(1);
+  }
+  :scope[data-phase="tension"][data-rarity="legendary"] {
+    animation: pull-tremor 0.1s infinite steps(1);
+  }
+  @keyframes pull-tremor {
+    0%  { transform: translate(0, 0); }
+    25% { transform: translate(-1px, 1px); }
+    50% { transform: translate(1px, -1px); }
+    75% { transform: translate(-1px, -1px); }
+  }
+
+  /* Screen shake on reveal (scales with rarity) */
+  :scope[data-phase="reveal"][data-rarity="rare"] {
+    animation: pull-shake-mild 0.3s ease-out;
+  }
+  :scope[data-phase="reveal"][data-rarity="epic"] {
+    animation: pull-shake 0.4s ease-out;
+  }
+  :scope[data-phase="reveal"][data-rarity="legendary"] {
+    animation: pull-shake-heavy 0.5s ease-out;
+  }
+  @keyframes pull-shake-mild {
+    0%, 100% { transform: translate(0, 0); }
+    15% { transform: translate(-2px, 1px); }
+    35% { transform: translate(2px, -2px); }
+    55% { transform: translate(-1px, 2px); }
+    75% { transform: translate(2px, -1px); }
+  }
+  @keyframes pull-shake {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-4px, 2px); }
+    25% { transform: translate(5px, -4px); }
+    40% { transform: translate(-3px, 5px); }
+    55% { transform: translate(4px, -2px); }
+    70% { transform: translate(-5px, -3px); }
+    85% { transform: translate(3px, 4px); }
+  }
+  @keyframes pull-shake-heavy {
+    0%, 100% { transform: translate(0, 0); }
+    8%  { transform: translate(-6px, 3px); }
+    18% { transform: translate(7px, -5px); }
+    28% { transform: translate(-4px, 6px); }
+    38% { transform: translate(6px, -3px); }
+    48% { transform: translate(-7px, -4px); }
+    58% { transform: translate(5px, 6px); }
+    68% { transform: translate(-3px, -5px); }
+    78% { transform: translate(6px, 2px); }
+    88% { transform: translate(-4px, -3px); }
+  }
+
+  /* Freeze — everything holds still, maximum intensity before the bang */
+  :scope[data-phase="freeze"] {
+    animation: none;
+  }
+
+  /* ==================================================================
+   * 2. HEADER
+   * ================================================================ */
 
   .screen-header {
     display: grid;
@@ -26,6 +120,8 @@
     gap: var(--gap-normal);
     border-bottom: 1px solid var(--border-rest);
     padding-bottom: var(--gap-normal);
+    position: relative;
+    z-index: 10;
   }
   .screen-header h1 {
     margin: 0;
@@ -37,9 +133,6 @@
     color: var(--accent);
   }
 
-  /* BACK button hidden until the reveal settles — it's a "leave the
-   * cinematic" affordance, not a "kill the cinematic mid-animation"
-   * one. SKIP lives next to the title for the latter. */
   .pull-back-btn {
     opacity: 0;
     pointer-events: none;
@@ -65,113 +158,530 @@
       opacity      var(--motion-base) var(--ease-soft);
   }
   .pull-skip:hover { border-color: var(--accent); color: var(--accent); }
-  /* SKIP hidden after the cinematic completes. */
   :scope[data-phase="settled"] .pull-skip {
     opacity: 0;
     pointer-events: none;
   }
 
-  /* ------- Body layout --------------------------------------------- */
+  /* ==================================================================
+   * 3. BODY + OVERLAYS (vignette, flash)
+   * ================================================================ */
 
   .pull-body {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--gap-loose);
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-items: center;
+    justify-content: center;
+    gap: var(--gap-normal);
     min-height: 0;
+    position: relative;
+  }
+
+  /* Vignette — darkens edges during tension to focus on card */
+  .pull-vignette {
+    position: absolute;
+    inset: -20%;
+    border-radius: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+    background: radial-gradient(ellipse 45% 40% at 50% 42%, transparent 0%, rgba(0,0,0,0.65) 100%);
+    transition: opacity var(--motion-slow) var(--ease-soft);
+  }
+  :scope[data-phase="tension"] .pull-vignette { opacity: 0.6; }
+  :scope[data-phase="freeze"]  .pull-vignette { opacity: 0.8; }
+  :scope[data-phase="reveal"]  .pull-vignette { opacity: 0.3; transition-duration: 0.3s; }
+  :scope[data-phase="settled"] .pull-vignette { opacity: 0; }
+
+  /* White flash — instant blinding flash on reveal */
+  .pull-flash {
+    position: absolute;
+    inset: -50%;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 30;
+    mix-blend-mode: overlay;
+  }
+  :scope[data-phase="reveal"] .pull-flash {
+    animation: pull-white-flash 0.45s ease-out forwards;
+  }
+  :scope[data-phase="reveal"][data-rarity="epic"] .pull-flash,
+  :scope[data-phase="reveal"][data-rarity="legendary"] .pull-flash {
+    mix-blend-mode: normal;
+    animation: pull-white-flash-heavy 0.5s ease-out forwards;
+  }
+  @keyframes pull-white-flash {
+    0%   { opacity: 0; }
+    6%   { opacity: 0.5; }
+    100% { opacity: 0; }
+  }
+  @keyframes pull-white-flash-heavy {
+    0%   { opacity: 0; }
+    5%   { opacity: 0.7; }
+    15%  { opacity: 0.3; }
+    100% { opacity: 0; }
+  }
+
+  /* ==================================================================
+   * 4. STAGE + CARD
+   * ================================================================ */
+
+  .pull-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    z-index: 2;
   }
 
   .pull-card-wrap {
     position: relative;
-    width: min(380px, 90%);
+    width: min(310px, 78vw);
     aspect-ratio: var(--card-aspect);
+    /* Entrance: card floats up from below */
+    opacity: 0;
+    transform: translateY(50px) scale(0.92);
+    transition:
+      opacity   0.6s var(--ease-soft),
+      transform 0.6s var(--ease-soft),
+      box-shadow var(--motion-slow) var(--ease-soft);
+  }
+  :scope:not([data-phase="fetching"]) .pull-card-wrap {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
   .pull-card-wrap dm-card {
     width: 100%;
     height: 100%;
   }
 
-  /* Subtle idle while face-down — slight float so the card feels alive. */
-  :scope[data-phase="draw"]    .pull-card-wrap dm-card,
-  :scope[data-phase="tension"] .pull-card-wrap dm-card {
-    animation: pull-shuffle 0.6s ease-in-out infinite;
+  /* Card idle bob while face-down */
+  :scope[data-phase="draw"] .pull-card-wrap dm-card {
+    animation: pull-idle-bob 0.8s ease-in-out infinite;
   }
-  @keyframes pull-shuffle {
-    0%, 100% { transform: translateY(0)  rotate(-0.6deg); }
-    50%      { transform: translateY(-6px) rotate(0.6deg); }
+  @keyframes pull-idle-bob {
+    0%, 100% { transform: translateY(0) rotate(-0.3deg); }
+    50%      { transform: translateY(-5px) rotate(0.3deg); }
   }
 
-  /* ------- Rarity hint --------------------------------------------- */
-  /* Appears during tension, persists through reveal/settled. */
-  .pull-rarity-hint {
+  /* Tension — card vibrates with increasing intensity */
+  :scope[data-phase="tension"] .pull-card-wrap dm-card {
+    animation: pull-card-shake 0.08s infinite steps(1);
+  }
+  :scope[data-phase="tension"][data-rarity="epic"] .pull-card-wrap dm-card,
+  :scope[data-phase="tension"][data-rarity="legendary"] .pull-card-wrap dm-card {
+    animation: pull-card-shake-heavy 0.06s infinite steps(1);
+  }
+  @keyframes pull-card-shake {
+    0%  { transform: translate(0, 0); }
+    25% { transform: translate(-1px, 0.5px); }
+    50% { transform: translate(1px, -0.5px); }
+    75% { transform: translate(-0.5px, -1px); }
+  }
+  @keyframes pull-card-shake-heavy {
+    0%  { transform: translate(0, 0); }
+    20% { transform: translate(-2px, 1px); }
+    40% { transform: translate(2px, -1px); }
+    60% { transform: translate(-1px, -2px); }
+    80% { transform: translate(1px, 2px); }
+  }
+
+  /* Freeze — card stops vibrating, holds still */
+  :scope[data-phase="freeze"] .pull-card-wrap dm-card {
+    animation: none;
+    transform: translate(0, 0);
+  }
+
+  /* Reveal — card pops up in scale then settles */
+  :scope[data-phase="reveal"] .pull-card-wrap {
+    transform: scale(1.06);
+    transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  :scope[data-phase="settled"] .pull-card-wrap {
+    transform: scale(1);
+    transition: transform 0.6s var(--ease-soft);
+  }
+
+  /* ==================================================================
+   * 5. CARD GLOW HALO — ramps through phases
+   * ================================================================ */
+
+  :scope[data-phase="draw"] .pull-card-wrap {
+    box-shadow: 0 0 15px 3px color-mix(in srgb, var(--rarity-color) 10%, transparent);
+  }
+  :scope[data-phase="tension"] .pull-card-wrap {
+    box-shadow:
+      0 0 35px 8px  color-mix(in srgb, var(--rarity-color) 35%, transparent),
+      0 0 90px 25px color-mix(in srgb, var(--rarity-color) 12%, transparent);
+  }
+  :scope[data-phase="freeze"] .pull-card-wrap {
+    box-shadow:
+      0 0 50px 12px color-mix(in srgb, var(--rarity-color) 50%, transparent),
+      0 0 120px 35px color-mix(in srgb, var(--rarity-color) 18%, transparent);
+  }
+  :scope[data-phase="reveal"] .pull-card-wrap {
+    box-shadow:
+      0 0 80px 25px color-mix(in srgb, var(--rarity-color) 55%, transparent),
+      0 0 150px 50px color-mix(in srgb, var(--rarity-color) 20%, transparent);
+  }
+  :scope[data-phase="settled"] .pull-card-wrap {
+    box-shadow:
+      0 0 30px 6px  color-mix(in srgb, var(--rarity-color) 28%, transparent),
+      0 0 70px 18px color-mix(in srgb, var(--rarity-color) 10%, transparent);
+  }
+
+  /* ==================================================================
+   * 6. SHIMMER SWEEP (settled, rare+)
+   * ================================================================ */
+
+  .pull-card-wrap::before {
+    content: "";
     position: absolute;
-    inset: auto 0 -2.5rem 0;
+    top: 0;
+    left: -80%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.12) 45%,
+      rgba(255, 255, 255, 0.06) 55%,
+      transparent 80%
+    );
+    z-index: 8;
+    pointer-events: none;
+    opacity: 0;
+  }
+  :scope[data-phase="settled"][data-rarity="rare"] .pull-card-wrap::before,
+  :scope[data-phase="settled"][data-rarity="epic"] .pull-card-wrap::before,
+  :scope[data-phase="settled"][data-rarity="legendary"] .pull-card-wrap::before {
+    opacity: 1;
+    animation: pull-shimmer 3.5s 0.8s ease-in-out infinite;
+  }
+  @keyframes pull-shimmer {
+    0%  { left: -80%; }
+    35% { left: 130%; }
+    100% { left: 130%; }
+  }
+
+  /* ==================================================================
+   * 7. AMBIENT SPARKLES (settled, rare+)
+   * ================================================================ */
+
+  .pull-card-wrap::after {
+    content: "";
+    position: absolute;
+    inset: -25%;
+    pointer-events: none;
+    z-index: 7;
+    opacity: 0;
+    transition: opacity 1s var(--ease-soft);
+    box-shadow:
+       25px -35px 0 1.5px var(--rarity-color),
+      -45px  55px 0 1px   var(--rarity-color),
+       65px  15px 0 2px   var(--rarity-color),
+      -22px -65px 0 1px   var(--rarity-color),
+       85px -45px 0 1.5px var(--rarity-color),
+      -75px -25px 0 2px   var(--rarity-color),
+       35px  75px 0 1px   var(--rarity-color),
+      -55px  35px 0 1.5px var(--rarity-color),
+       10px -80px 0 1px   var(--rarity-color),
+      -90px  10px 0 1.5px var(--rarity-color);
+    border-radius: 50%;
+  }
+  :scope[data-phase="settled"][data-rarity="rare"] .pull-card-wrap::after {
+    opacity: 0.25;
+    animation: pull-sparkle-drift 5s ease-in-out infinite alternate;
+  }
+  :scope[data-phase="settled"][data-rarity="epic"] .pull-card-wrap::after {
+    opacity: 0.4;
+    animation: pull-sparkle-drift 4s ease-in-out infinite alternate;
+  }
+  :scope[data-phase="settled"][data-rarity="legendary"] .pull-card-wrap::after {
+    opacity: 0.6;
+    animation: pull-sparkle-drift 3.5s ease-in-out infinite alternate;
+  }
+  @keyframes pull-sparkle-drift {
+    0%   { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(-8px) rotate(6deg); }
+  }
+
+  /* ==================================================================
+   * 8. LIGHT RAYS (epic + legendary)
+   * ================================================================ */
+
+  .pull-rays {
+    position: absolute;
+    inset: -200%;
+    background: repeating-conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      color-mix(in srgb, var(--rarity-color) 6%, transparent) 2deg,
+      transparent 5deg
+    );
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity 0.8s var(--ease-soft);
+  }
+  :scope[data-phase="reveal"][data-rarity="legendary"] .pull-rays,
+  :scope[data-phase="settled"][data-rarity="legendary"] .pull-rays {
+    opacity: 1;
+    animation: pull-rays-spin 20s linear infinite;
+  }
+  :scope[data-phase="reveal"][data-rarity="epic"] .pull-rays,
+  :scope[data-phase="settled"][data-rarity="epic"] .pull-rays {
+    opacity: 0.5;
+    animation: pull-rays-spin 30s linear infinite;
+  }
+  :scope[data-phase="tension"][data-rarity="legendary"] .pull-rays {
+    opacity: 0.2;
+    animation: pull-rays-spin 40s linear infinite;
+  }
+  @keyframes pull-rays-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ==================================================================
+   * 9. BURST — dual-layer radial explosion
+   * ================================================================ */
+
+  .pull-burst,
+  .pull-burst-inner {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+
+  .pull-burst {
+    inset: -60%;
+    background: radial-gradient(circle, var(--rarity-color) 0%, transparent 50%);
+    z-index: 3;
+  }
+  .pull-burst-inner {
+    inset: -30%;
+    background: radial-gradient(circle, white 0%, var(--rarity-color) 25%, transparent 55%);
+    z-index: 4;
+  }
+
+  :scope[data-phase="reveal"] .pull-burst {
+    animation: pull-burst-outer 1.1s ease-out forwards;
+  }
+  :scope[data-phase="reveal"] .pull-burst-inner {
+    animation: pull-burst-center 0.7s ease-out forwards;
+  }
+
+  @keyframes pull-burst-outer {
+    0%   { opacity: 0; transform: scale(0.2); }
+    15%  { opacity: 0.85; }
+    100% { opacity: 0; transform: scale(2.5); }
+  }
+  @keyframes pull-burst-center {
+    0%   { opacity: 0; transform: scale(0.3); }
+    10%  { opacity: 1; }
+    60%  { opacity: 0.3; }
+    100% { opacity: 0; transform: scale(1.8); }
+  }
+
+  /* ==================================================================
+   * 10. EXPANDING RINGS
+   * ================================================================ */
+
+  .pull-ring {
+    position: absolute;
+    top: calc(50% - 12px);
+    left: calc(50% - 12px);
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--rarity-color);
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+    box-shadow: 0 0 10px var(--rarity-color);
+  }
+  :scope[data-phase="reveal"] .pull-ring {
+    animation: pull-ring-expand 0.9s ease-out forwards;
+  }
+  :scope[data-phase="reveal"] .pull-ring-2 {
+    animation: pull-ring-expand 1s 0.12s ease-out forwards;
+  }
+  @keyframes pull-ring-expand {
+    0%   { opacity: 0.9; transform: scale(1); }
+    40%  { opacity: 0.6; }
+    100% { opacity: 0; transform: scale(28); border-width: 0.5px; }
+  }
+
+  /* ==================================================================
+   * 11. SCATTER PARTICLES — explode outward on reveal
+   * ================================================================ */
+
+  .pull-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 6;
+  }
+  .pull-particle {
+    position: absolute;
+    top: calc(50% - var(--size, 4px) / 2);
+    left: calc(50% - var(--size, 4px) / 2);
+    width: var(--size, 4px);
+    height: var(--size, 4px);
+    background: var(--rarity-color);
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: 0 0 8px 2px var(--rarity-color);
+  }
+  :scope[data-phase="reveal"] .pull-particle {
+    animation: pull-scatter 1.1s ease-out var(--delay, 0ms) forwards;
+  }
+  @keyframes pull-scatter {
+    0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+    50%  { opacity: 0.8; }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.08); }
+  }
+
+  /* ==================================================================
+   * 12. CONVERGING SPARKS — energy drawn toward card during tension
+   * ================================================================ */
+
+  .pull-sparks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .pull-spark {
+    position: absolute;
+    top: calc(50% - var(--size, 3px) / 2);
+    left: calc(50% - var(--size, 3px) / 2);
+    width: var(--size, 3px);
+    height: var(--size, 3px);
+    background: var(--rarity-color);
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow:
+      0 0 10px 3px var(--rarity-color),
+      0 0 20px 5px color-mix(in srgb, var(--rarity-color) 30%, transparent);
+  }
+  :scope[data-phase="tension"] .pull-spark {
+    animation: pull-converge var(--tension-ms, 1000ms) ease-in var(--delay, 0ms) forwards;
+  }
+  :scope[data-phase="freeze"] .pull-spark {
+    opacity: 0;
+  }
+  @keyframes pull-converge {
+    0%   { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(0.5); }
+    15%  { opacity: 0.8; }
+    85%  { opacity: 1; transform: translate(calc(var(--sx) * 0.1), calc(var(--sy) * 0.1)) scale(1.2); }
+    100% { opacity: 0; transform: translate(0, 0) scale(0); }
+  }
+
+  /* ==================================================================
+   * 13. RADIAL STREAKS — light lines shooting outward on reveal
+   * ================================================================ */
+
+  .pull-streaks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 6;
+  }
+  .pull-streak {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 2px;
+    height: 0;
+    background: linear-gradient(
+      to bottom,
+      var(--rarity-color),
+      color-mix(in srgb, var(--rarity-color) 40%, transparent),
+      transparent
+    );
+    opacity: 0;
+    pointer-events: none;
+    transform-origin: top center;
+    transform: rotate(var(--angle, 0deg));
+    border-radius: 1px;
+    box-shadow: 0 0 4px var(--rarity-color);
+  }
+  :scope[data-phase="reveal"] .pull-streak {
+    animation: pull-streak-shoot 0.7s ease-out var(--delay, 0ms) forwards;
+  }
+  @keyframes pull-streak-shoot {
+    0%   { opacity: 0; height: 0; }
+    15%  { opacity: 1; height: 30px; }
+    100% { opacity: 0; height: var(--dist, 250px); }
+  }
+
+  /* ==================================================================
+   * 14. RARITY HINT — text slam
+   * ================================================================ */
+
+  .pull-rarity-hint {
+    margin-top: var(--gap-normal);
     text-align: center;
     font-family: var(--font-display);
     font-weight: 800;
-    letter-spacing: 0.6em;
-    font-size: 1.5rem;
+    letter-spacing: 0.5em;
+    font-size: 1.4rem;
     color: var(--rarity-color);
-    text-shadow: 0 0 20px var(--rarity-color);
+    text-shadow:
+      0 0 20px var(--rarity-color),
+      0 0 60px color-mix(in srgb, var(--rarity-color) 30%, transparent);
     opacity: 0;
-    transition: opacity var(--motion-slow) var(--ease-soft);
+    transform: scale(2.5);
+    transition:
+      opacity   var(--motion-base) var(--ease-soft),
+      transform var(--motion-base) var(--ease-snap);
     pointer-events: none;
+    z-index: 10;
   }
-  :scope[data-phase="tension"] .pull-rarity-hint,
-  :scope[data-phase="reveal"]  .pull-rarity-hint,
+  :scope[data-phase="tension"] .pull-rarity-hint {
+    opacity: 0.3;
+    transform: scale(1.4);
+  }
+  :scope[data-phase="freeze"] .pull-rarity-hint {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+  :scope[data-phase="reveal"] .pull-rarity-hint,
   :scope[data-phase="settled"] .pull-rarity-hint {
     opacity: 1;
+    transform: scale(1);
   }
-  /* Rarity hint shows the rarity name — populated by JS via
-   * detailRarity → rarity hint pipe. We just mirror the dataset. */
-  :scope[data-rarity] .pull-rarity-hint::before {
-    content: attr(data-rarity);
-    text-transform: uppercase;
-  }
-  /* Read the screen-level data-rarity through the wrap. */
-  :scope .pull-rarity-hint::before {
-    content: "";
-  }
+
   :scope[data-rarity="common"]    .pull-rarity-hint::before { content: "COMMON"; }
   :scope[data-rarity="uncommon"]  .pull-rarity-hint::before { content: "UNCOMMON"; }
   :scope[data-rarity="rare"]      .pull-rarity-hint::before { content: "RARE"; }
   :scope[data-rarity="epic"]      .pull-rarity-hint::before { content: "EPIC"; }
   :scope[data-rarity="legendary"] .pull-rarity-hint::before { content: "LEGENDARY"; }
 
-  /* ------- Reveal burst -------------------------------------------- */
-  .pull-burst {
-    position: absolute;
-    inset: -25%;
-    border-radius: 50%;
-    background: radial-gradient(circle, var(--rarity-color) 0%, transparent 60%);
-    opacity: 0;
-    pointer-events: none;
-    mix-blend-mode: screen;
-  }
-  :scope[data-phase="reveal"] .pull-burst {
-    animation: pull-burst 0.8s ease-out 1 forwards;
-  }
-  @keyframes pull-burst {
-    0%   { opacity: 0; transform: scale(0.6); }
-    35%  { opacity: 0.85; }
-    100% { opacity: 0; transform: scale(1.5); }
-  }
-
-  /* ------- Detail panel -------------------------------------------- */
+  /* ==================================================================
+   * 15. DETAIL PANEL
+   * ================================================================ */
 
   .pull-detail {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-normal);
-    min-width: 240px;
-    max-width: 320px;
-    /* Fade up alongside the card reveal — invisible during draw/tension. */
+    align-items: center;
+    gap: var(--gap-tight);
+    text-align: center;
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(20px);
     transition:
-      opacity   var(--motion-slow) var(--ease-soft),
-      transform var(--motion-slow) var(--ease-soft);
+      opacity   0.8s 0.15s var(--ease-soft),
+      transform 0.8s 0.15s var(--ease-soft);
+    z-index: 10;
   }
   :scope[data-phase="reveal"]  .pull-detail,
   :scope[data-phase="settled"] .pull-detail {
@@ -182,36 +692,38 @@
   .pull-detail-name {
     margin: 0;
     font-family: var(--font-display);
-    font-size: 2rem;
+    font-size: 1.4rem;
     color: var(--rarity-color);
-    letter-spacing: 0.1em;
-    line-height: 1.05;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
   }
   .pull-detail-rarity {
     font-family: var(--font-display);
-    font-size: 0.85rem;
-    letter-spacing: 0.4em;
+    font-size: 0.6rem;
+    letter-spacing: 0.35em;
     color: var(--rarity-color);
-    padding: 0.2rem 0.6rem;
-    border: 1px solid var(--rarity-color);
+    padding: 0.15rem 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--rarity-color) 40%, transparent);
     border-radius: 999px;
-    background: var(--rarity-bg);
-    align-self: flex-start;
+    background: color-mix(in srgb, var(--rarity-color) 8%, transparent);
   }
   .pull-detail-meta {
     color: var(--text-muted);
     display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 0.9rem;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+  }
+  .pull-meta-sep {
+    opacity: 0.3;
   }
 
   .pull-cta {
-    margin-top: var(--gap-normal);
+    margin-top: var(--gap-tight);
     font-family: var(--font-display);
-    letter-spacing: 0.4em;
+    letter-spacing: 0.3em;
     color: var(--accent);
-    font-size: 0.9rem;
+    font-size: 0.7rem;
     opacity: 0;
     animation: none;
   }
@@ -220,7 +732,7 @@
     animation: pull-cta-pulse 1.4s ease-in-out infinite;
   }
   @keyframes pull-cta-pulse {
-    0%, 100% { opacity: 0.4; }
+    0%, 100% { opacity: 0.3; }
     50%      { opacity: 1; }
   }
 

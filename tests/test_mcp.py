@@ -1636,11 +1636,10 @@ def test_npcs_lists_all_25_with_tier_metadata():
     for t in r["tiers"]:
         assert t["rank"] in (1, 2, 3, 4, 5)
         assert len(t["npc_ids"]) == 5
-    # Every NPC row has the agent-facing fields (no card payloads -- those
-    # come from dm_npc).
     for n in r["npcs"]:
         assert n["npc_id"] and n["name"] and n["tier"] and n["flavor"]
-        assert "loadout" not in n  # summary-only
+        assert isinstance(n["loadout"], list) and len(n["loadout"]) == 6
+        assert "cover_card_id" in n
 
 
 def test_npcs_filtered_by_tier():

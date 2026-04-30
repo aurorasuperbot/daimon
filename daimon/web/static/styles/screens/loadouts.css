@@ -1,58 +1,146 @@
-/* Loadouts screen — list view + 6-card editor.
- * Card visuals (catalog tiles, slot tiles) live in <dm-card>;
- * this file only owns layout + chrome. */
+/* Loadouts screen — visual list + 2-panel deck editor.
+ * Card visuals (catalog tiles, slot tiles) render via <dm-card>;
+ * this file owns layout, chrome, and the loadout panel presentation. */
 
 @scope (.loadouts-screen) {
 
   .loadouts-body {
     flex: 1;
-    overflow-y: auto;
+    min-height: 0;
+    padding-bottom: var(--gap-loose);
   }
 
-  .loadouts-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  /* ── Empty state ────────────────────────────────────────────────── */
+
+  .loadouts-empty {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-tight);
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-normal);
+    padding: 4rem 0;
+    text-align: center;
+  }
+  .empty-icon {
+    font-size: 2.5rem;
+    opacity: 0.4;
+  }
+  .empty-title {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+  }
+  .empty-hint {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    max-width: 320px;
   }
 
-  .loadout-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr auto;
-    align-items: center;
+  /* ── Loadout panel grid ─────────────────────────────────────────── */
+
+  .loadouts-grid {
+    display: flex;
+    flex-direction: column;
     gap: var(--gap-normal);
-    padding: 0.75rem 1rem;
+  }
+
+  .loadout-panel {
     background: var(--bg-panel);
     border: 1px solid var(--border-rest);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
     transition:
       border-color var(--motion-fast) var(--ease-soft),
-      box-shadow   var(--motion-fast) var(--ease-soft);
+      box-shadow   var(--motion-base) var(--ease-soft),
+      transform    var(--motion-fast) var(--ease-snap);
   }
-  .loadout-row.active {
+  .loadout-panel:hover {
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px rgba(240, 196, 88, 0.3) inset;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  }
+  .loadout-panel.active {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px rgba(240, 196, 88, 0.2) inset,
+      0 0 32px rgba(240, 196, 88, 0.12);
+  }
+  .loadout-panel.active:hover {
+    box-shadow:
+      0 0 0 1px rgba(240, 196, 88, 0.3) inset,
+      0 0 40px rgba(240, 196, 88, 0.2);
+  }
+  .loadout-panel.corrupt {
+    border-color: var(--danger);
+    opacity: 0.7;
   }
 
-  .loadout-name {
-    font-weight: 600;
+  .loadout-header {
     display: flex;
     align-items: center;
     gap: var(--gap-tight);
   }
+  .loadout-name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.06em;
+    color: var(--text);
+  }
   .active-pill {
-    font-size: 0.7rem;
+    font-family: var(--font-display);
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
     background: var(--accent);
     color: var(--bg-deep);
-    padding: 2px 6px;
-    border-radius: 3px;
-    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 999px;
   }
-  .loadout-meta {
-    color: var(--text-muted);
-    font-size: 0.9rem;
+
+  /* ── Card art strip ─────────────────────────────────────────────── */
+
+  .loadout-art-strip {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+  }
+  .loadout-art-thumb {
+    aspect-ratio: var(--card-aspect);
+    width: 100%;
+    object-fit: cover;
+    object-position: center top;
+    border-radius: var(--radius);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-raised);
+    transition: border-color var(--motion-fast) var(--ease-soft);
+  }
+  .loadout-panel:hover .loadout-art-thumb {
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+  .loadout-art-empty {
+    aspect-ratio: var(--card-aspect);
+    border-radius: var(--radius);
+    border: 1px dashed var(--text-dim);
+    background: var(--bg-deep);
+  }
+
+  /* ── Footer row ─────────────────────────────────────────────────── */
+
+  .loadout-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .loadout-count {
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
   }
   .loadout-actions {
     display: flex;
@@ -72,12 +160,11 @@
     color: #ff9a7a;
   }
 
-  .empty {
-    color: var(--text-dim);
-    font-style: italic;
-  }
-
 }
+
+/* ===========================================================================
+ * Editor — 2-panel deck builder (catalog + slots)
+ * =========================================================================== */
 
 @scope (.loadouts-editor) {
 
@@ -85,19 +172,45 @@
 
   .editor-body {
     display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: var(--gap-loose);
+    grid-template-columns: 1.4fr 1fr;
+    gap: var(--gap-normal);
     flex: 1;
-    overflow: hidden;
     min-height: 0;
   }
+
+  /* ── Catalog panel ──────────────────────────────────────────────── */
 
   .editor-catalog {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-normal);
-    overflow: hidden;
+    gap: var(--gap-tight);
     min-height: 0;
+  }
+
+  .catalog-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-tight);
+  }
+  .catalog-title {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: var(--accent-deep);
+  }
+  .catalog-hint {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.03em;
+    flex: 1;
+    text-align: center;
+  }
+  .catalog-page-num {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
   }
 
   .catalog-grid {
@@ -106,11 +219,11 @@
     grid-auto-rows: min-content;
     gap: var(--gap-tight);
     flex: 1;
-    overflow-y: auto;
-    padding-right: 0.25rem;
+    min-height: 0;
   }
 
   .catalog-tile {
+    position: relative;
     aspect-ratio: var(--card-aspect);
     background: transparent;
     border: 2px solid transparent;
@@ -120,11 +233,109 @@
     padding: 0;
     transition:
       border-color var(--motion-fast) var(--ease-soft),
-      transform    var(--motion-fast) var(--ease-soft);
+      transform    var(--motion-fast) var(--ease-soft),
+      box-shadow   var(--motion-fast) var(--ease-soft);
   }
-  .catalog-tile:hover:not(:disabled) { border-color: var(--accent); }
-  .catalog-tile:disabled { opacity: 0.35; cursor: not-allowed; }
-  .catalog-tile.in-deck { border-color: var(--success); }
+  .catalog-tile:hover:not(:disabled) {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .catalog-tile.dimmed { opacity: 0.35; }
+  .catalog-tile.in-deck {
+    border-color: var(--success);
+    box-shadow: 0 0 12px rgba(108, 217, 108, 0.2);
+  }
+
+  /* ── Tile toggle button (add/remove overlay) ────────────────────── */
+
+  .tile-toggle {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 3;
+    border: none;
+    opacity: 0;
+    transform: scale(0.8);
+    transition:
+      opacity var(--motion-fast) var(--ease-soft),
+      transform var(--motion-fast) var(--ease-soft),
+      background var(--motion-fast) var(--ease-soft);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  }
+  .catalog-tile:hover .tile-toggle,
+  .catalog-tile.in-deck .tile-toggle {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .tile-toggle.add {
+    background: var(--accent);
+    color: var(--bg-deep);
+  }
+  .tile-toggle.add:hover {
+    background: var(--accent-bright);
+  }
+  .tile-toggle.remove {
+    background: #ff9a7a;
+    color: var(--bg-deep);
+  }
+  .tile-toggle.remove:hover {
+    background: #ff7a5a;
+  }
+
+  .tile-in-deck-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    background: var(--success);
+    color: var(--bg-deep);
+    font-size: 0.65rem;
+    font-weight: 700;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+    pointer-events: none;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ── Page controls ──────────────────────────────────────────────── */
+
+  .page-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-tight);
+  }
+  .page-arrow {
+    background: transparent;
+    border: 1px solid var(--border-rest);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: color var(--motion-fast), border-color var(--motion-fast);
+  }
+  .page-arrow:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .page-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── Slot strip ─────────────────────────────────────────────────── */
 
   .editor-slots {
     display: flex;
@@ -141,6 +352,7 @@
     color: var(--accent);
     letter-spacing: 0.08em;
     font-family: var(--font-display);
+    font-size: 0.85rem;
   }
 
   .slot-strip {
@@ -151,7 +363,7 @@
 
   .slot-tile {
     aspect-ratio: var(--card-aspect);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
     background: var(--bg-deep);
     border: 1px dashed var(--text-dim);
     color: var(--text-dim);
@@ -161,23 +373,50 @@
     justify-content: center;
     overflow: hidden;
     padding: 0;
+    transition:
+      border-color var(--motion-fast) var(--ease-soft),
+      box-shadow var(--motion-fast) var(--ease-soft);
+  }
+  .slot-num {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    opacity: 0.25;
   }
   .slot-tile.filled {
     border: 1px solid var(--accent);
     background: var(--bg-raised);
     cursor: pointer;
     color: var(--text);
-    transition:
-      border-color var(--motion-fast) var(--ease-soft),
-      transform    var(--motion-fast) var(--ease-soft);
   }
-  .slot-tile.filled:hover { border-color: var(--accent-bright); }
+  .slot-tile.filled:hover {
+    border-color: #ff9a7a;
+    box-shadow: 0 0 12px rgba(255, 154, 122, 0.2);
+  }
   .slot-tile.filled:active { transform: translateY(1px); }
 
   .editor-actions {
     display: flex;
     gap: var(--gap-tight);
     margin-top: auto;
+  }
+
+  .validity-chip {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+  }
+  .validity-chip.ready {
+    background: var(--success);
+    color: var(--bg-deep);
+  }
+  .validity-chip.incomplete {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent-deep);
   }
 
 }

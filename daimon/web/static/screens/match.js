@@ -32,21 +32,27 @@ let state = {
 // Picker view
 // ---------------------------------------------------------------------------
 
+const TIER_RARITY = {
+  rookie: "common",
+  novice: "uncommon",
+  veteran: "rare",
+  elite: "epic",
+  champion: "legendary",
+};
+
 function pickerView(root) {
-  const recName = state.recommended
-    ? (state.npcsById[state.recommended.npc_id]?.name || state.recommended.npc_id)
-    : null;
+  const rec = state.recommended;
+  const recMeta = rec ? state.npcsById[rec.npc_id] : null;
+
   return el("div", { class: "screen match-screen fade-in" },
     el("header", { class: "screen-header" },
       backButton(),
       el("h1", null, "MATCH"),
-      recName
-        ? el("div", { class: "screen-balance" }, `recommended: ${recName}`)
-        : null,
     ),
     el("div", { class: "match-body" },
+      rec && recMeta ? heroBanner(recMeta, rec, root) : null,
       el("div", { class: "match-loadout-pick" },
-        el("h3", null, "YOUR LOADOUT"),
+        el("span", { class: "loadout-label" }, "LOADOUT"),
         loadoutPicker(root),
       ),
       el("div", { class: "match-npc-list" },
@@ -56,25 +62,98 @@ function pickerView(root) {
   );
 }
 
+function heroBanner(meta, rec, root) {
+  const coverId = rec.cover_card_id || meta.cover_card_id || meta.loadout?.[0];
+  const tierLabel = meta.tier
+    ? meta.tier.charAt(0).toUpperCase() + meta.tier.slice(1)
+    : "";
+  return el("div", {
+    class: "hero-banner",
+    onClick: () => startMatch(meta.npc_id, root),
+  },
+    coverId
+      ? el("img", {
+          class: "hero-bg",
+          src: `/art/${encodeURIComponent(coverId)}`,
+          alt: "",
+          draggable: "false",
+        })
+      : null,
+    el("div", { class: "hero-overlay" }),
+    el("div", { class: "hero-content" },
+      el("div", { class: "hero-pill" }, "RECOMMENDED"),
+      el("div", { class: "hero-name" }, meta.name),
+      el("div", { class: "hero-detail" },
+        `${tierLabel}${meta.rank ? ` · #${meta.rank}` : ""}`),
+      meta.flavor
+        ? el("div", { class: "hero-flavor" }, meta.flavor)
+        : null,
+      el("button", {
+        class: "hero-fight-btn",
+        type: "button",
+        onClick: (e) => { e.stopPropagation(); startMatch(meta.npc_id, root); },
+      }, "FIGHT"),
+    ),
+    coverId ? npcTeamStrip(meta) : null,
+  );
+}
+
+function npcTeamStrip(meta) {
+  const ids = meta.loadout || [];
+  if (ids.length === 0) return null;
+  return el("div", { class: "hero-team" },
+    ...ids.map(cid =>
+      el("img", {
+        class: "hero-team-thumb",
+        src: `/art/${encodeURIComponent(cid)}`,
+        alt: "",
+        draggable: "false",
+        loading: "lazy",
+      })
+    ),
+  );
+}
+
 function loadoutPicker(root) {
   if (state.loadouts.length === 0) {
     return el("div", { class: "empty" },
       "no saved loadouts — visit LOADOUTS first");
   }
-  return el("select", {
-    class: "loadout-select",
-    onChange: (e) => { state.selectedLoadout = e.target.value || null; },
-  },
-    el("option", { value: "" }, "(active default)"),
-    ...state.loadouts.map(lo =>
-      el("option", { value: lo.name,
-        selected: lo.active ? "selected" : false }, lo.name)),
-  );
+  const container = el("div", { class: "loadout-pills" });
+  function activate(btn) {
+    container.querySelectorAll(".loadout-pill")
+      .forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+  }
+  const defaultPill = el("button", {
+    class: `loadout-pill${!state.selectedLoadout ? " active" : ""}`,
+    type: "button",
+    onClick: (e) => { state.selectedLoadout = null; activate(e.currentTarget); },
+  }, "DEFAULT");
+  container.appendChild(defaultPill);
+  for (const lo of state.loadouts) {
+    const pill = el("button", {
+      class: `loadout-pill${state.selectedLoadout === lo.name ? " active" : ""}`,
+      type: "button",
+      onClick: (e) => { state.selectedLoadout = lo.name; activate(e.currentTarget); },
+    }, lo.name);
+    container.appendChild(pill);
+  }
+  return container;
 }
 
 function tierSection(tier, root) {
-  return el("section", { class: "tier-section" },
-    el("h3", null, `${tier.label} — ${tier.rule || ""}`),
+  const rarity = TIER_RARITY[tier.tier_id] || "common";
+  return el("section", { class: "tier-section", "data-rarity": rarity },
+    el("div", { class: "tier-header" },
+      el("div", { class: "tier-accent" }),
+      el("div", { class: "tier-header-text" },
+        el("h3", null, tier.label),
+        tier.rule
+          ? el("div", { class: "tier-rule" }, tier.rule)
+          : null,
+      ),
+    ),
     el("div", { class: "npc-grid" },
       ...tier.npc_ids.map(id => npcCard(id, tier, root)),
     ),
@@ -84,19 +163,34 @@ function tierSection(tier, root) {
 function npcCard(npcId, tier, root) {
   const meta = state.npcsById[npcId] || {};
   const isRecommended = state.recommended?.npc_id === npcId;
-  return el("div", { class: `npc-card${isRecommended ? " recommended" : ""}` },
+  const coverId = meta.cover_card_id || meta.loadout?.[0];
+
+  return el("div", {
+    class: `npc-card${isRecommended ? " recommended" : ""}`,
+    onClick: () => startMatch(npcId, root),
+  },
+    coverId
+      ? el("img", {
+          class: "npc-art",
+          src: `/art/${encodeURIComponent(coverId)}`,
+          alt: meta.name || npcId,
+          draggable: "false",
+          loading: "lazy",
+        })
+      : el("div", { class: "npc-art-placeholder" }),
+    el("div", { class: "npc-gradient" }),
+    el("div", { class: "npc-info" },
+      el("div", { class: "npc-name-row" },
+        el("span", { class: "npc-name" }, meta.name || npcId),
+        el("span", { class: "npc-rank" }, `#${meta.rank || "?"}`),
+      ),
+      meta.flavor
+        ? el("div", { class: "npc-flavor" }, meta.flavor)
+        : null,
+    ),
     isRecommended
-      ? el("div", { class: "npc-recommended-pill" }, "RECOMMENDED")
+      ? el("div", { class: "npc-rec-badge" }, "REC")
       : null,
-    el("div", { class: "npc-name" }, meta.name || npcId),
-    el("div", { class: "npc-tier" }, `${tier.label}${meta.rank ? ` · #${meta.rank}` : ""}`),
-    meta.flavor
-      ? el("div", { class: "npc-flavor" }, meta.flavor)
-      : null,
-    el("button", {
-      class: "primary-btn",
-      onClick: () => startMatch(npcId, root),
-    }, "FIGHT"),
   );
 }
 
@@ -199,14 +293,10 @@ function buildCinematicDom(root, transcript, speed) {
   const refs = { cells: { player: {}, opponent: {} }, log: null, roundChip: null };
 
   function makeUnitCell(side, card) {
-    // Render the full card via <dm-card size="full"> so the player sees
-    // the unit's art + name + family + ability rows. Abilities answer
-    // "why is X being targeted?" / "what does that trigger do?" without
-    // a separate inspector. CSS scales the card to 1/6 of the row.
-    const cardId = card.species;          // species == card_id in catalog
+    const cardId = card.species;
     const dm = document.createElement("dm-card");
     dm.setAttribute("card-id", cardId);
-    dm.setAttribute("size", "detail");
+    dm.setAttribute("size", "battle");
 
     // HP bar + numeric strip live below the card so they stay readable
     // while the art/text is busy. Per-event flash overlays the whole
