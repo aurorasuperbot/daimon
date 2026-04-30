@@ -6,11 +6,12 @@ hashing, signing, and parsing — these two modules MUST stay in sync byte-for-
 byte. Tests in `tests/arena/test_encoding.py` cross-verify against the
 arbiter's expected output to catch drift.
 
-Five protocol surfaces:
+Six protocol surfaces:
   - PvP commit-reveal     (PROTOCOL_VERSION_PVP)
   - Identity register     (PROTOCOL_VERSION_REGISTER)
   - Match dispute         (PROTOCOL_VERSION_DISPUTE)
   - Card proposal         (PROTOCOL_VERSION_CARD_PROPOSE)
+  - Pull ticket claim     (PROTOCOL_VERSION_PULL_CLAIM)
   - Joint match seed      (SEED_LABEL — derived, not signed)
 
 Each signing payload is **prefixed with its protocol version** so a
@@ -35,6 +36,7 @@ PROTOCOL_VERSION_PVP = "daimon-pvp-v1"
 PROTOCOL_VERSION_REGISTER = "daimon-register-v1"
 PROTOCOL_VERSION_DISPUTE = "daimon-dispute-v1"
 PROTOCOL_VERSION_CARD_PROPOSE = "daimon-card-propose-v1"
+PROTOCOL_VERSION_PULL_CLAIM = "daimon-pull-claim-v1"
 SEED_LABEL = "daimon-pvp-seed-v1"
 
 
@@ -157,6 +159,27 @@ def dispute_signing_payload(match_id: str,
         PROTOCOL_VERSION_DISPUTE.encode() + b"\n"
         + match_id.encode() + b"\n"
         + reason.encode() + b"\n"
+        + ts_iso.encode()
+    )
+
+
+def pull_claim_signing_payload(github_username: str,
+                              ticket_index: int,
+                              ts_iso: str) -> bytes:
+    """Bytes signed when claiming a pre-minted pull ticket.
+
+    Layout:
+        b"daimon-pull-claim-v1\\n"
+        + github_username.encode()
+        + b"\\n"
+        + str(ticket_index).encode()
+        + b"\\n"
+        + ts_iso.encode()
+    """
+    return (
+        PROTOCOL_VERSION_PULL_CLAIM.encode() + b"\n"
+        + github_username.encode() + b"\n"
+        + str(ticket_index).encode() + b"\n"
         + ts_iso.encode()
     )
 

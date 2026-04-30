@@ -122,13 +122,31 @@ def register(handle: Optional[str] = None) -> Dict[str, Any]:
     The Issue body carries a signed assertion ``{pubkey, handle, ts}`` so
     the arena (or any human reader) can prove the registration was made by
     the holder of the private key.
+
+    If ``gh auth login`` has been run, the Issue also carries the GitHub
+    username + id. On success the local ``identity.json`` metadata is
+    enriched with ``github_username`` and ``avatar_url`` so future
+    ``dm_whoami`` / ``dm_home`` calls can display them without a roundtrip.
     """
     id_or_err = _load_identity_or_error()
     if "error" in id_or_err:
         return id_or_err
     identity = id_or_err["_identity"]
 
-    handle = (handle or "").strip() or "(auto)"
+    gh_user = client.get_github_user()
+    if not gh_user["ok"]:
+        return {
+            "error": "gh_auth",
+            "message": (
+                "Could not resolve GitHub user — run `gh auth login` first. "
+                f"({gh_user.get('message', 'unknown')})"
+            ),
+        }
+    github_login = gh_user["login"]
+    github_id = gh_user["id"]
+    avatar_url = gh_user.get("avatar_url", "")
+
+    handle = (handle or "").strip() or github_login
     ts = _now_iso()
     payload = encoding.register_signing_payload(identity.pubkey_hex, handle, ts)
     sig_hex = identity.sign_bytes(payload).hex()
@@ -136,17 +154,21 @@ def register(handle: Optional[str] = None) -> Dict[str, Any]:
     body = encoding.format_kv_body([
         ("pubkey_hex", identity.pubkey_hex),
         ("handle", handle),
+        ("github_username", github_login),
+        ("github_id", str(github_id)),
         ("signed_at", ts),
         ("signature", sig_hex),
         ("protocol", encoding.PROTOCOL_VERSION_REGISTER),
     ])
 
     repo = arena_repo()
-    title = f"register: {identity.pubkey_hex[:16]}…"
+    title = f"register: {github_login} ({identity.pubkey_hex[:16]}…)"
     res = client.create_issue(repo, title, body,
                               labels=["identity", "pending-arbiter"])
     if not res["ok"]:
         return _arena_error("register", res)
+
+    _save_github_metadata(github_login, avatar_url)
 
     return {
         "status": "ok",
@@ -154,8 +176,41 @@ def register(handle: Optional[str] = None) -> Dict[str, Any]:
         "url": res["url"],
         "pubkey_hex": identity.pubkey_hex,
         "handle": handle,
+        "github_username": github_login,
         "phase": "pending-arbiter",
     }
+
+
+def _save_github_metadata(github_username: str, avatar_url: str) -> None:
+    """Enrich local ``identity.json`` with GitHub account fields."""
+    import json
+    from daimon.identity.keys import METADATA_PATH
+    try:
+        metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        metadata = {}
+    metadata["github_username"] = github_username
+    metadata["avatar_url"] = avatar_url
+    METADATA_PATH.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+
+def fetch_player_profile(github_username: str) -> Dict[str, Any]:
+    """Fetch a player's profile from the arena repo.
+
+    Reads ``players/{github_username}.json`` — written by the arbiter
+    when it processes a registration Issue.
+    """
+    if not github_username or not isinstance(github_username, str):
+        return {"error": "invalid_input",
+                "message": "github_username must be a non-empty string"}
+    repo = arena_repo()
+    res = client.fetch_repo_file(repo, f"players/{github_username}.json")
+    if not res["ok"]:
+        if res.get("error") == "not_found":
+            return {"error": "not_found",
+                    "message": f"no arena profile for {github_username}"}
+        return _arena_error("fetch_player_profile", res)
+    return {"status": "ok", "profile": res["content"]}
 
 
 # ---------------------------------------------------------------------------

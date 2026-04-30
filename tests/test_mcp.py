@@ -1098,6 +1098,19 @@ def _install_fake_gh(monkeypatch, fake):
     monkeypatch.setattr(arena_client, "_run", fake)
 
 
+def _gh_api_user_ok(login: str = "testuser", user_id: int = 99999):
+    import json as _json
+    return {
+        "ok": True,
+        "stdout": _json.dumps({
+            "login": login, "id": user_id,
+            "avatar_url": f"https://avatars.githubusercontent.com/u/{user_id}?v=4",
+            "name": None,
+        }),
+        "stderr": "",
+    }
+
+
 def _create_issue_ok(issue_number: int,
                      repo: str = "aurorasuperbot/daimon-arena"):
     return {
@@ -1125,7 +1138,7 @@ def test_register_opens_signed_issue(monkeypatch, tmp_path):
     _isolate_arena(monkeypatch, tmp_path)
     from daimon.identity import generate_identity
     ident = generate_identity(force=True)
-    fake = _FakeGh([_create_issue_ok(101)])
+    fake = _FakeGh([_gh_api_user_ok("aurora"), _create_issue_ok(101)])
     _install_fake_gh(monkeypatch, fake)
 
     r = _call(dm_register, handle="aurora")
@@ -1133,15 +1146,20 @@ def test_register_opens_signed_issue(monkeypatch, tmp_path):
     assert r["issue_number"] == 101
     assert r["pubkey_hex"] == ident.pubkey_hex
     assert r["handle"] == "aurora"
+    assert r["github_username"] == "aurora"
     assert r["phase"] == "pending-arbiter"
 
-    # The gh argv must have been a `gh issue create` with identity labels,
-    # and the body stdin must include the pubkey + a signature line.
-    argv, body = fake.calls[0]
+    # First call is `gh api user`, second is `gh issue create`.
+    assert len(fake.calls) == 2
+    argv_user, _ = fake.calls[0]
+    assert argv_user == ["gh", "api", "user"]
+
+    argv, body = fake.calls[1]
     assert argv[:3] == ["gh", "issue", "create"]
     assert "identity" in argv
     assert "pending-arbiter" in argv
     assert ident.pubkey_hex in body
+    assert "github_username: aurora" in body
     assert "signature: " in body
     assert "protocol: daimon-register-v1" in body
 
@@ -1166,7 +1184,7 @@ def test_register_surfaces_gh_auth_error(monkeypatch, tmp_path):
     _install_fake_gh(monkeypatch, fake)
     r = _call(dm_register)
     assert r["error"] == "gh_auth"
-    assert "register failed" in r["message"]
+    assert "gh auth login" in r["message"]
 
 
 # --- dm_pvp_challenge ------------------------------------------------------
@@ -1610,12 +1628,14 @@ def test_arena_repo_overrideable_via_env(monkeypatch, tmp_path):
     from daimon.identity import generate_identity
     generate_identity(force=True)
     monkeypatch.setenv("DAIMON_ARENA_REPO", "test-org/test-arena")
-    fake = _FakeGh([_create_issue_ok(1, repo="test-org/test-arena")])
+    fake = _FakeGh([_gh_api_user_ok(),
+                     _create_issue_ok(1, repo="test-org/test-arena")])
     _install_fake_gh(monkeypatch, fake)
 
     r = _call(dm_register)
     assert r["status"] == "ok"
-    argv, _ = fake.calls[0]
+    # First call is gh api user; second is the create_issue with overridden repo.
+    argv, _ = fake.calls[1]
     # The --repo argument must reflect the env override.
     assert "test-org/test-arena" in argv
 

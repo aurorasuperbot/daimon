@@ -93,6 +93,7 @@ Design rules:
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import logging
 import os
@@ -452,12 +453,16 @@ def dm_whoami() -> Dict[str, Any]:
 
     handle = None
     registered = False
+    github_username = None
+    avatar_url = None
     metadata_path = CONFIG_DIR / "identity.json"
     if metadata_path.exists():
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             handle = metadata.get("handle")
             registered = bool(metadata.get("registered"))
+            github_username = metadata.get("github_username")
+            avatar_url = metadata.get("avatar_url")
         except Exception:
             pass
 
@@ -466,6 +471,8 @@ def dm_whoami() -> Dict[str, Any]:
         "handle": handle,
         "version": __version__,
         "registered": registered,
+        "github_username": github_username,
+        "avatar_url": avatar_url,
     }
     out.update(_mining_stats_or_empty())
     return out
@@ -875,15 +882,19 @@ def dm_home() -> Dict[str, Any]:
                     "to bootstrap an identity.",
         }
 
-    # Identity metadata (handle, registration). Best-effort.
+    # Identity metadata (handle, registration, GitHub binding). Best-effort.
     handle = None
     registered = False
+    github_username = None
+    avatar_url = None
     metadata_path = CONFIG_DIR / "identity.json"
     if metadata_path.exists():
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             handle = metadata.get("handle")
             registered = bool(metadata.get("registered"))
+            github_username = metadata.get("github_username")
+            avatar_url = metadata.get("avatar_url")
         except Exception:
             pass
 
@@ -963,6 +974,8 @@ def dm_home() -> Dict[str, Any]:
             "handle": handle,
             "registered": registered,
             "version": __version__,
+            "github_username": github_username,
+            "avatar_url": avatar_url,
         },
         "balance": balance,
         "pull": {
@@ -1692,6 +1705,51 @@ def dm_match_npc(
     # After-action quest evaluation — claims any quest that just hit its goal.
     daily_quests = _refresh_and_claim_quests()
 
+    # Imprint: record per-serial battle stats + match history.
+    _imprint_loadout_serials: Optional[List[str]] = None
+    _imprint_per_card: Optional[List[Dict[str, Any]]] = None
+    try:
+        from daimon.imprint import (
+            extract_per_card_stats as _extract,
+            record_match as _record_imprint,
+            resolve_serials_for_loadout as _resolve_serials,
+        )
+        from daimon import match_history as _mh
+        from daimon.collection import list_serials as _list_serials
+
+        player_card_ids = [c.card_id for c in a_lo.cards]
+        serial_map = _resolve_serials(player_card_ids, _list_serials())
+        per_card = _extract(result, a_lo, side=0)
+        player_won = result.winner == 0
+
+        for pc in per_card:
+            sid = serial_map.get(pc["card_id"])
+            if sid:
+                _record_imprint(
+                    serial=sid, card_id=pc["card_id"], won=player_won,
+                    kills=pc["kills"], damage_dealt=pc["damage_dealt"],
+                    damage_taken=pc["damage_taken"],
+                )
+
+        _imprint_loadout_serials = [
+            serial_map.get(cid, "") for cid in player_card_ids
+        ]
+        _imprint_per_card = per_card
+        _mh.append_match({
+            "match_id": state_id,
+            "ts": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+            "kind": "pve",
+            "opponent_name": npc.name,
+            "outcome": "win" if player_won else (
+                "loss" if result.winner == 1 else "draw"),
+            "round_count": len(result.rounds),
+            "loadout_serials": _imprint_loadout_serials,
+            "loadout_card_ids": player_card_ids,
+            "per_card": per_card,
+        })
+    except Exception:  # noqa: BLE001 — imprint is informational, never blocks
+        pass
+
     out: Dict[str, Any] = {
         "status": "ok",
         "winner": result.winner,
@@ -1711,6 +1769,10 @@ def dm_match_npc(
         "used_active_loadout": used_active,
         "daily_quests": daily_quests,
     }
+    if _imprint_per_card is not None:
+        out["per_card_stats"] = _imprint_per_card
+    if _imprint_loadout_serials is not None:
+        out["loadout_serials"] = _imprint_loadout_serials
     if include_round_log:
         out["rounds"] = full_rounds
     if include_transcript:

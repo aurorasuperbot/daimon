@@ -305,6 +305,33 @@ def fetch_repo_file(repo: str,
     return _decode_file_content(decoded, path)
 
 
+def get_github_user(timeout: int = 10) -> Dict[str, Any]:
+    """Fetch the authenticated GitHub user via ``gh api user``.
+
+    On success::
+        {"ok": True, "login": "alice", "id": 12345,
+         "avatar_url": "https://avatars.githubusercontent.com/..."}
+
+    Requires ``gh auth login`` to have been run at least once.
+    """
+    res = _run(["gh", "api", "user"], timeout=timeout)
+    if not res["ok"]:
+        return res
+    try:
+        user = json.loads(res["stdout"])
+    except json.JSONDecodeError as e:
+        return {"ok": False, "error": "gh_parse",
+                "message": f"could not parse gh api user output: {e}",
+                "stdout": res["stdout"]}
+    return {
+        "ok": True,
+        "login": user.get("login"),
+        "id": user.get("id"),
+        "avatar_url": user.get("avatar_url"),
+        "name": user.get("name"),
+    }
+
+
 def _decode_file_content(text: str, path: str) -> Dict[str, Any]:
     if path.endswith(".json"):
         try:
