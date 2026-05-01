@@ -425,6 +425,105 @@ def arena_claim_tier_up(tier: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Migration: local state → server state (one-time)
+# ---------------------------------------------------------------------------
+
+MIGRATION_BALANCE_CAP = 10000
+
+
+def arena_migrate() -> Dict[str, Any]:
+    """One-time migration of local balance + collection to the arena.
+
+    Reads local ledger balance (capped at 10000 to prevent abuse) and
+    local collection, then opens a migration Issue. The arbiter validates
+    card_ids against the catalog and writes the state.
+
+    Returns on success::
+        {"status": "ok", "balance": int, "card_count": int,
+         "issue_number": int, "url": str}
+    """
+    import hashlib
+
+    id_or_err = _load_identity_or_error()
+    if "error" in id_or_err:
+        return id_or_err
+    identity = id_or_err["_identity"]
+
+    u = _require_github_username()
+    if "error" in u:
+        return u
+    username = u["_username"]
+
+    repo = arena_repo()
+
+    # Check if already migrated
+    profile_res = client.fetch_repo_file(
+        repo, f"players/{username}.json")
+    if profile_res["ok"]:
+        profile = profile_res["content"]
+        if profile.get("migrated"):
+            return {"error": "already_migrated",
+                    "message": "state has already been migrated to the arena"}
+
+    # Read local balance
+    from daimon.mining.ledger import get_balance
+    local_balance = get_balance()
+    capped_balance = min(local_balance, MIGRATION_BALANCE_CAP)
+
+    # Read local collection
+    from daimon.collection import load_collection
+    collection = load_collection()
+    serials = collection.get("serials", [])
+    card_ids = [s.get("card_id", "") for s in serials if isinstance(s, dict)]
+
+    # Build collection payload for the Issue
+    collection_payload = {
+        "card_ids": card_ids,
+        "serial_count": len(serials),
+    }
+    collection_json = encoding.canonical_json(collection_payload)
+    collection_hash = hashlib.sha256(collection_json).hexdigest()
+
+    ts = _now_iso()
+    payload = encoding.migration_signing_payload(
+        username, capped_balance, collection_hash, ts)
+    sig_hex = identity.sign_bytes(payload).hex()
+
+    body_lines = [
+        ("claim_type", "migration"),
+        ("github_username", username),
+        ("pubkey_hex", identity.pubkey_hex),
+        ("balance", str(capped_balance)),
+        ("original_balance", str(local_balance)),
+        ("collection_hash", collection_hash),
+        ("card_count", str(len(card_ids))),
+        ("migrated_at", ts),
+        ("signature", sig_hex),
+        ("protocol", encoding.PROTOCOL_VERSION_MIGRATION),
+    ]
+
+    body = encoding.format_kv_body(body_lines)
+    body += f"\n\n```json\n{collection_json.decode()}\n```\n"
+
+    issue_res = client.create_issue(
+        repo, f"migration: {username}",
+        body, labels=["migration", "pending-arbiter"])
+    if not issue_res["ok"]:
+        return _arena_error("arena_migrate", issue_res)
+
+    return {
+        "status": "ok",
+        "balance": capped_balance,
+        "original_balance": local_balance,
+        "card_count": len(card_ids),
+        "collection_hash": collection_hash,
+        "issue_number": issue_res["issue_number"],
+        "url": issue_res["url"],
+        "phase": "pending-arbiter",
+    }
+
+
+# ---------------------------------------------------------------------------
 # Identity registration
 # ---------------------------------------------------------------------------
 

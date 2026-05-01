@@ -40,6 +40,7 @@ PROTOCOL_VERSION_PULL_CLAIM = "daimon-pull-claim-v1"
 PROTOCOL_VERSION_TICKET = "daimon-ticket-v1"
 PROTOCOL_VERSION_QUEST_CLAIM = "daimon-quest-claim-v1"
 PROTOCOL_VERSION_TIER_CLAIM = "daimon-tier-claim-v1"
+PROTOCOL_VERSION_MIGRATION = "daimon-migration-v1"
 SEED_LABEL = "daimon-pvp-seed-v1"
 
 
@@ -284,6 +285,35 @@ def tier_claim_signing_payload(github_username: str,
         PROTOCOL_VERSION_TIER_CLAIM.encode() + b"\n"
         + github_username.encode() + b"\n"
         + tier.encode() + b"\n"
+        + ts_iso.encode()
+    )
+
+
+def migration_signing_payload(github_username: str,
+                              balance: int,
+                              collection_hash: str,
+                              ts_iso: str) -> bytes:
+    """Bytes signed when migrating local state to the arena.
+
+    The collection_hash is SHA-256 of the canonical JSON collection
+    so the arbiter can verify integrity without the full blob in the
+    signed payload.
+
+    Layout:
+        b"daimon-migration-v1\\n"
+        + github_username.encode()
+        + b"\\n"
+        + str(balance).encode()
+        + b"\\n"
+        + collection_hash.encode()
+        + b"\\n"
+        + ts_iso.encode()
+    """
+    return (
+        PROTOCOL_VERSION_MIGRATION.encode() + b"\n"
+        + github_username.encode() + b"\n"
+        + str(balance).encode() + b"\n"
+        + collection_hash.encode() + b"\n"
         + ts_iso.encode()
     )
 

@@ -1212,6 +1212,48 @@ def dm_tier_up_claim() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Migration — one-time local state → arena transfer
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def dm_migrate_to_arena() -> Dict[str, Any]:
+    """Migrate local balance + collection to the arena (one-time).
+
+    Reads the local ledger balance (capped at 10,000 to prevent abuse)
+    and the local card collection, then opens a migration Issue on the
+    arena repo. The arbiter validates card_ids against the catalog and
+    writes the state to ``state/{username}/``.
+
+    **Idempotent**: the arbiter marks the player as migrated in
+    ``players/{username}.json`` and rejects subsequent attempts.
+
+    **Requirements**:
+      - Must be arena-registered (``dm_register`` first)
+      - Must have ``gh`` CLI authenticated
+      - Migration can only be done once per identity
+
+    Returns:
+      Success:
+        ``{"status": "ok", "balance": int, "card_count": int,
+           "issue_number": int, "url": str}``
+
+      Already migrated:
+        ``{"error": "already_migrated", ...}``
+
+      Not registered:
+        ``{"error": "not_registered", ...}``
+    """
+    try:
+        from daimon.arena import ops as arena_ops
+        return arena_ops.arena_migrate()
+    except Exception as e:  # noqa: BLE001
+        logger.exception("migration: arena_migrate raised")
+        return {"error": "migration_failed",
+                "message": f"{type(e).__name__}: {e}"}
+
+
+# ---------------------------------------------------------------------------
 # Inbox — long-poll bridge from the LivingAgent webapp chat (Pattern A)
 # ---------------------------------------------------------------------------
 #
