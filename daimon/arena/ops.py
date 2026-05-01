@@ -181,6 +181,141 @@ def arena_collection() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Arena pull — claim pre-minted tickets (Phase 3)
+# ---------------------------------------------------------------------------
+
+def arena_pull() -> Dict[str, Any]:
+    """Claim the next pre-minted pull ticket from the arena.
+
+    Flow:
+      1. Fetch pending tickets from server
+      2. Find ticket at ``next_claim_index``
+      3. Unseal the encrypted ticket with player's ed25519 private key
+      4. Verify arbiter signature against published arbiter pubkey
+      5. Open pull-claim Issue (async confirmation, but ticket data
+         returned immediately)
+      6. Return card data for the UI
+
+    Returns on success::
+        {"status": "ok", "card_id": "...", "rarity": "...",
+         "serial": "...", "pack": "...", "cost": 100,
+         "ticket_index": 0, "issue_number": 42, ...}
+
+    Returns on failure::
+        {"error": "no_tickets", "hint": "tickets refilling shortly"}
+        {"error": "not_registered", ...}
+        {"error": "unseal_failed", ...}
+        {"error": "unsigned_response", ...}
+    """
+    id_or_err = _load_identity_or_error()
+    if "error" in id_or_err:
+        return id_or_err
+    identity = id_or_err["_identity"]
+
+    u = _require_github_username()
+    if "error" in u:
+        return u
+    username = u["_username"]
+
+    repo = arena_repo()
+
+    # 1. Fetch pending tickets
+    tickets_res = client.fetch_player_tickets(repo, username)
+    if not tickets_res["ok"]:
+        if tickets_res.get("error") == "not_found":
+            return {"error": "no_tickets",
+                    "message": f"no ticket file for {username}",
+                    "hint": "tickets refilling shortly — try again in a few minutes"}
+        return _arena_error("arena_pull", tickets_res)
+
+    ticket_data = tickets_res["content"]
+    tickets = ticket_data.get("tickets", [])
+    next_idx = ticket_data.get("next_claim_index", 0)
+
+    # 2. Find ticket at next_claim_index
+    ticket_entry = None
+    for t in tickets:
+        if t.get("index") == next_idx:
+            ticket_entry = t
+            break
+
+    if ticket_entry is None:
+        return {"error": "no_tickets",
+                "message": f"no unclaimed ticket at index {next_idx}",
+                "hint": "tickets refilling shortly — try again in a few minutes"}
+
+    # 3. Unseal the encrypted ticket
+    sealed_hex = ticket_entry.get("sealed_hex")
+    if not sealed_hex:
+        return {"error": "invalid_ticket",
+                "message": "ticket entry has no sealed_hex field"}
+
+    try:
+        from daimon.arena.crypto import unseal_hex
+        import json as _json
+        plaintext_bytes = unseal_hex(sealed_hex, identity.private_key)
+        inner = _json.loads(plaintext_bytes)
+    except Exception as e:
+        return {"error": "unseal_failed",
+                "message": f"could not decrypt ticket: {type(e).__name__}: {e}",
+                "hint": "ticket may have been encrypted for a different key"}
+
+    ticket_content = inner.get("ticket", inner)
+    arbiter_sig = inner.get("arbiter_sig", "")
+
+    # 4. Verify arbiter signature
+    arbiter_res = client.fetch_arbiter_pubkey(repo)
+    if not arbiter_res["ok"]:
+        return _arena_error("arena_pull", arbiter_res)
+    arbiter_pubkey_hex = arbiter_res["content"].get("pubkey_hex", "")
+
+    if not encoding.verify_ticket_signature(
+        ticket_content, arbiter_sig, arbiter_pubkey_hex
+    ):
+        return {"error": "unsigned_response",
+                "message": "ticket arbiter signature verification failed",
+                "hint": "the ticket may have been tampered with"}
+
+    # 5. Open pull-claim Issue
+    ts = _now_iso()
+    claim_payload = encoding.pull_claim_signing_payload(
+        username, next_idx, ts)
+    sig_hex = identity.sign_bytes(claim_payload).hex()
+
+    body = encoding.format_kv_body([
+        ("claim_type", "pull"),
+        ("github_username", username),
+        ("pubkey_hex", identity.pubkey_hex),
+        ("ticket_index", str(next_idx)),
+        ("claimed_at", ts),
+        ("signature", sig_hex),
+        ("protocol", encoding.PROTOCOL_VERSION_PULL_CLAIM),
+    ])
+
+    issue_res = client.create_issue(
+        repo, f"pull-claim: {username} ticket #{next_idx}",
+        body, labels=["pull-claim", "pending-arbiter"])
+    if not issue_res["ok"]:
+        return _arena_error("arena_pull", issue_res)
+
+    # 6. Return ticket data immediately
+    return {
+        "status": "ok",
+        "card_id": ticket_content.get("card_id"),
+        "rarity": ticket_content.get("rarity"),
+        "serial": ticket_content.get("serial"),
+        "pack": ticket_content.get("pack", "v1_alpha"),
+        "cost": ticket_content.get("cost", 100),
+        "edition": ticket_content.get("edition", "1st"),
+        "seed_hex": ticket_content.get("seed_hex", ""),
+        "ticket_index": next_idx,
+        "issue_number": issue_res["issue_number"],
+        "url": issue_res["url"],
+        "phase": "pending-arbiter",
+    }
+
+
+# ---------------------------------------------------------------------------
 # Identity registration
 # ---------------------------------------------------------------------------
 

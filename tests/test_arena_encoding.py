@@ -122,6 +122,41 @@ def test_card_propose_signing_payload_layout():
     assert got == expected
 
 
+def test_ticket_signing_payload_layout():
+    ticket = {"card_id": "flame_imp", "index": 0, "rarity": "common"}
+    got = encoding.ticket_signing_payload(ticket)
+    expected = (
+        b"daimon-ticket-v1\n"
+        + encoding.canonical_json(ticket)
+    )
+    assert got == expected
+
+
+def test_verify_ticket_signature_valid():
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+    priv = Ed25519PrivateKey.generate()
+    pub_hex = priv.public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
+    ticket = {"card_id": "flame_imp", "index": 0, "rarity": "common"}
+    payload = encoding.ticket_signing_payload(ticket)
+    sig = priv.sign(payload).hex()
+    assert encoding.verify_ticket_signature(ticket, sig, pub_hex) is True
+
+
+def test_verify_ticket_signature_wrong_key():
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+    priv = Ed25519PrivateKey.generate()
+    wrong = Ed25519PrivateKey.generate()
+    wrong_hex = wrong.public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
+    ticket = {"card_id": "flame_imp", "index": 0, "rarity": "common"}
+    payload = encoding.ticket_signing_payload(ticket)
+    sig = priv.sign(payload).hex()
+    assert encoding.verify_ticket_signature(ticket, sig, wrong_hex) is False
+
+
 def test_protocol_versions_are_distinct():
     """Domain separation — no two surfaces share a label."""
     labels = {
@@ -129,9 +164,11 @@ def test_protocol_versions_are_distinct():
         encoding.PROTOCOL_VERSION_REGISTER,
         encoding.PROTOCOL_VERSION_DISPUTE,
         encoding.PROTOCOL_VERSION_CARD_PROPOSE,
+        encoding.PROTOCOL_VERSION_PULL_CLAIM,
+        encoding.PROTOCOL_VERSION_TICKET,
         encoding.SEED_LABEL,
     }
-    assert len(labels) == 5
+    assert len(labels) == 7
 
 
 def test_signing_payloads_differ_across_surfaces():

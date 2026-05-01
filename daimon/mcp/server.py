@@ -1986,6 +1986,36 @@ def dm_pull(seed: Optional[str] = None,
       {"error": "invalid_input", "message": "..."}
       {"error": "internal_error", "message": "..."}
     """
+    # Arena-registered players use server-side tickets.
+    from daimon.arena.ops import _load_github_username
+    if _load_github_username():
+        result = arena_ops.arena_pull()
+        if result.get("status") == "ok":
+            receipt_dict = {
+                "serial": result.get("serial"),
+                "card_id": result.get("card_id"),
+                "rarity": result.get("rarity"),
+                "pack": result.get("pack", "v1_alpha"),
+                "cost": result.get("cost", 100),
+                "seed_hex": result.get("seed_hex", ""),
+                "edition": result.get("edition", "1st"),
+            }
+            state_id = publish_pull_state(
+                receipt_dict=dict(receipt_dict)) or new_id("pull")
+            daily_quests = _refresh_and_claim_quests()
+            return {
+                "status": "ok",
+                "state_id": state_id,
+                "daily_quests": daily_quests,
+                "arena": True,
+                "ticket_index": result.get("ticket_index"),
+                "issue_number": result.get("issue_number"),
+                "url": result.get("url"),
+                **receipt_dict,
+            }
+        return result
+
+    # Offline / unregistered players use local pulls.
     from daimon.catalog import DEFAULT_CATALOG_ID
     from daimon.mining.ledger import InsufficientBalanceError
     from daimon.pulls import perform_pull

@@ -309,6 +309,16 @@ def fetch_repo_file(repo: str,
 # Player state reads (state/{username}/*.json)
 # ---------------------------------------------------------------------------
 
+def fetch_arbiter_pubkey(repo: str,
+                        timeout: int = 15) -> Dict[str, Any]:
+    """Fetch ``arbiter_pubkey.json`` from the arena repo root.
+
+    On success::
+        {"ok": True, "content": {"pubkey_hex": "..."}, "raw": "..."}
+    """
+    return fetch_repo_file(repo, "arbiter_pubkey.json", timeout=timeout)
+
+
 def fetch_player_balance(repo: str, username: str,
                          timeout: int = 15) -> Dict[str, Any]:
     """Fetch ``state/{username}/balance.json`` from the arena repo."""

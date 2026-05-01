@@ -1792,6 +1792,178 @@ def test_dm_whoami_includes_arena_balance_for_registered(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# arena_pull (Phase 3 — pre-minted encrypted tickets)
+# ---------------------------------------------------------------------------
+
+def _make_arbiter_keypair():
+    """Create a fresh arbiter ed25519 keypair for testing."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+    priv = Ed25519PrivateKey.generate()
+    pub_bytes = priv.public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    return priv, pub_bytes.hex()
+
+
+def _make_sealed_ticket(ticket_content, arbiter_priv, player_pub):
+    """Create a sealed ticket entry like the arbiter would produce."""
+    from daimon.arena.crypto import seal_hex
+    from daimon.arena.encoding import ticket_signing_payload
+    payload = ticket_signing_payload(ticket_content)
+    sig = arbiter_priv.sign(payload).hex()
+    inner = json.dumps({"ticket": ticket_content, "arbiter_sig": sig})
+    sealed = seal_hex(inner.encode(), player_pub)
+    return {"index": ticket_content["index"], "sealed_hex": sealed}
+
+
+def test_arena_pull_claims_ticket(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    ident = generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata
+    _save_github_metadata("testplayer", "")
+
+    arbiter_priv, arbiter_pubkey_hex = _make_arbiter_keypair()
+    ticket_content = {
+        "index": 0, "card_id": "flame_imp", "rarity": "common",
+        "pack": "v1_alpha", "serial": "test-serial-001",
+        "seed_hex": "aa" * 32, "edition": "1st", "cost": 100,
+    }
+    sealed_entry = _make_sealed_ticket(
+        ticket_content, arbiter_priv, ident.private_key.public_key())
+
+    pending = {"tickets": [sealed_entry], "next_claim_index": 0}
+
+    fake = _FakeGh([
+        _repo_file_ok(pending),                                # tickets
+        _repo_file_ok({"pubkey_hex": arbiter_pubkey_hex}),     # arbiter pubkey
+        _create_issue_ok(77),                                  # pull-claim Issue
+    ])
+    _install_fake_gh(monkeypatch, fake)
+
+    from daimon.arena.ops import arena_pull
+    r = arena_pull()
+    assert r["status"] == "ok"
+    assert r["card_id"] == "flame_imp"
+    assert r["rarity"] == "common"
+    assert r["serial"] == "test-serial-001"
+    assert r["ticket_index"] == 0
+    assert r["issue_number"] == 77
+
+    # The claim Issue must carry the right label and signature.
+    argv, body = fake.calls[2]
+    assert "pull-claim" in argv
+    assert "pending-arbiter" in argv
+    assert "ticket_index: 0" in body
+    assert "protocol: daimon-pull-claim-v1" in body
+
+
+def test_arena_pull_no_tickets(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata
+    _save_github_metadata("testplayer", "")
+
+    pending = {"tickets": [], "next_claim_index": 0}
+    fake = _FakeGh([_repo_file_ok(pending)])
+    _install_fake_gh(monkeypatch, fake)
+
+    from daimon.arena.ops import arena_pull
+    r = arena_pull()
+    assert r["error"] == "no_tickets"
+
+
+def test_arena_pull_bad_signature_rejected(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    ident = generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata
+    _save_github_metadata("testplayer", "")
+
+    # Create ticket signed by one arbiter key but present a DIFFERENT pubkey
+    arbiter_priv, _ = _make_arbiter_keypair()
+    _, wrong_pubkey_hex = _make_arbiter_keypair()
+
+    ticket_content = {
+        "index": 0, "card_id": "flame_imp", "rarity": "common",
+        "pack": "v1_alpha", "serial": "s1", "seed_hex": "bb" * 32,
+        "edition": "1st", "cost": 100,
+    }
+    sealed_entry = _make_sealed_ticket(
+        ticket_content, arbiter_priv, ident.private_key.public_key())
+
+    pending = {"tickets": [sealed_entry], "next_claim_index": 0}
+
+    fake = _FakeGh([
+        _repo_file_ok(pending),
+        _repo_file_ok({"pubkey_hex": wrong_pubkey_hex}),  # wrong key!
+    ])
+    _install_fake_gh(monkeypatch, fake)
+
+    from daimon.arena.ops import arena_pull
+    r = arena_pull()
+    assert r["error"] == "unsigned_response"
+
+
+def test_arena_pull_not_registered(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    from daimon.arena.ops import arena_pull
+    r = arena_pull()
+    assert r["error"] == "not_registered"
+
+
+def test_dm_pull_branches_to_arena_for_registered(monkeypatch, tmp_path):
+    """dm_pull routes to arena_pull when a github_username is set."""
+    _isolate_arena_with_config_dir(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    ident = generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata
+    _save_github_metadata("testplayer", "")
+
+    arbiter_priv, arbiter_pubkey_hex = _make_arbiter_keypair()
+    ticket_content = {
+        "index": 0, "card_id": "arcane_fox", "rarity": "rare",
+        "pack": "v1_alpha", "serial": "test-serial-002",
+        "seed_hex": "cc" * 32, "edition": "1st", "cost": 100,
+    }
+    sealed_entry = _make_sealed_ticket(
+        ticket_content, arbiter_priv, ident.private_key.public_key())
+
+    pending = {"tickets": [sealed_entry], "next_claim_index": 0}
+
+    fake = _FakeGh([
+        _repo_file_ok(pending),
+        _repo_file_ok({"pubkey_hex": arbiter_pubkey_hex}),
+        _create_issue_ok(88),
+    ])
+    _install_fake_gh(monkeypatch, fake)
+
+    r = _call(dm_pull)
+    assert r["status"] == "ok"
+    assert r["arena"] is True
+    assert r["card_id"] == "arcane_fox"
+    assert r["rarity"] == "rare"
+    assert r["issue_number"] == 88
+
+
+def test_dm_pull_uses_local_when_unregistered(monkeypatch, tmp_path):
+    """dm_pull falls back to local perform_pull when not arena-registered."""
+    _isolate_arena_with_config_dir(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+
+    # No github_username → no arena registration → local path.
+    # Local pull will fail with insufficient_balance on a fresh identity,
+    # which proves we hit the local path (arena_pull would error differently).
+    r = _call(dm_pull)
+    assert r.get("error") == "insufficient_balance"
+    assert "arena" not in r
+
+
+# ---------------------------------------------------------------------------
 # dm_npcs / dm_npc / dm_match_npc — NPC tier roster (V1 alpha)
 # ---------------------------------------------------------------------------
 

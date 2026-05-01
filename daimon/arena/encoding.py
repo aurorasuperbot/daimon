@@ -37,6 +37,7 @@ PROTOCOL_VERSION_REGISTER = "daimon-register-v1"
 PROTOCOL_VERSION_DISPUTE = "daimon-dispute-v1"
 PROTOCOL_VERSION_CARD_PROPOSE = "daimon-card-propose-v1"
 PROTOCOL_VERSION_PULL_CLAIM = "daimon-pull-claim-v1"
+PROTOCOL_VERSION_TICKET = "daimon-ticket-v1"
 SEED_LABEL = "daimon-pvp-seed-v1"
 
 
@@ -182,6 +183,41 @@ def pull_claim_signing_payload(github_username: str,
         + str(ticket_index).encode() + b"\n"
         + ts_iso.encode()
     )
+
+
+def ticket_signing_payload(ticket_data: Dict[str, Any]) -> bytes:
+    """Bytes the arbiter signs when minting a pull ticket.
+
+    The ticket_data dict is canonicalized so field ordering doesn't
+    invalidate the signature. Domain-separated with PROTOCOL_VERSION_TICKET.
+
+    Layout:
+        b"daimon-ticket-v1\\n"
+        + canonical_json(ticket_data)
+    """
+    return (
+        PROTOCOL_VERSION_TICKET.encode() + b"\n"
+        + canonical_json(ticket_data)
+    )
+
+
+def verify_ticket_signature(ticket_data: Dict[str, Any],
+                            sig_hex: str,
+                            arbiter_pubkey_hex: str) -> bool:
+    """Verify an arbiter's ed25519 signature on a ticket.
+
+    Returns True if valid, False on any verification failure.
+    """
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    try:
+        pubkey_bytes = bytes.fromhex(arbiter_pubkey_hex)
+        sig_bytes = bytes.fromhex(sig_hex)
+        pubkey = Ed25519PublicKey.from_public_bytes(pubkey_bytes)
+        payload = ticket_signing_payload(ticket_data)
+        pubkey.verify(sig_bytes, payload)
+        return True
+    except Exception:
+        return False
 
 
 def card_propose_signing_payload(card_def: Dict[str, Any],
