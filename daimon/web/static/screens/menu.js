@@ -39,9 +39,16 @@ function renderHeader(payload) {
   const ident = payload.identity || {};
   const rank  = payload.rank || {};
 
-  // Identity line: handle if registered, otherwise a soft placeholder.
-  const handleNode = ident.handle
-    ? el("div", { class: "handle" }, ident.handle)
+  // Identity line: GitHub username when arena-bound, else handle, else placeholder.
+  const ghUser = ident.github_username;
+  const handleLabel = ghUser || ident.handle;
+  const handleNode = handleLabel
+    ? el("div", { class: "handle" },
+        ghUser && ident.avatar_url
+          ? el("img", { class: "avatar", src: ident.avatar_url, width: 20, height: 20 })
+          : null,
+        handleLabel,
+      )
     : el("div", { class: "handle handle-empty" }, "unregistered");
 
   // Rank line: show real rank only when the player is on the leaderboard.
@@ -65,24 +72,39 @@ function renderHeader(payload) {
 }
 
 function renderCurrencyStrip(payload) {
-  const balance   = payload.balance ?? 0;
+  const arenaBalance = payload.arena_balance;
+  const localBalance = payload.balance ?? 0;
+  const isArena = arenaBalance != null;
+  const displayBalance = isArena ? arenaBalance : localBalance;
+
   const pull      = payload.pull || {};
   const cost      = pull.cost ?? PULL_COST;
-  const remaining = pull.balance_to_next_pull ?? cost;
+
+  // Arena players: pull availability is based on server balance.
+  // Local players: use the pre-computed pull info from mining.
+  const arenaPulls = isArena ? Math.floor(arenaBalance / cost) : 0;
+  const arenaRemaining = isArena ? Math.max(0, cost - (arenaBalance % cost)) : cost;
+  const remaining = isArena ? arenaRemaining : (pull.balance_to_next_pull ?? cost);
+  const ready     = isArena ? arenaPulls > 0 : pull.pulls_available > 0;
+  const readyCount = isArena ? arenaPulls : pull.pulls_available;
   const fraction  = 1 - Math.max(0, Math.min(remaining, cost)) / cost;
-  const ready     = pull.pulls_available > 0;
-  return el("div", { class: "currency-strip", id: "currency-strip" },
-    el("div", { class: "currency-amount", id: "currency-amount" }, String(balance)),
+
+  const strip = el("div", { class: "currency-strip", id: "currency-strip" },
+    el("div", { class: "currency-amount", id: "currency-amount" }, String(displayBalance)),
+    isArena
+      ? el("div", { class: "currency-source" }, "arena ¤")
+      : null,
     el("div", { class: "currency-progress" },
       el("div", { class: "fill", id: "currency-fill",
                   style: `width:${(fraction * 100).toFixed(1)}%` }),
     ),
     el("div", { class: "currency-label", id: "currency-label" },
       ready
-        ? `${pull.pulls_available}× ready to pull`
+        ? `${readyCount}× ready to pull`
         : `next pull in ${remaining}¤`,
     ),
   );
+  return strip;
 }
 
 function renderActionRow() {
@@ -192,7 +214,11 @@ function renderFooter(payload) {
   // Right-aligned stats give the bottom strip a real reason to exist:
   // collection size + total mined + verified-ledger badge.
   const right = el("span", { class: "footer-stats" });
-  if (stats.pull_count != null) {
+  const arenaCollCount = payload.arena_collection_count;
+  if (arenaCollCount != null) {
+    right.append(el("span", { class: "footer-stat" },
+      `${arenaCollCount} cards (arena)`));
+  } else if (stats.pull_count != null) {
     right.append(el("span", { class: "footer-stat" },
       `${stats.pull_count} pulls`));
   }
@@ -217,8 +243,12 @@ function renderFooter(payload) {
  *  app.js can detach when the user navigates away. */
 function listenForBalance(payload) {
   const cost = payload.pull?.cost ?? PULL_COST;
+  const isArena = payload.arena_balance != null;
   return liveStore.subscribe(state => {
-    if (typeof state.balance !== "number") return;
+    // Arena balance is server-authoritative — don't patch from mining ticks.
+    // A full /api/home refetch (on pull/purchase frames) will update it.
+    if (isArena || typeof state.balance !== "number") return;
+
     const balance   = state.balance;
     const remaining = Math.max(0, cost - (balance % cost));
     const fraction  = 1 - remaining / cost;

@@ -38,6 +38,14 @@
     color: var(--accent);
     font-weight: 700;
     letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+  }
+  .menu-identity .handle .avatar {
+    border-radius: 50%;
+    vertical-align: middle;
   }
   .menu-identity .handle.handle-empty {
     color: var(--text-dim);
@@ -88,7 +96,7 @@
     display: grid;
     grid-template-columns: auto 1fr auto;
     align-items: center;
-    gap: var(--gap-loose);
+    gap: 0 var(--gap-loose);
   }
   .currency-amount {
     font-family: var(--font-display);
@@ -100,6 +108,15 @@
     content: " ¤";
     color: var(--text-muted);
     font-size: 1.25rem;
+  }
+  .currency-source {
+    grid-column: 1;
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-top: -0.3rem;
   }
   .currency-progress {
     height: 6px;

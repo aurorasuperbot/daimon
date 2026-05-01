@@ -17,7 +17,8 @@ async function load() {
     fetchJSON("/api/home"),
   ]);
   state.shop = shop;
-  state.balance = home.balance ?? 0;
+  state.balance = home.arena_balance ?? home.balance ?? 0;
+  state.isArena = home.arena_balance != null;
   state.selectedSlot = (shop.slots || []).findIndex(s => !s.sold);
   if (state.selectedSlot < 0) state.selectedSlot = 0;
 }
@@ -180,7 +181,8 @@ export async function render(root) {
   // (or a buy from another tab) refetches the shop and flips the
   // bought slot to "sold" without a manual refresh.
   const unsubscribe = liveStore.subscribe((s, frame) => {
-    if (typeof s.balance === "number") {
+    // Arena balance is server-authoritative — don't patch from mining ticks.
+    if (!state.isArena && typeof s.balance === "number") {
       state.balance = s.balance;
       const pill = document.getElementById("shop-balance");
       if (pill) pill.textContent = `${s.balance}¤`;
@@ -191,7 +193,6 @@ export async function render(root) {
       }
     }
     if (frame?.kind === "purchase") {
-      // Refetch — the slot rotation is unchanged but slot[i].sold flips.
       load().then(() => rerender(root)).catch(() => {});
     }
   });
