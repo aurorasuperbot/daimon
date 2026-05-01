@@ -305,6 +305,35 @@ def fetch_repo_file(repo: str,
     return _decode_file_content(decoded, path)
 
 
+# ---------------------------------------------------------------------------
+# Player state reads (state/{username}/*.json)
+# ---------------------------------------------------------------------------
+
+def fetch_player_balance(repo: str, username: str,
+                         timeout: int = 15) -> Dict[str, Any]:
+    """Fetch ``state/{username}/balance.json`` from the arena repo."""
+    return fetch_repo_file(repo, f"state/{username}/balance.json",
+                           timeout=timeout)
+
+
+def fetch_player_collection(repo: str, username: str,
+                            timeout: int = 15) -> Dict[str, Any]:
+    """Fetch ``state/{username}/collection.json`` from the arena repo."""
+    return fetch_repo_file(repo, f"state/{username}/collection.json",
+                           timeout=timeout)
+
+
+def fetch_player_tickets(repo: str, username: str,
+                         timeout: int = 15) -> Dict[str, Any]:
+    """Fetch ``state/{username}/tickets/pending.json`` from the arena repo."""
+    return fetch_repo_file(repo, f"state/{username}/tickets/pending.json",
+                           timeout=timeout)
+
+
+# ---------------------------------------------------------------------------
+# GitHub user identity
+# ---------------------------------------------------------------------------
+
 def get_github_user(timeout: int = 10) -> Dict[str, Any]:
     """Fetch the authenticated GitHub user via ``gh api user``.
 

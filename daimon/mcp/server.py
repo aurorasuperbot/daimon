@@ -475,6 +475,15 @@ def dm_whoami() -> Dict[str, Any]:
         "avatar_url": avatar_url,
     }
     out.update(_mining_stats_or_empty())
+
+    if github_username:
+        try:
+            ab = arena_ops.arena_balance()
+            if ab.get("status") == "ok":
+                out["arena_balance"] = ab["balance"]
+        except Exception:
+            pass
+
     return out
 
 
@@ -925,6 +934,24 @@ def dm_home() -> Dict[str, Any]:
         "verified": mining.get("verified", True),
     }
 
+    # Server-side balance/collection for registered players. Best-effort:
+    # if unreachable, the home card falls back to local-only data.
+    arena_balance_val = None
+    arena_collection_count = None
+    if github_username:
+        try:
+            ab = arena_ops.arena_balance()
+            if ab.get("status") == "ok":
+                arena_balance_val = ab["balance"]
+        except Exception:
+            pass
+        try:
+            ac = arena_ops.arena_collection()
+            if ac.get("status") == "ok":
+                arena_collection_count = ac["count"]
+        except Exception:
+            pass
+
     # Arena rank — best-effort. If GitHub is unreachable or the leaderboard
     # is missing, fall back to a safe Rookie-zero default so the home card
     # still shows the player's standing as "fresh start".
@@ -978,6 +1005,8 @@ def dm_home() -> Dict[str, Any]:
             "avatar_url": avatar_url,
         },
         "balance": balance,
+        "arena_balance": arena_balance_val,
+        "arena_collection_count": arena_collection_count,
         "pull": {
             "cost": _PULL_COST,
             "pulls_available": pulls_available,

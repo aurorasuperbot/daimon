@@ -112,6 +112,74 @@ def _load_identity_or_error() -> Dict[str, Any]:
     return {"_identity": identity}
 
 
+def _load_github_username() -> Optional[str]:
+    """Read ``github_username`` from local identity.json metadata."""
+    import json
+    from daimon.identity.keys import METADATA_PATH
+    try:
+        metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+        return metadata.get("github_username")
+    except Exception:
+        return None
+
+
+def _require_github_username() -> Dict[str, Any]:
+    """Load github_username or return error envelope."""
+    username = _load_github_username()
+    if not username:
+        return {"error": "not_registered",
+                "message": "No github_username in identity.json — run dm_register first."}
+    return {"_username": username}
+
+
+# ---------------------------------------------------------------------------
+# Arena state reads (Phase 2)
+# ---------------------------------------------------------------------------
+
+def arena_balance() -> Dict[str, Any]:
+    """Fetch the server-side balance for the local player."""
+    u = _require_github_username()
+    if "error" in u:
+        return u
+    username = u["_username"]
+    repo = arena_repo()
+    res = client.fetch_player_balance(repo, username)
+    if not res["ok"]:
+        if res.get("error") == "not_found":
+            return {"error": "not_found",
+                    "message": f"no server state for {username}"}
+        return _arena_error("arena_balance", res)
+    content = res["content"]
+    return {
+        "status": "ok",
+        "github_username": username,
+        "balance": content.get("balance", 0),
+        "last_daily_bonus": content.get("last_daily_bonus"),
+    }
+
+
+def arena_collection() -> Dict[str, Any]:
+    """Fetch the server-side collection for the local player."""
+    u = _require_github_username()
+    if "error" in u:
+        return u
+    username = u["_username"]
+    repo = arena_repo()
+    res = client.fetch_player_collection(repo, username)
+    if not res["ok"]:
+        if res.get("error") == "not_found":
+            return {"error": "not_found",
+                    "message": f"no server state for {username}"}
+        return _arena_error("arena_collection", res)
+    content = res["content"]
+    return {
+        "status": "ok",
+        "github_username": username,
+        "serials": content.get("serials", []),
+        "count": len(content.get("serials", [])),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Identity registration
 # ---------------------------------------------------------------------------

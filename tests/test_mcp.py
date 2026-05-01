@@ -1641,6 +1641,157 @@ def test_arena_repo_overrideable_via_env(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# arena_balance / arena_collection (Phase 2 — ops layer, surfaced in dm_home)
+# ---------------------------------------------------------------------------
+
+def _repo_file_ok(content_dict):
+    """Fake _run response for a successful gh api repos/.../contents/... call."""
+    return {
+        "ok": True,
+        "stdout": base64.b64encode(json.dumps(content_dict).encode()).decode(),
+        "stderr": "",
+    }
+
+
+def test_arena_balance_returns_server_balance(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata, arena_balance
+    _save_github_metadata("testplayer", "https://example.com/avatar.png")
+
+    fake = _FakeGh([_repo_file_ok({"balance": 300, "last_daily_bonus": None})])
+    _install_fake_gh(monkeypatch, fake)
+
+    r = arena_balance()
+    assert r["status"] == "ok"
+    assert r["balance"] == 300
+    assert r["github_username"] == "testplayer"
+    assert r["last_daily_bonus"] is None
+
+
+def test_arena_balance_not_registered(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    from daimon.arena.ops import arena_balance
+    r = arena_balance()
+    assert r["error"] == "not_registered"
+
+
+def test_arena_balance_not_found_on_server(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata, arena_balance
+    _save_github_metadata("ghost", "")
+
+    fake = _FakeGh([{"ok": False, "error": "not_found",
+                     "message": "state/ghost/balance.json not present at main"}])
+    _install_fake_gh(monkeypatch, fake)
+
+    r = arena_balance()
+    assert r["error"] == "not_found"
+
+
+def test_arena_collection_returns_server_collection(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata, arena_collection
+    _save_github_metadata("testplayer", "")
+
+    fake = _FakeGh([_repo_file_ok({"serials": ["s1", "s2", "s3"]})])
+    _install_fake_gh(monkeypatch, fake)
+
+    r = arena_collection()
+    assert r["status"] == "ok"
+    assert r["serials"] == ["s1", "s2", "s3"]
+    assert r["count"] == 3
+
+
+def test_arena_collection_empty(monkeypatch, tmp_path):
+    _isolate_arena(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata, arena_collection
+    _save_github_metadata("newplayer", "")
+
+    fake = _FakeGh([_repo_file_ok({"serials": []})])
+    _install_fake_gh(monkeypatch, fake)
+
+    r = arena_collection()
+    assert r["status"] == "ok"
+    assert r["serials"] == []
+    assert r["count"] == 0
+
+
+def _isolate_arena_with_config_dir(monkeypatch, tmp_path):
+    """Like _isolate_arena but also patches CONFIG_DIR on the server module.
+
+    dm_home and dm_whoami read identity metadata via ``CONFIG_DIR / "identity.json"``
+    at the server layer, so we must ensure that reference resolves to tmp_path too.
+    """
+    cfg = _isolate_arena(monkeypatch, tmp_path)
+    monkeypatch.setattr(mcp_server, "CONFIG_DIR", cfg)
+    return cfg
+
+
+def test_dm_home_includes_arena_balance_for_registered(monkeypatch, tmp_path):
+    _isolate_arena_with_config_dir(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata
+    _save_github_metadata("arenauser", "https://example.com/avatar.png")
+
+    fake = _FakeGh([
+        _repo_file_ok({"balance": 200, "last_daily_bonus": None}),
+        _repo_file_ok({"serials": ["card-1"]}),
+        _repo_file_ok({"entries": {}, "last_updated": None}),
+    ])
+    _install_fake_gh(monkeypatch, fake)
+
+    r = _call(dm_home)
+    assert r["status"] == "ok"
+    assert r["arena_balance"] == 200
+    assert r["arena_collection_count"] == 1
+    assert r["identity"]["github_username"] == "arenauser"
+
+
+def test_dm_home_arena_balance_null_when_unregistered(monkeypatch, tmp_path):
+    _isolate_arena_with_config_dir(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+
+    fake = _FakeGh([
+        _repo_file_ok({"entries": {}, "last_updated": None}),
+    ])
+    _install_fake_gh(monkeypatch, fake)
+
+    r = _call(dm_home)
+    assert r["status"] == "ok"
+    assert r["arena_balance"] is None
+    assert r["arena_collection_count"] is None
+
+
+def test_dm_whoami_includes_arena_balance_for_registered(monkeypatch, tmp_path):
+    _isolate_arena_with_config_dir(monkeypatch, tmp_path)
+    from daimon.identity import generate_identity
+    generate_identity(force=True)
+    from daimon.arena.ops import _save_github_metadata
+    _save_github_metadata("arenauser", "")
+
+    fake = _FakeGh([
+        _repo_file_ok({"balance": 300, "last_daily_bonus": None}),
+    ])
+    _install_fake_gh(monkeypatch, fake)
+
+    r = _call(dm_whoami)
+    assert r["arena_balance"] == 300
+    assert r["github_username"] == "arenauser"
+
+
+# ---------------------------------------------------------------------------
 # dm_npcs / dm_npc / dm_match_npc — NPC tier roster (V1 alpha)
 # ---------------------------------------------------------------------------
 
