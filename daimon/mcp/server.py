@@ -1080,6 +1080,24 @@ def dm_quests() -> Dict[str, Any]:
 
     quests = _refresh_and_claim_quests()
 
+    # Arena auto-claim: for registered players, open claim Issues for
+    # completed quests so the arbiter credits server-side balance.
+    from daimon.arena.ops import _load_github_username
+    arena_username = _load_github_username()
+    arena_claims = []
+    if arena_username:
+        from daimon.arena import ops as arena_ops
+        date_str = today_str()
+        for q in quests:
+            if q.get("complete") and not q.get("arena_claimed"):
+                try:
+                    res = arena_ops.arena_claim_quest(q["id"], date_str)
+                    if res.get("status") == "ok":
+                        q["arena_claimed"] = True
+                        arena_claims.append(q["id"])
+                except Exception:
+                    pass
+
     completed = sum(1 for q in quests if q.get("complete"))
     rewards_pending = sum(int(q.get("reward", 0))
                           for q in quests
@@ -1089,7 +1107,7 @@ def dm_quests() -> Dict[str, Any]:
                           if q.get("claimed"))
     max_daily = sum(int(q.get("reward", 0)) for q in quests)
 
-    return {
+    result = {
         "status": "ok",
         "date": today_str(),
         "pubkey_hex": identity.pubkey_hex,
@@ -1102,6 +1120,9 @@ def dm_quests() -> Dict[str, Any]:
             "max_daily_reward": max_daily,
         },
     }
+    if arena_claims:
+        result["arena_claims_submitted"] = arena_claims
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1166,15 +1187,28 @@ def dm_tier_up_claim() -> Dict[str, Any]:
         return {"error": "internal_error",
                 "message": f"ceremony import failed: {type(e).__name__}: {e}"}
 
+    # For arena-registered players, also submit tier claim to arbiter
+    from daimon.arena.ops import _load_github_username
+    arena_username = _load_github_username()
+
     try:
-        return claim_pending()
+        local_result = claim_pending()
     except Exception as e:  # noqa: BLE001
-        # A ledger-write failure here is rare but worth surfacing
-        # rather than silently swallowing — the agent needs to know
-        # the reward didn't land.
         logger.exception("ceremony: claim_pending raised")
         return {"error": "claim_failed",
                 "message": f"{type(e).__name__}: {e}"}
+
+    if arena_username and local_result.get("status") == "ok":
+        claimed_tier = local_result.get("claimed_tier")
+        if claimed_tier and claimed_tier != "Rookie":
+            try:
+                from daimon.arena import ops as arena_ops
+                arena_res = arena_ops.arena_claim_tier_up(claimed_tier)
+                local_result["arena_claim"] = arena_res
+            except Exception:
+                pass
+
+    return local_result
 
 
 # ---------------------------------------------------------------------------

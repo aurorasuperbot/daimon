@@ -316,6 +316,115 @@ def arena_pull() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Quest & tier claims (Phase 6)
+# ---------------------------------------------------------------------------
+
+def arena_claim_quest(quest_id: str, date_str: str) -> Dict[str, Any]:
+    """Open a quest-claim Issue for server-side quest reward.
+
+    The arbiter verifies quest completion from arena state (match Issues,
+    pull-claim Issues, etc.) and credits the reward to the player's balance.
+
+    Returns on success::
+        {"status": "ok", "quest_id": "...", "date": "...",
+         "issue_number": 42, "url": "..."}
+    """
+    id_or_err = _load_identity_or_error()
+    if "error" in id_or_err:
+        return id_or_err
+    identity = id_or_err["_identity"]
+
+    u = _require_github_username()
+    if "error" in u:
+        return u
+    username = u["_username"]
+
+    repo = arena_repo()
+
+    ts = _now_iso()
+    payload = encoding.quest_claim_signing_payload(
+        username, quest_id, date_str, ts)
+    sig_hex = identity.sign_bytes(payload).hex()
+
+    body = encoding.format_kv_body([
+        ("claim_type", "quest"),
+        ("github_username", username),
+        ("pubkey_hex", identity.pubkey_hex),
+        ("quest_id", quest_id),
+        ("quest_date", date_str),
+        ("claimed_at", ts),
+        ("signature", sig_hex),
+        ("protocol", encoding.PROTOCOL_VERSION_QUEST_CLAIM),
+    ])
+
+    issue_res = client.create_issue(
+        repo, f"quest-claim: {username} {quest_id} ({date_str})",
+        body, labels=["quest-claim", "pending-arbiter"])
+    if not issue_res["ok"]:
+        return _arena_error("arena_claim_quest", issue_res)
+
+    return {
+        "status": "ok",
+        "quest_id": quest_id,
+        "date": date_str,
+        "issue_number": issue_res["issue_number"],
+        "url": issue_res["url"],
+        "phase": "pending-arbiter",
+    }
+
+
+def arena_claim_tier_up(tier: str) -> Dict[str, Any]:
+    """Open a tier-claim Issue for server-side tier-up reward.
+
+    The arbiter checks the leaderboard for the player's win count,
+    verifies the tier hasn't been claimed before, and credits the reward.
+
+    Returns on success::
+        {"status": "ok", "tier": "...",
+         "issue_number": 42, "url": "..."}
+    """
+    id_or_err = _load_identity_or_error()
+    if "error" in id_or_err:
+        return id_or_err
+    identity = id_or_err["_identity"]
+
+    u = _require_github_username()
+    if "error" in u:
+        return u
+    username = u["_username"]
+
+    repo = arena_repo()
+
+    ts = _now_iso()
+    payload = encoding.tier_claim_signing_payload(username, tier, ts)
+    sig_hex = identity.sign_bytes(payload).hex()
+
+    body = encoding.format_kv_body([
+        ("claim_type", "tier_up"),
+        ("github_username", username),
+        ("pubkey_hex", identity.pubkey_hex),
+        ("tier", tier),
+        ("claimed_at", ts),
+        ("signature", sig_hex),
+        ("protocol", encoding.PROTOCOL_VERSION_TIER_CLAIM),
+    ])
+
+    issue_res = client.create_issue(
+        repo, f"tier-claim: {username} -> {tier}",
+        body, labels=["tier-claim", "pending-arbiter"])
+    if not issue_res["ok"]:
+        return _arena_error("arena_claim_tier_up", issue_res)
+
+    return {
+        "status": "ok",
+        "tier": tier,
+        "issue_number": issue_res["issue_number"],
+        "url": issue_res["url"],
+        "phase": "pending-arbiter",
+    }
+
+
+# ---------------------------------------------------------------------------
 # Identity registration
 # ---------------------------------------------------------------------------
 

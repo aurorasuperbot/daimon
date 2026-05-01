@@ -38,6 +38,8 @@ PROTOCOL_VERSION_DISPUTE = "daimon-dispute-v1"
 PROTOCOL_VERSION_CARD_PROPOSE = "daimon-card-propose-v1"
 PROTOCOL_VERSION_PULL_CLAIM = "daimon-pull-claim-v1"
 PROTOCOL_VERSION_TICKET = "daimon-ticket-v1"
+PROTOCOL_VERSION_QUEST_CLAIM = "daimon-quest-claim-v1"
+PROTOCOL_VERSION_TIER_CLAIM = "daimon-tier-claim-v1"
 SEED_LABEL = "daimon-pvp-seed-v1"
 
 
@@ -236,6 +238,52 @@ def card_propose_signing_payload(card_def: Dict[str, Any],
     return (
         PROTOCOL_VERSION_CARD_PROPOSE.encode() + b"\n"
         + canonical_json(card_def) + b"\n"
+        + ts_iso.encode()
+    )
+
+
+def quest_claim_signing_payload(github_username: str,
+                                quest_id: str,
+                                date_str: str,
+                                ts_iso: str) -> bytes:
+    """Bytes signed when claiming a quest reward.
+
+    Layout:
+        b"daimon-quest-claim-v1\\n"
+        + github_username.encode()
+        + b"\\n"
+        + quest_id.encode()
+        + b"\\n"
+        + date_str.encode()
+        + b"\\n"
+        + ts_iso.encode()
+    """
+    return (
+        PROTOCOL_VERSION_QUEST_CLAIM.encode() + b"\n"
+        + github_username.encode() + b"\n"
+        + quest_id.encode() + b"\n"
+        + date_str.encode() + b"\n"
+        + ts_iso.encode()
+    )
+
+
+def tier_claim_signing_payload(github_username: str,
+                               tier: str,
+                               ts_iso: str) -> bytes:
+    """Bytes signed when claiming a tier-up reward.
+
+    Layout:
+        b"daimon-tier-claim-v1\\n"
+        + github_username.encode()
+        + b"\\n"
+        + tier.encode()
+        + b"\\n"
+        + ts_iso.encode()
+    """
+    return (
+        PROTOCOL_VERSION_TIER_CLAIM.encode() + b"\n"
+        + github_username.encode() + b"\n"
+        + tier.encode() + b"\n"
         + ts_iso.encode()
     )
 

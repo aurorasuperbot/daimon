@@ -166,9 +166,11 @@ def test_protocol_versions_are_distinct():
         encoding.PROTOCOL_VERSION_CARD_PROPOSE,
         encoding.PROTOCOL_VERSION_PULL_CLAIM,
         encoding.PROTOCOL_VERSION_TICKET,
+        encoding.PROTOCOL_VERSION_QUEST_CLAIM,
+        encoding.PROTOCOL_VERSION_TIER_CLAIM,
         encoding.SEED_LABEL,
     }
-    assert len(labels) == 7
+    assert len(labels) == 9
 
 
 def test_signing_payloads_differ_across_surfaces():
