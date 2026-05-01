@@ -935,22 +935,29 @@ def dm_home() -> Dict[str, Any]:
     }
 
     # Server-side balance/collection for registered players. Best-effort:
-    # if unreachable, the home card falls back to local-only data.
+    # if unreachable, fall back to cached data, then to local-only.
     arena_balance_val = None
     arena_collection_count = None
     if github_username:
+        from daimon.arena.cache import save_cache, load_cache
         try:
             ab = arena_ops.arena_balance()
             if ab.get("status") == "ok":
                 arena_balance_val = ab["balance"]
+                save_cache("balance", {"balance": arena_balance_val})
         except Exception:
-            pass
+            cached = load_cache("balance")
+            if cached:
+                arena_balance_val = cached.get("balance")
         try:
             ac = arena_ops.arena_collection()
             if ac.get("status") == "ok":
                 arena_collection_count = ac["count"]
+                save_cache("collection_count", {"count": arena_collection_count})
         except Exception:
-            pass
+            cached = load_cache("collection_count")
+            if cached:
+                arena_collection_count = cached.get("count")
 
     # Arena rank — best-effort. If GitHub is unreachable or the leaderboard
     # is missing, fall back to a safe Rookie-zero default so the home card
@@ -1956,6 +1963,84 @@ def dm_collection() -> Dict[str, Any]:
       {"error": "no_collection", ...}     — fresh install, nothing owned
       {"error": "corrupt_collection", "message": "..."}
     """
+    _RARITY_ORDER = ("common", "uncommon", "rare", "epic", "legendary")
+
+    def _rarity_sort_key(r: str) -> int:
+        try:
+            return _RARITY_ORDER.index(r)
+        except ValueError:
+            return len(_RARITY_ORDER)
+
+    def _rollup(serials: list) -> Dict[str, Any]:
+        rarity_counts: Dict[str, int] = {}
+        by_card_map: Dict[str, Dict[str, Any]] = {}
+        for s in serials:
+            if not isinstance(s, dict):
+                continue
+            cid = s.get("card_id") or "?"
+            rar = s.get("rarity") or "?"
+            rarity_counts[rar] = rarity_counts.get(rar, 0) + 1
+            row = by_card_map.setdefault(
+                cid, {"card_id": cid, "rarity": rar, "count": 0}
+            )
+            row["count"] += 1
+        by_card = sorted(
+            by_card_map.values(),
+            key=lambda r: (_rarity_sort_key(r["rarity"]), r["card_id"]),
+        )
+        return {
+            "status": "ok",
+            "count": len(serials),
+            "unique_cards": len(by_card_map),
+            "rarity_counts": rarity_counts,
+            "by_card": by_card,
+            "serials": serials,
+        }
+
+    # Arena-registered players: server collection is authoritative
+    from daimon.arena.ops import _load_github_username
+    arena_username = _load_github_username()
+    if arena_username:
+        try:
+            from daimon.arena import ops as arena_ops
+            server = arena_ops.arena_collection()
+            if server.get("status") == "ok":
+                card_ids = server.get("card_ids", [])
+                if not card_ids:
+                    content = server.get("_raw", {})
+                    card_ids = content.get("card_ids", [])
+                by_card_map: Dict[str, Dict[str, Any]] = {}
+                for cid in card_ids:
+                    row = by_card_map.setdefault(
+                        cid, {"card_id": cid, "rarity": "?", "count": 0}
+                    )
+                    row["count"] += 1
+                by_card = sorted(
+                    by_card_map.values(),
+                    key=lambda r: (_rarity_sort_key(r.get("rarity", "?")),
+                                   r["card_id"]),
+                )
+                result: Dict[str, Any] = {
+                    "status": "ok",
+                    "arena": True,
+                    "github_username": arena_username,
+                    "count": len(card_ids),
+                    "unique_cards": len(by_card_map),
+                    "rarity_counts": {},
+                    "by_card": by_card,
+                    "serials": server.get("serials", []),
+                }
+                from daimon.arena.cache import save_cache
+                save_cache("collection", result)
+                return result
+        except Exception:
+            from daimon.arena.cache import load_cache
+            cached = load_cache("collection")
+            if cached and cached.get("status") == "ok":
+                cached["cached"] = True
+                return cached
+
+    # Local collection fallback
     if not COLLECTION_PATH.exists():
         return {
             "error": "no_collection",
@@ -1974,41 +2059,7 @@ def dm_collection() -> Dict[str, Any]:
     if not isinstance(serials, list):
         return {"error": "corrupt_collection", "message": "serials is not a list"}
 
-    # Rollup: rarity bucket counts + per-card row aggregation.
-    _RARITY_ORDER = ("common", "uncommon", "rare", "epic", "legendary")
-
-    def _rarity_sort_key(r: str) -> int:
-        try:
-            return _RARITY_ORDER.index(r)
-        except ValueError:
-            return len(_RARITY_ORDER)
-
-    rarity_counts: Dict[str, int] = {}
-    by_card_map: Dict[str, Dict[str, Any]] = {}
-    for s in serials:
-        if not isinstance(s, dict):
-            continue
-        cid = s.get("card_id") or "?"
-        rar = s.get("rarity") or "?"
-        rarity_counts[rar] = rarity_counts.get(rar, 0) + 1
-        row = by_card_map.setdefault(
-            cid, {"card_id": cid, "rarity": rar, "count": 0}
-        )
-        row["count"] += 1
-
-    by_card = sorted(
-        by_card_map.values(),
-        key=lambda r: (_rarity_sort_key(r["rarity"]), r["card_id"]),
-    )
-
-    return {
-        "status": "ok",
-        "count": len(serials),
-        "unique_cards": len(by_card_map),
-        "rarity_counts": rarity_counts,
-        "by_card": by_card,
-        "serials": serials,
-    }
+    return _rollup(serials)
 
 
 @mcp.tool()

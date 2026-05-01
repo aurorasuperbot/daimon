@@ -176,7 +176,8 @@ def arena_collection() -> Dict[str, Any]:
         "status": "ok",
         "github_username": username,
         "serials": content.get("serials", []),
-        "count": len(content.get("serials", [])),
+        "card_ids": content.get("card_ids", []),
+        "count": len(content.get("card_ids", content.get("serials", []))),
     }
 
 
