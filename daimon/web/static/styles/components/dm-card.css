@@ -403,6 +403,35 @@
   }
   .dm-card-flavor:empty { display: none; }
 
+  /* Mint stamp — small serial number bottom-right, like a TCG print #.
+   * Hidden at tile size (too small). Driven by data-mint-number attr. */
+  .dm-card-mint-stamp {
+    position: absolute;
+    bottom: clamp(0.3rem, 2cqi, 0.6rem);
+    right: clamp(0.3rem, 2cqi, 0.6rem);
+    z-index: 3;
+    font-family: var(--font-mono);
+    font-size: clamp(0.55rem, 3.5cqi, 0.85rem);
+    color: var(--rarity-color);
+    opacity: 0.7;
+    paint-order: stroke fill;
+    -webkit-text-stroke: 1px rgba(0, 0, 0, 0.6);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    pointer-events: none;
+  }
+  .dm-card-mint-stamp:empty { display: none; }
+  :scope[size="tile"] .dm-card-mint-stamp { display: none; }
+
+  /* Edition badge — subtle label in the headline area. */
+  :scope[data-edition="1st"] .dm-card-headline::after {
+    content: "1ST EDITION";
+    font-family: var(--font-display);
+    font-size: clamp(0.4rem, 2.5cqi, 0.6rem);
+    letter-spacing: 0.15em;
+    color: var(--rarity-color);
+    opacity: 0.75;
+  }
+
   /* ----- Size variants --------------------------------------------- */
 
   /* Hero: fixed display width; canonical morph target for menu→pull. */

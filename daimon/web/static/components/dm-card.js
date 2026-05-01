@@ -43,14 +43,20 @@ function _ensureModal() {
   const stage = document.createElement("div");
   stage.className = "dm-card-modal-stage";
 
+  const left = document.createElement("div");
+  left.className = "dm-card-modal-left";
+
   const card = document.createElement("dm-card");
   card.setAttribute("size", "detail");
   card.setAttribute("face", "front");
-  // Marks the modal's own card so its click handler skips reopening
-  // — every OTHER detail-sized card (collection / shop right panels)
-  // should still be clickable and open this same modal.
   card.setAttribute("data-in-modal", "");
-  stage.appendChild(card);
+  left.appendChild(card);
+
+  const right = document.createElement("div");
+  right.className = "dm-card-modal-right";
+
+  stage.appendChild(left);
+  stage.appendChild(right);
   overlay.appendChild(stage);
 
   document.body.appendChild(overlay);
@@ -61,20 +67,150 @@ function _ensureModal() {
   };
   const onKey = (e) => { if (e.key === "Escape") close(); };
   overlay.addEventListener("click", (e) => {
-    // Backdrop click closes; clicks inside .dm-card-modal-stage don't.
     if (e.target === overlay) close();
   });
 
-  _modal = { overlay, stage, card, close, onKey };
+  _modal = { overlay, stage, card, right, close, onKey };
   return _modal;
 }
 
-export function openCardModal(card_id) {
+function _renderImprint(container, data) {
+  container.innerHTML = "";
+  if (!data) {
+    container.textContent = "";
+    return;
+  }
+
+  const bio = el("div", "imprint-bio");
+
+  // Header: mint # + edition + minted date
+  const header = el("div", "imprint-header");
+  const mintNum = data.mint_number;
+  header.appendChild(el("div", "imprint-mint",
+    mintNum != null ? `#${String(mintNum).padStart(3, "0")}` : "UNREGISTERED"));
+  if (data.edition) {
+    const badge = el("span", "imprint-edition", `${data.edition.toUpperCase()} EDITION`);
+    header.appendChild(badge);
+  }
+  if (data.minted_at) {
+    try {
+      const d = new Date(data.minted_at).toLocaleDateString();
+      header.appendChild(el("div", "imprint-minted-at", `minted ${d}`));
+    } catch { /* ignore */ }
+  }
+  bio.appendChild(header);
+
+  // Trophies
+  if (data.trophies && data.trophies.length > 0) {
+    const row = el("div", "imprint-trophies");
+    for (const t of data.trophies) {
+      const chip = el("span", "imprint-trophy");
+      chip.setAttribute("data-trophy", t);
+      chip.textContent = _trophyLabel(t);
+      row.appendChild(chip);
+    }
+    bio.appendChild(row);
+  }
+
+  // Battle record
+  const stats = data.stats || {};
+  const record = el("div", "imprint-record");
+
+  const wl = el("div", "imprint-stat-row");
+  wl.appendChild(_statCell("W", stats.wins || 0));
+  wl.appendChild(_statCell("L", stats.losses || 0));
+  wl.appendChild(_statCell("K", stats.kills || 0));
+  record.appendChild(wl);
+
+  const dmg = el("div", "imprint-stat-row");
+  dmg.appendChild(_statCell("DMG", stats.damage_dealt || 0));
+  dmg.appendChild(_statCell("TAKEN", stats.damage_taken || 0));
+  record.appendChild(dmg);
+
+  const streaks = el("div", "imprint-stat-row");
+  streaks.appendChild(_statCell("STREAK", stats.streak || 0));
+  streaks.appendChild(_statCell("BEST", stats.best_streak || 0));
+  record.appendChild(streaks);
+
+  if (stats.matches_played) {
+    const mp = el("div", "imprint-stat-row");
+    mp.appendChild(_statCell("MATCHES", stats.matches_played));
+    const wr = stats.matches_played > 0
+      ? Math.round(((stats.wins || 0) / stats.matches_played) * 100)
+      : 0;
+    mp.appendChild(_statCell("WIN%", `${wr}%`));
+    record.appendChild(mp);
+  }
+  bio.appendChild(record);
+
+  // Provenance
+  if (data.provenance && data.provenance.length > 0) {
+    const prov = el("div", "imprint-provenance");
+    for (const ev of data.provenance) {
+      const line = el("div", "imprint-prov-event");
+      const label = ev.event === "minted" ? "Minted" : ev.event;
+      let text = label;
+      if (ev.by) {
+        const short = ev.by.length > 12 ? `${ev.by.slice(0, 6)}…${ev.by.slice(-4)}` : ev.by;
+        text += ` by ${short}`;
+      }
+      if (ev.at) {
+        try { text += ` · ${new Date(ev.at).toLocaleDateString()}`; }
+        catch { /* ignore */ }
+      }
+      line.textContent = text;
+      prov.appendChild(line);
+    }
+    bio.appendChild(prov);
+  }
+
+  container.appendChild(bio);
+}
+
+function _statCell(label, value) {
+  const cell = el("div", "imprint-stat-cell");
+  cell.appendChild(el("span", "imprint-stat-label", label));
+  cell.appendChild(el("span", "imprint-stat-value", String(value)));
+  return cell;
+}
+
+const _TROPHY_LABELS = {
+  first_edition: "1ST ED",
+  early_bird: "EARLY BIRD",
+  genesis: "GENESIS",
+  centurion: "CENTURION",
+  veteran: "VETERAN",
+  slayer: "SLAYER",
+  undefeated_5: "5× STREAK",
+  undefeated_10: "10× STREAK",
+  undefeated_25: "25× STREAK",
+};
+function _trophyLabel(t) { return _TROPHY_LABELS[t] || t.toUpperCase(); }
+
+export function openCardModal(card_id, serial) {
   if (!card_id) return;
   const m = _ensureModal();
   m.card.setAttribute("card-id", card_id);
+  m.card.removeAttribute("data-mint-number");
+  m.card.removeAttribute("data-edition");
+  _renderImprint(m.right, null);
+
   m.overlay.removeAttribute("hidden");
   document.addEventListener("keydown", m.onKey);
+
+  if (serial) {
+    fetch(`/api/imprint/${encodeURIComponent(serial)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        if (data.mint_number != null)
+          m.card.setAttribute("data-mint-number", data.mint_number);
+        if (data.edition)
+          m.card.setAttribute("data-edition", data.edition);
+        _renderImprint(m.right, data);
+      })
+      .catch(() => {});
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -170,10 +306,13 @@ function buildShell(host) {
   info.appendChild(abilities);
   info.appendChild(flavor);
 
+  const mintStamp = el("div", "dm-card-mint-stamp");
+
   const front = el("div", "dm-card-front");
   front.appendChild(art);
   front.appendChild(headline);
   front.appendChild(info);
+  front.appendChild(mintStamp);
 
   const frame = el("div", "dm-card-frame");
   frame.appendChild(back);
@@ -193,7 +332,7 @@ function buildShell(host) {
   return {
     frame, front, back,
     artImg, name, elementTxt, archetype,
-    statRefs, abilities, flavor,
+    statRefs, abilities, flavor, mintStamp,
   };
 }
 
@@ -537,6 +676,7 @@ class DMCard extends HTMLElement {
     for (const v of Object.values(r.statRefs)) v.textContent = "—";
     syncSlots(r.abilities, 0, () => el("li", "dm-card-ability"));
     r.flavor.textContent = "";
+    r.mintStamp.textContent = "";
     this.removeAttribute("data-rarity");
     this.removeAttribute("data-element");
     this.removeAttribute("data-loaded");
@@ -626,6 +766,9 @@ class DMCard extends HTMLElement {
     });
 
     r.flavor.textContent = p.flavor || "";
+
+    const mintNum = this.getAttribute("data-mint-number");
+    r.mintStamp.textContent = mintNum ? `#${mintNum}` : "";
 
     if (p.rarity) this.setAttribute("data-rarity", p.rarity);
     if (p.element) this.setAttribute("data-element", p.element);

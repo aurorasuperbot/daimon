@@ -196,6 +196,86 @@ def get_collection() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Imprint — per-serial biography (stats, trophies, provenance)
+# ---------------------------------------------------------------------------
+
+@router.get("/api/imprint/card/{card_id}")
+def get_imprints_for_card(card_id: str) -> List[Dict[str, Any]]:
+    from daimon.collection import list_serials
+    from daimon.imprint import get_serial_stats, compute_trophies
+
+    serials = list_serials()
+    matching = [s for s in serials if s.get("card_id") == card_id]
+    matching.sort(key=lambda s: s.get("mint_number") or float("inf"))
+
+    result = []
+    for s in matching:
+        sid = s.get("serial", "")
+        stats = get_serial_stats(sid) or {
+            "wins": 0, "losses": 0, "kills": 0,
+            "damage_dealt": 0, "damage_taken": 0,
+            "matches_played": 0, "streak": 0, "best_streak": 0,
+        }
+        trophies = compute_trophies(stats)
+        if s.get("edition") == "1st" and "first_edition" not in trophies:
+            trophies.insert(0, "first_edition")
+        result.append({
+            "serial": sid,
+            "mint_number": s.get("mint_number"),
+            "edition": s.get("edition"),
+            "minted_at": s.get("minted_at"),
+            "stats": stats,
+            "trophies": trophies,
+        })
+    return result
+
+
+@router.get("/api/imprint/{serial}")
+def get_imprint(serial: str) -> Dict[str, Any]:
+    from daimon.collection import list_serials
+    from daimon.imprint import get_serial_stats, compute_trophies
+
+    serials = list_serials()
+    serial_doc = next((s for s in serials if s.get("serial") == serial), None)
+    if serial_doc is None:
+        raise HTTPException(status_code=404, detail="serial not found")
+
+    stats = get_serial_stats(serial) or {
+        "wins": 0, "losses": 0, "kills": 0,
+        "damage_dealt": 0, "damage_taken": 0,
+        "matches_played": 0, "streak": 0, "best_streak": 0,
+    }
+    trophies = compute_trophies(stats)
+    if serial_doc.get("edition") == "1st" and "first_edition" not in trophies:
+        trophies.insert(0, "first_edition")
+
+    return {
+        "serial": serial,
+        "card_id": serial_doc.get("card_id"),
+        "mint_number": serial_doc.get("mint_number"),
+        "edition": serial_doc.get("edition"),
+        "original_owner": serial_doc.get("original_owner_pubkey"),
+        "minted_at": serial_doc.get("minted_at"),
+        "minted_via": serial_doc.get("minted_via"),
+        "stats": stats,
+        "trophies": trophies,
+        "provenance": [{
+            "event": "minted",
+            "by": serial_doc.get("original_owner_pubkey")
+                   or serial_doc.get("pubkey_hex", ""),
+            "at": serial_doc.get("minted_at"),
+        }],
+    }
+
+
+@router.get("/api/match-history")
+def get_match_history(limit: int = 50) -> Dict[str, Any]:
+    from daimon.match_history import recent_matches
+    matches = recent_matches(limit=min(limit, 200))
+    return {"matches": matches, "total": len(matches)}
+
+
+# ---------------------------------------------------------------------------
 # Catalog (read-only, drives the loadout editor's left pane)
 # ---------------------------------------------------------------------------
 

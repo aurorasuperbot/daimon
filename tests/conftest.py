@@ -90,6 +90,8 @@ def _isolate_real_state_paths(monkeypatch, tmp_path_factory, request):
     from daimon.mining import ledger as ledger_mod
     from daimon.mining import buffer as buffer_mod
     from daimon import collection as collection_mod
+    from daimon import imprint as imprint_mod
+    from daimon import match_history as match_history_mod
     from daimon.quests import state as quests_state
 
     monkeypatch.setattr(identity_keys, "CONFIG_DIR", cfg)
@@ -107,6 +109,10 @@ def _isolate_real_state_paths(monkeypatch, tmp_path_factory, request):
                         cfg / "collection.json")
     monkeypatch.setattr(quests_state, "QUESTS_PATH",
                         cfg / "daily_quests.json")
+    monkeypatch.setattr(imprint_mod, "IMPRINT_STATS_PATH",
+                        cfg / "imprint_stats.json")
+    monkeypatch.setattr(match_history_mod, "MATCH_HISTORY_PATH",
+                        cfg / "match_history.jsonl")
 
     # MCP server has its own copies of LEDGER_PATH/COLLECTION_PATH/LOADOUTS_DIR
     # bound at import time. Patch them too. ``dm_match`` etc. all read these

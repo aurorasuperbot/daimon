@@ -6,6 +6,7 @@
 // <dm-card>'s @scope CSS.
 
 import { backButton, el, fetchJSON } from "/screens/_dom.js";
+import { openCardModal } from "/components/dm-card.js";
 import { liveStore } from "/store.js";
 
 const PAGE_SIZE = 8;
@@ -64,24 +65,70 @@ function detailNode(_root) {
   const card = document.createElement("dm-card");
   card.setAttribute("card-id", r.card_id);
   card.setAttribute("size", "detail");
-  // Earliest serial first → "first acquired" timestamp.
+
   const sorted = [...r.serials].sort((a, b) =>
     (a.minted_at || "").localeCompare(b.minted_at || ""));
-  const first = sorted[0]?.minted_at;
-  let firstStr = null;
-  if (first) {
-    try { firstStr = new Date(first).toLocaleDateString(); } catch { /* ignore */ }
-  }
+  const firstSerial = sorted[0];
+
+  // Set mint stamp on the detail card from the first serial.
+  if (firstSerial?.mint_number != null)
+    card.setAttribute("data-mint-number", firstSerial.mint_number);
+  if (firstSerial?.edition)
+    card.setAttribute("data-edition", firstSerial.edition);
+
+  const meta = el("div", { class: "coll-detail-meta" },
+    el("div", { class: "coll-detail-count" },
+      `${r.count} serial${r.count > 1 ? "s" : ""} owned`),
+  );
+
+  // Serial list — each row shows mint #, W/L, edition. Clicking opens
+  // the full imprint modal for that serial.
+  const serialList = el("div", { class: "coll-serial-list" });
+  _populateSerialList(serialList, r.card_id, sorted);
+
   return el("div", { class: "coll-detail" },
     el("div", { class: "coll-detail-card" }, card),
-    el("div", { class: "coll-detail-meta" },
-      el("div", { class: "coll-detail-count" },
-        `${r.count} serial${r.count > 1 ? "s" : ""} owned`),
-      firstStr
-        ? el("div", { class: "coll-detail-first" }, `first pulled ${firstStr}`)
-        : null,
-    ),
+    meta,
+    serialList,
   );
+}
+
+function _populateSerialList(container, card_id, sorted) {
+  for (const s of sorted) {
+    const mintLabel = s.mint_number != null
+      ? `#${String(s.mint_number).padStart(3, "0")}`
+      : "—";
+    const edLabel = s.edition ? `${s.edition.toUpperCase()} Ed` : "";
+    const row = el("button", {
+      class: "coll-serial-row",
+      onClick: () => openCardModal(card_id, s.serial),
+    },
+      el("span", { class: "coll-serial-mint" }, mintLabel),
+      el("span", { class: "coll-serial-record" }, ""),
+      edLabel ? el("span", { class: "coll-serial-edition" }, edLabel) : null,
+    );
+    container.appendChild(row);
+  }
+
+  // Async-fetch imprint data to fill in W/L records.
+  fetchJSON(`/api/imprint/card/${encodeURIComponent(card_id)}`)
+    .then(imprints => {
+      if (!Array.isArray(imprints)) return;
+      const bySerial = {};
+      for (const imp of imprints) bySerial[imp.serial] = imp;
+      const rows = container.querySelectorAll(".coll-serial-row");
+      sorted.forEach((s, i) => {
+        const imp = bySerial[s.serial];
+        if (imp && rows[i]) {
+          const stats = imp.stats || {};
+          const w = stats.wins || 0;
+          const l = stats.losses || 0;
+          const recordEl = rows[i].querySelector(".coll-serial-record");
+          if (recordEl) recordEl.textContent = `W${w} L${l}`;
+        }
+      });
+    })
+    .catch(() => {});
 }
 
 /** Per-rarity completion strip — "OWNED 24/200" with a thin per-rarity

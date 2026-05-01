@@ -55,6 +55,9 @@ class Serial:
     minted_at: str
     minted_via: str
     ledger_entry_hash: Optional[str] = None
+    mint_number: Optional[int] = None
+    edition: Optional[str] = None
+    original_owner_pubkey: Optional[str] = None
 
 
 def _now_iso() -> str:
@@ -65,7 +68,9 @@ def new_serial(card_id: str,
                pack: str,
                rarity: str,
                minted_via: str = "pull",
-               ledger_entry_hash: Optional[str] = None) -> Serial:
+               ledger_entry_hash: Optional[str] = None,
+               edition: Optional[str] = None,
+               original_owner_pubkey: Optional[str] = None) -> Serial:
     return Serial(
         serial=str(uuid.uuid4()),
         card_id=card_id,
@@ -74,6 +79,8 @@ def new_serial(card_id: str,
         minted_at=_now_iso(),
         minted_via=minted_via,
         ledger_entry_hash=ledger_entry_hash,
+        edition=edition,
+        original_owner_pubkey=original_owner_pubkey,
     )
 
 

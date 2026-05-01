@@ -75,6 +75,7 @@ class PullReceipt:
             "seed_hex": self.seed_hex,
             "ledger_entry_hash": self.ledger_entry_hash,
             "payload": self.payload,
+            "edition": self.serial.edition,
         }
 
 
@@ -130,12 +131,15 @@ def perform_pull(
     eh = entry_hash(entry)
 
     # Now mint serial + persist to collection.
+    edition = "1st" if pull.card.pack == "v1_alpha" else None
     serial = new_serial(
         card_id=pull.card.card_id,
         pack=pull.card.pack,
         rarity=pull.rarity,
         minted_via="pull",
         ledger_entry_hash=eh,
+        edition=edition,
+        original_owner_pubkey=identity.pubkey_hex,
     )
     append_serial(serial, pubkey_hex=identity.pubkey_hex, path=collection_path)
 

@@ -138,6 +138,7 @@ function buildScreen(refs) {
   const metaSerial   = el("span", null, "serial —");
   const metaCost     = el("span", null, "cost —");
   const metaBalance  = el("span", null, "balance —");
+  const metaEdition  = el("span", { class: "pull-edition-badge" }, "");
   detailMeta.appendChild(metaSerial);
   detailMeta.appendChild(el("span", { class: "pull-meta-sep" }, "·"));
   detailMeta.appendChild(metaCost);
@@ -147,7 +148,7 @@ function buildScreen(refs) {
   const errLine = el("div", { class: "error-line pull-error" }, "");
 
   const detail = el("div", { class: "pull-detail" },
-    detailName, detailRarity, detailMeta, errLine, cta,
+    detailName, detailRarity, metaEdition, detailMeta, errLine, cta,
   );
 
   const body = el("div", { class: "pull-body" }, vignette, flash, stage, detail);
@@ -157,7 +158,8 @@ function buildScreen(refs) {
   Object.assign(refs, {
     screen, card, burst, burstInner, hint, skip, back, rays, particles,
     sparks, streaks, ring1, ring2, vignette, flash,
-    detailName, detailRarity, metaSerial, metaCost, metaBalance, errLine, cta,
+    detailName, detailRarity, metaSerial, metaCost, metaBalance, metaEdition,
+    errLine, cta,
   });
   return screen;
 }
@@ -211,6 +213,14 @@ function applyReceipt(refs, receipt) {
   refs.metaCost.textContent     = `cost ${r.cost ?? "?"}¤`;
   refs.metaBalance.textContent  = `balance ${r.balance_after ?? "?"}¤`;
   refs.screen.dataset.rarity = (r.rarity || "common");
+
+  if (r.edition) {
+    refs.metaEdition.textContent = `${r.edition.toUpperCase()} EDITION`;
+    refs.card.setAttribute("data-edition", r.edition);
+  } else {
+    refs.metaEdition.textContent = "";
+    refs.card.removeAttribute("data-edition");
+  }
 }
 
 function applyError(refs, msg) {

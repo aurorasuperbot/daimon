@@ -1,11 +1,13 @@
-/* dm-card detail modal — fullscreen overlay opened on click of any
- * non-tile <dm-card>. Centers a size="detail" card with backdrop blur,
- * dismissed by Escape or backdrop click. The element itself is a
- * singleton appended to <body> by dm-card.js.
+/* dm-card detail modal — fullscreen overlay with two-panel layout.
  *
- * Lives outside @scope (dm-card) because the overlay is a sibling of
- * <dm-card>, not a descendant — the inner card uses the regular dm-card
- * rules from dm-card.css and inherits rarity tokens normally.
+ * Left panel: the card at size="detail" with full art + stats.
+ * Right panel: imprint biography (mint #, trophies, battle record,
+ * provenance). When no serial context exists, the right panel is
+ * empty and the card centers solo.
+ *
+ * Singleton appended to <body> by dm-card.js. Dismissed by Escape
+ * or backdrop click. Lives outside @scope (dm-card) because the
+ * overlay is a sibling of <dm-card>.
  */
 
 .dm-card-modal-overlay {
@@ -27,12 +29,37 @@
 }
 
 .dm-card-modal-stage {
-  /* Card aspect 5:7. Cap to whichever dimension hits its limit first
-   * so the modal card is huge but never taller than the viewport. */
-  width: min(440px, calc((100vh - 80px) * 5 / 7));
-  aspect-ratio: 5 / 7;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: clamp(16px, 3vw, 32px);
+  max-height: calc(100vh - 80px);
+  align-items: start;
   cursor: default;
   animation: dm-card-modal-rise var(--motion-base) var(--ease-snap);
+}
+
+.dm-card-modal-left {
+  width: min(380px, calc((100vh - 80px) * 5 / 7));
+  aspect-ratio: 5 / 7;
+}
+
+/* When the right panel is empty, collapse the grid to single-column
+ * so the card centers naturally (backward compat for non-serial opens). */
+.dm-card-modal-right:empty {
+  display: none;
+}
+.dm-card-modal-right:empty ~ .dm-card-modal-left,
+.dm-card-modal-stage:has(.dm-card-modal-right:empty) {
+  grid-template-columns: auto;
+}
+
+.dm-card-modal-right {
+  max-width: 320px;
+  min-width: 220px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
 }
 
 @keyframes dm-card-modal-fade {
@@ -48,5 +75,19 @@
   .dm-card-modal-overlay,
   .dm-card-modal-stage {
     animation: none;
+  }
+}
+
+/* Narrow viewports: stack vertically. */
+@media (max-width: 700px) {
+  .dm-card-modal-stage {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .dm-card-modal-left {
+    width: min(320px, calc((100vh - 160px) * 5 / 7));
+  }
+  .dm-card-modal-right {
+    max-width: 90vw;
   }
 }
