@@ -7,6 +7,8 @@
 // animations, then displayed in a 5×2 results grid.
 
 import { backButton, el, fetchJSON, postJSON } from "/screens/_dom.js";
+import { go } from "/app.js";
+import { openCardModal } from "/components/dm-card.js";
 import { liveStore } from "/store.js";
 
 const RARITY_TIMING = {
@@ -49,6 +51,37 @@ function abortableSleep(ms, signal) {
       signal.removeEventListener("abort", onAbort);
       reject(new DOMException("aborted", "AbortError"));
     }
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function waitForAdvance(signal) {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(new DOMException("aborted", "AbortError"));
+    const modalOpen = () => !!document.querySelector(".dm-card-modal-overlay:not([hidden])");
+    function onKey(e) {
+      if (modalOpen()) return;
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        cleanup();
+        resolve();
+      }
+    }
+    function onClick(e) {
+      if (modalOpen()) return;
+      if (e.target.closest(".pull-skip")) return;
+      if (e.target.closest("dm-card")) return;
+      cleanup();
+      resolve();
+    }
+    function onAbort() { cleanup(); reject(new DOMException("aborted", "AbortError")); }
+    function cleanup() {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("click", onClick);
+      signal.removeEventListener("abort", onAbort);
+    }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("click", onClick);
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }
@@ -233,7 +266,7 @@ function buildSinglePull(refs) {
   detailMeta.appendChild(metaCost);
   detailMeta.appendChild(el("span", { class: "pull-meta-sep" }, "·"));
   detailMeta.appendChild(metaBalance);
-  const cta = el("div", { class: "pull-cta" }, "PRESS SPACE TO CONTINUE");
+  const cta = el("div", { class: "pull-cta" }, "CLICK CARD TO INSPECT · SPACE TO CONTINUE");
   const errLine = el("div", { class: "error-line pull-error" }, "");
 
   const detail = el("div", { class: "pull-detail" },
@@ -291,6 +324,7 @@ async function runReveal(refs, signal, rarity) {
 function applyReceipt(refs, receipt) {
   const r = receipt || {};
   refs.card.setAttribute("card-id", r.card_id || "");
+  refs.card.setAttribute("data-serial", r.serial || "");
   refs.detailName.textContent   = (r.payload?.name || r.card_id || "").toUpperCase();
   refs.detailRarity.textContent = (r.rarity || "").toUpperCase();
   refs.detailRarity.dataset.rarity = (r.rarity || "common");
@@ -329,23 +363,24 @@ function buildMultiPull(refs) {
 
   const cascade = el("div", { class: "multi-cascade" });
   const counter = el("div", { class: "multi-counter" }, "0 / 10");
-  const stage = el("div", { class: "multi-stage" }, cascade, counter);
+  const advanceHint = el("div", { class: "multi-advance-hint", hidden: "" }, "TAP / SPACE");
+  const stage = el("div", { class: "multi-stage" }, cascade, counter, advanceHint);
 
   const grid = el("div", { class: "multi-grid" });
 
   const summary = el("div", { class: "multi-summary" });
-  const cta = el("div", { class: "pull-cta" }, "PRESS SPACE TO CONTINUE");
+  const cta = el("div", { class: "pull-cta" }, "CLICK CARDS TO INSPECT · SPACE TO CONTINUE");
 
   const body = el("div", { class: "pull-body multi-body" }, stage, grid, summary, cta);
   const screen = el("div", { class: "screen pull-screen", "data-view": "multi" }, header, body);
   screen.dataset.phase = "fetching";
 
-  Object.assign(refs, { screen, skip, cascade, counter, grid, summary, cta });
+  Object.assign(refs, { screen, skip, cascade, counter, advanceHint, grid, summary, cta });
   return screen;
 }
 
 async function runMultiReveal(refs, receipts, signal) {
-  const { screen, cascade, counter, grid, summary } = refs;
+  const { screen, cascade, counter, advanceHint, grid, summary } = refs;
 
   screen.dataset.phase = "cascade";
 
@@ -364,10 +399,10 @@ async function runMultiReveal(refs, receipts, signal) {
 
     counter.textContent = `${i + 1} / ${receipts.length}`;
 
-    // Cascade card reveal
     const card = document.createElement("dm-card");
     card.setAttribute("size", "detail");
     card.setAttribute("card-id", r.card_id || "");
+    card.setAttribute("data-serial", r.serial || "");
     card.setAttribute("face", "back");
     card.dataset.rarity = rarity;
 
@@ -385,12 +420,16 @@ async function runMultiReveal(refs, receipts, signal) {
       await abortableSleep(timing.tension, signal);
       wrap.dataset.phase = "reveal";
       card.setAttribute("face", "front");
-      await abortableSleep(timing.reveal, signal);
+      advanceHint.removeAttribute("hidden");
+      await waitForAdvance(signal);
+      advanceHint.setAttribute("hidden", "");
     } catch (err) {
       if (err.name === "AbortError") break;
       throw err;
     }
   }
+
+  advanceHint.setAttribute("hidden", "");
 
   // Transition to grid view
   screen.dataset.phase = "grid";
@@ -407,6 +446,7 @@ async function runMultiReveal(refs, receipts, signal) {
     const tile = el("div", { class: "multi-grid-tile" }, card);
     tile.dataset.rarity = r.rarity || "common";
     tile.style.setProperty("--i", i);
+    tile.addEventListener("click", () => openCardModal(r.card_id, r.serial));
     grid.appendChild(tile);
   }
 
@@ -467,12 +507,12 @@ export async function render(root) {
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
         if (refs.screen.dataset.phase === "settled") {
-          location.hash = "#pull";
+          go("#pull");
         } else {
           ctl.abort();
         }
       } else if (e.key === "Escape") {
-        location.hash = "#pull";
+        go("#pull");
       }
     }
     document.addEventListener("keydown", onKey);
@@ -518,12 +558,10 @@ export async function render(root) {
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
         if (refs.screen.dataset.phase === "settled") {
-          location.hash = "#pull";
-        } else {
-          ctl.abort();
+          go("#pull");
         }
       } else if (e.key === "Escape") {
-        location.hash = "#pull";
+        go("#pull");
       }
     }
     document.addEventListener("keydown", onKey);

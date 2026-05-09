@@ -65,7 +65,7 @@ function _ensureModal() {
     overlay.setAttribute("hidden", "");
     document.removeEventListener("keydown", onKey);
   };
-  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const onKey = (e) => { if (e.key === "Escape") { e.stopImmediatePropagation(); close(); } };
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close();
   });
@@ -624,7 +624,7 @@ class DMCard extends HTMLElement {
     this.addEventListener("click", () => {
       if (this.getAttribute("size") === "tile") return;
       if (this.hasAttribute("data-in-modal")) return;
-      if (this._currentId) openCardModal(this._currentId);
+      if (this._currentId) openCardModal(this._currentId, this.getAttribute("data-serial") || undefined);
     });
 
     if (this.hasAttribute("card-id")) {

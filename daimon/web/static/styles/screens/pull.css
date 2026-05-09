@@ -1019,6 +1019,22 @@
     box-shadow: 0 0 12px 3px color-mix(in srgb, var(--rarity-color) 30%, transparent);
   }
 
+  .multi-grid-tile {
+    cursor: pointer;
+  }
+  @media (hover: hover) {
+    .multi-grid-tile:hover {
+      transform: translateY(-4px) scale(1.04);
+      box-shadow: 0 0 20px 6px color-mix(in srgb, var(--rarity-color) 45%, transparent);
+      z-index: 3;
+      transition: transform var(--motion-fast) var(--ease-soft),
+                  box-shadow var(--motion-fast) var(--ease-soft);
+    }
+    .multi-grid-tile:active {
+      transform: translateY(-1px) scale(1.01);
+    }
+  }
+
   @keyframes multi-tile-enter {
     to {
       opacity: 1;
@@ -1058,6 +1074,29 @@
     font-size: 0.7rem;
     color: var(--text-muted);
     padding: 0.2rem 0.6rem;
+  }
+
+  /* Advance hint — shown below cascade card while waiting for input */
+  .multi-advance-hint {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    animation: pull-cta-pulse 1.4s ease-in-out infinite;
+    margin-top: var(--gap-tight);
+    text-align: center;
+    z-index: 10;
+  }
+  .multi-advance-hint[hidden] { display: none; }
+
+  /* Settled single-pull card — signal clickability */
+  :scope[data-phase="settled"] .pull-card-wrap dm-card {
+    cursor: pointer;
+  }
+  @media (hover: hover) {
+    :scope[data-phase="settled"] .pull-card-wrap dm-card:hover {
+      filter: brightness(1.08);
+    }
   }
 
   /* ==================================================================
