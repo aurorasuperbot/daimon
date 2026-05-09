@@ -1558,7 +1558,7 @@ def ui_group() -> None:
     """
 
 
-_UI_SCREENS = ("menu", "shop", "collection", "loadouts", "pull", "match")
+_UI_SCREENS = ("menu", "shop", "collection", "loadouts", "pull", "match", "pvp", "stats")
 
 
 @ui_group.command("goto")
@@ -1587,11 +1587,25 @@ def ui_goto(screen: str, params: tuple[str, ...]) -> None:
         )
         sys.exit(1)
 
+    token_req = Request(
+        f"http://127.0.0.1:{info.port}/api/_dev/token",
+        method="GET",
+    )
+    try:
+        with urlopen(token_req, timeout=5.0) as r:
+            token = _json.loads(r.read().decode("utf-8"))["token"]
+    except (HTTPError, URLError, KeyError) as e:
+        click.echo(f"error: cannot fetch session token: {e}", err=True)
+        sys.exit(1)
+
     body = _json.dumps({"screen": screen, "params": list(params)}).encode("utf-8")
     req = Request(
         f"http://127.0.0.1:{info.port}/api/_dev/goto",
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "x-session-token": token,
+        },
         method="POST",
     )
     try:
