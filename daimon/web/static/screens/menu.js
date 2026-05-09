@@ -20,6 +20,7 @@ const ACTIONS = [
   { id: "loadouts",   label: "LOADOUTS",   hash: "#loadouts"   },
   { id: "collection", label: "COLLECTION", hash: "#collection" },
   { id: "shop",       label: "SHOP",       hash: "#shop"       },
+  { id: "stats",      label: "STATS",      hash: "#stats"      },
 ];
 
 function shortPubkey(hex) {

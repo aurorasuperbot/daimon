@@ -789,6 +789,7 @@ class DMCard extends HTMLElement {
     const PARALLAX_TIERS = new Set(["rare", "epic", "legendary"]);
     const wanted = PARALLAX_TIERS.has(this.getAttribute("data-rarity") || "");
     if (wanted && !this._parallaxHandlers) {
+      const holo = this.querySelector(".dm-card-holo");
       const onMove = (ev) => {
         const r = this.getBoundingClientRect();
         if (!r.width || !r.height) return;
@@ -796,10 +797,16 @@ class DMCard extends HTMLElement {
         const y = (ev.clientY - r.top)  / r.height - 0.5;
         this.style.setProperty("--parallax-x", x.toFixed(3));
         this.style.setProperty("--parallax-y", y.toFixed(3));
+        if (holo) {
+          const shiftX = (-x * 24).toFixed(1);
+          const shiftY = (-y * 24).toFixed(1);
+          holo.style.backgroundPosition = `${shiftX}px ${shiftY}px`;
+        }
       };
       const onLeave = () => {
         this.style.setProperty("--parallax-x", "0");
         this.style.setProperty("--parallax-y", "0");
+        if (holo) holo.style.backgroundPosition = "";
       };
       this.addEventListener("pointermove", onMove);
       this.addEventListener("pointerleave", onLeave);
@@ -811,6 +818,8 @@ class DMCard extends HTMLElement {
       this._parallaxHandlers = null;
       this.style.removeProperty("--parallax-x");
       this.style.removeProperty("--parallax-y");
+      const holo = this.querySelector(".dm-card-holo");
+      if (holo) holo.style.backgroundPosition = "";
     }
   }
 

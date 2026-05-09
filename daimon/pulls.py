@@ -26,7 +26,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from daimon.catalog import (
     DEFAULT_CATALOG_ID,
@@ -50,6 +50,7 @@ from daimon.mining.ledger import (
     get_balance,
     verify_ledger,
 )
+from daimon.pity import adjusted_rarity_weights, get_pity_state
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,7 @@ def perform_pull(
     ledger_path: Optional[Path] = None,
     collection_path: Optional[Path] = None,
     catalog: Optional[Catalog] = None,
+    use_pity: bool = True,
 ) -> PullReceipt:
     """Execute one pull. Raises:
       - FileNotFoundError: no identity (`daimon init` not run)
@@ -95,7 +97,6 @@ def perform_pull(
       - RuntimeError: ledger corruption (refuse to spend)
     """
     identity = identity or load_identity()
-    # Resolve at call time so tests can monkeypatch the module-level path.
     if ledger_path is None:
         ledger_path = _ledger_mod.LEDGER_PATH
     if collection_path is None:
@@ -104,8 +105,6 @@ def perform_pull(
     verification = verify_ledger(ledger_path,
                                  expected_pubkey_hex=identity.pubkey_hex)
     if not verification.get("ok"):
-        # Empty ledger is OK — verify returns ok=True for non-existent files.
-        # A corrupt ledger should refuse to spend.
         raise RuntimeError(
             f"ledger verification failed: {verification.get('errors')}"
         )
@@ -116,12 +115,19 @@ def perform_pull(
     if len(seed_bytes) != 32:
         raise ValueError(f"seed must be 32 bytes, got {len(seed_bytes)}")
 
-    pull = roll_pull(catalog, seed_bytes)
+    override_weights = None
+    if use_pity:
+        pity = get_pity_state(ledger_path)
+        override_weights = adjusted_rarity_weights(
+            catalog.rarity_weights,
+            pity["pulls_since_rare_plus"],
+        )
 
-    # Ledger entry first — this enforces balance + creates provenance hash.
+    pull = roll_pull(catalog, seed_bytes, override_weights=override_weights)
+
     entry = append_pull_entry(
         cost=cost,
-        serial="pending",  # filled below; we need the hash before serial mint
+        serial="pending",
         card_id=pull.card.card_id,
         pack=pull.card.pack,
         rarity=pull.rarity,
@@ -130,7 +136,6 @@ def perform_pull(
     )
     eh = entry_hash(entry)
 
-    # Now mint serial + persist to collection.
     edition = "1st" if pull.card.pack == "v1_alpha" else None
     serial = new_serial(
         card_id=pull.card.card_id,
@@ -156,6 +161,39 @@ def perform_pull(
         ledger_entry_hash=eh,
         payload=pull.card.payload,
     )
+
+
+def perform_multi_pull(
+    count: int = 10,
+    *,
+    catalog_name: str = DEFAULT_CATALOG_ID,
+    cost: int = PULL_COST,
+    ledger_path: Optional[Path] = None,
+    collection_path: Optional[Path] = None,
+) -> List[PullReceipt]:
+    """Execute up to *count* pulls. Stops early on insufficient balance."""
+    identity = load_identity()
+    catalog = load_catalog(catalog_name)
+
+    if ledger_path is None:
+        ledger_path = _ledger_mod.LEDGER_PATH
+    if collection_path is None:
+        collection_path = _collection_mod.COLLECTION_PATH
+
+    receipts: List[PullReceipt] = []
+    for _ in range(count):
+        try:
+            receipt = perform_pull(
+                identity=identity,
+                catalog=catalog,
+                cost=cost,
+                ledger_path=ledger_path,
+                collection_path=collection_path,
+            )
+            receipts.append(receipt)
+        except InsufficientBalanceError:
+            break
+    return receipts
 
 
 def can_pull(cost: int = PULL_COST,

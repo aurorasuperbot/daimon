@@ -275,6 +275,164 @@ def get_match_history(limit: int = 50) -> Dict[str, Any]:
     return {"matches": matches, "total": len(matches)}
 
 
+@router.get("/api/stats")
+def get_stats() -> Dict[str, Any]:
+    from daimon.catalog import DEFAULT_CATALOG_ID, load_catalog
+    from daimon.collection import list_serials
+    from daimon.imprint import compute_trophies, get_serial_stats
+    from daimon.match_history import recent_matches
+
+    serials = list_serials()
+    try:
+        cat = load_catalog(DEFAULT_CATALOG_ID)
+        catalog_size = len(cat.cards)
+        catalog_by_rarity: Dict[str, int] = {}
+        catalog_by_element: Dict[str, int] = {}
+        for c in cat.cards:
+            catalog_by_rarity[c.rarity] = catalog_by_rarity.get(c.rarity, 0) + 1
+            elem = c.payload.get("element", "NORMAL")
+            catalog_by_element[elem] = catalog_by_element.get(elem, 0) + 1
+    except Exception:
+        catalog_size = 0
+        catalog_by_rarity = {}
+        catalog_by_element = {}
+
+    card_element: Dict[str, str] = {}
+    try:
+        for c in cat.cards:
+            card_element[c.card_id] = c.payload.get("element", "NORMAL")
+    except Exception:
+        pass
+
+    unique_ids: set = set()
+    owned_by_rarity: Dict[str, int] = {}
+    unique_by_element: Dict[str, int] = {}
+    for s in serials:
+        cid = s.get("card_id", "")
+        if cid in unique_ids:
+            continue
+        unique_ids.add(cid)
+        rarity = s.get("rarity", "common")
+        owned_by_rarity[rarity] = owned_by_rarity.get(rarity, 0) + 1
+        elem = card_element.get(cid, "NORMAL")
+        unique_by_element[elem] = unique_by_element.get(elem, 0) + 1
+
+    matches = recent_matches(limit=200)
+    total_matches = len(matches)
+    wins = sum(1 for m in matches if (m.get("outcome") or "").lower().startswith("w"))
+    losses = sum(1 for m in matches if (m.get("outcome") or "").lower().startswith("l"))
+    draws = total_matches - wins - losses
+
+    current_streak = 0
+    best_match_streak = 0
+    streak_type = ""
+    for m in reversed(matches):
+        outcome = (m.get("outcome") or "").lower()
+        if outcome.startswith("w"):
+            if streak_type == "w":
+                current_streak += 1
+            elif streak_type == "":
+                streak_type = "w"
+                current_streak = 1
+            else:
+                break
+        elif outcome.startswith("l"):
+            if streak_type == "l":
+                current_streak += 1
+            elif streak_type == "":
+                streak_type = "l"
+                current_streak = 1
+            else:
+                break
+        else:
+            break
+    temp_streak = 0
+    for m in matches:
+        if (m.get("outcome") or "").lower().startswith("w"):
+            temp_streak += 1
+            best_match_streak = max(best_match_streak, temp_streak)
+        else:
+            temp_streak = 0
+
+    recent_results = []
+    for m in matches[-30:]:
+        o = (m.get("outcome") or "").lower()
+        recent_results.append({
+            "outcome": "win" if o.startswith("w") else "loss" if o.startswith("l") else "draw",
+            "opponent": m.get("opponent", "?"),
+            "ts": m.get("ts", ""),
+        })
+
+    card_stats: Dict[str, Dict[str, Any]] = {}
+    all_trophies: Dict[str, int] = {}
+    trophy_cards = []
+    for s in serials:
+        sid = s.get("serial", "")
+        cid = s.get("card_id", "")
+        stats = get_serial_stats(sid)
+        if not stats:
+            continue
+        trophies = compute_trophies(stats)
+        if s.get("edition") == "1st" and "first_edition" not in trophies:
+            trophies.insert(0, "first_edition")
+        for t in trophies:
+            all_trophies[t] = all_trophies.get(t, 0) + 1
+        if trophies:
+            trophy_cards.append({
+                "card_id": cid,
+                "serial": sid,
+                "trophies": trophies,
+            })
+        if cid not in card_stats:
+            card_stats[cid] = {
+                "card_id": cid,
+                "rarity": s.get("rarity", "common"),
+                "total_wins": 0,
+                "total_losses": 0,
+                "total_kills": 0,
+                "total_damage": 0,
+            }
+        card_stats[cid]["total_wins"] += stats.get("wins", 0)
+        card_stats[cid]["total_losses"] += stats.get("losses", 0)
+        card_stats[cid]["total_kills"] += stats.get("kills", 0)
+        card_stats[cid]["total_damage"] += stats.get("damage_dealt", 0)
+
+    top_performers = sorted(
+        card_stats.values(),
+        key=lambda c: (c["total_wins"], c["total_kills"], c["total_damage"]),
+        reverse=True,
+    )[:6]
+
+    return {
+        "collection": {
+            "unique_owned": len(unique_ids),
+            "total_serials": len(serials),
+            "catalog_size": catalog_size,
+            "by_rarity": owned_by_rarity,
+            "catalog_by_rarity": catalog_by_rarity,
+            "by_element": unique_by_element,
+            "catalog_by_element": catalog_by_element,
+        },
+        "matches": {
+            "total": total_matches,
+            "wins": wins,
+            "losses": losses,
+            "draws": draws,
+            "current_streak": current_streak,
+            "streak_type": streak_type,
+            "best_streak": best_match_streak,
+            "recent": recent_results,
+        },
+        "top_performers": top_performers,
+        "trophies": {
+            "total": sum(all_trophies.values()),
+            "unique_types": len(all_trophies),
+            "by_type": all_trophies,
+            "cards": trophy_cards[:12],
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # Catalog (read-only, drives the loadout editor's left pane)
 # ---------------------------------------------------------------------------
@@ -509,16 +667,75 @@ async def post_match_start(body: MatchStartBody) -> Dict[str, Any]:
 
 @router.post("/api/pull")
 async def post_pull() -> Dict[str, Any]:
-    from daimon.mcp.server import dm_pull
-    out = _call_tool(dm_pull)
-    if "error" not in out:
-        await broadcaster.push({
-            "kind": "pull",
-            "balance": out.get("balance_after"),
-            "card_id": out.get("card_id"),
-            "rarity": out.get("rarity"),
-        })
+    from daimon.mining.ledger import InsufficientBalanceError
+    from daimon.pity import get_pity_state
+    from daimon.pulls import perform_pull
+
+    try:
+        receipt = perform_pull()
+    except FileNotFoundError:
+        return {"error": "no_identity", "message": "run `daimon init` first"}
+    except InsufficientBalanceError as exc:
+        return {"error": "insufficient_balance", "message": str(exc)}
+    except RuntimeError as exc:
+        return {"error": "ledger_error", "message": str(exc)}
+
+    out = receipt.to_dict()
+    out["status"] = "ok"
+    await broadcaster.push({
+        "kind": "pull",
+        "balance": out.get("balance_after"),
+        "card_id": out.get("card_id"),
+        "rarity": out.get("rarity"),
+    })
+    pity = get_pity_state()
+    out["pity"] = pity
     return out
+
+
+class MultiPullBody(BaseModel):
+    count: int = Field(10, ge=1, le=10)
+
+
+@router.post("/api/pull/multi")
+async def post_pull_multi(body: MultiPullBody) -> Dict[str, Any]:
+    from daimon.pulls import perform_multi_pull
+    from daimon.mining.ledger import InsufficientBalanceError
+    from daimon.pity import get_pity_state
+
+    try:
+        receipts = perform_multi_pull(count=body.count)
+    except FileNotFoundError:
+        return {"error": "no_identity", "message": "run `daimon init` first"}
+    except RuntimeError as exc:
+        return {"error": "ledger_error", "message": str(exc)}
+    except InsufficientBalanceError as exc:
+        return {"error": "insufficient_balance", "message": str(exc)}
+
+    results = [r.to_dict() for r in receipts]
+    if results:
+        await broadcaster.push({
+            "kind": "multi_pull",
+            "count": len(results),
+            "balance": results[-1].get("balance_after"),
+        })
+    pity = get_pity_state()
+    return {"receipts": results, "count": len(results), "pity": pity}
+
+
+@router.get("/api/pull/pity")
+def get_pull_pity() -> Dict[str, Any]:
+    from daimon.pity import get_pity_state
+    from daimon.mining.formula import PULL_COST
+    from daimon.mining.ledger import get_balance
+
+    pity = get_pity_state()
+    balance = get_balance()
+    pity["balance"] = balance
+    pity["pull_cost"] = PULL_COST
+    pity["can_pull"] = balance >= PULL_COST
+    pity["can_multi"] = balance >= PULL_COST * 10
+    return pity
 
 
 # ---------------------------------------------------------------------------
@@ -644,7 +861,7 @@ def get_art(card_id: str) -> FileResponse:
 # evaluate_js call (string-interpolated JS, so we want strict input).
 
 _ALLOWED_SCREENS = frozenset({
-    "menu", "shop", "collection", "loadouts", "pull", "match", "pvp",
+    "menu", "shop", "collection", "loadouts", "pull", "match", "pvp", "stats",
 })
 _PARAM_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 

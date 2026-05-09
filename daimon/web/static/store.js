@@ -88,7 +88,7 @@ const _live = {
   // Sequence number bumped every time we receive a frame of a given
   // kind. Subscribers pin to a kind+seq tuple to detect "the agent
   // did X behind my back; reload."
-  seq: { pull: 0, purchase: 0, loadout: 0, match: 0, skin: 0 },
+  seq: { pull: 0, multi_pull: 0, purchase: 0, loadout: 0, match: 0, skin: 0 },
 };
 const _liveSubs = new Set();    // (state, frame) => void
 

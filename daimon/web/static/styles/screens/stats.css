@@ -1,0 +1,296 @@
+/* Stats dashboard — overview cards, distribution bars, performers,
+ * trophies, match timeline. Token-driven like every other screen. */
+
+@scope (.stats-screen) {
+
+  .stats-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-loose);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding-bottom: var(--gap-loose);
+  }
+
+  /* ── Overview strip ───────────────────────────────────────────── */
+
+  .stats-overview {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--gap-normal);
+  }
+
+  .stats-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    padding: var(--gap-normal);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+    transition: border-color var(--motion-fast) var(--ease-soft);
+  }
+  .stats-card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  .stats-card-label {
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .stats-card-value {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .stats-card-sub {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .stats-positive .stats-card-value { color: var(--success); }
+  .stats-negative .stats-card-value { color: #ff9a7a; }
+  .stats-positive {
+    border-color: rgba(108, 217, 108, 0.15);
+    box-shadow: 0 0 20px rgba(108, 217, 108, 0.06);
+  }
+  .stats-negative {
+    border-color: rgba(255, 154, 122, 0.15);
+    box-shadow: 0 0 20px rgba(255, 154, 122, 0.06);
+  }
+
+  /* ── Shared panel frame ───────────────────────────────────────── */
+
+  .stats-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-rest);
+    border-radius: var(--radius);
+    padding: var(--gap-normal) var(--gap-loose);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-normal);
+  }
+  .stats-panel h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    letter-spacing: 0.35em;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .stats-panel .empty {
+    color: var(--text-dim);
+    font-style: italic;
+    font-size: 0.85rem;
+  }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap-normal);
+  }
+  .stats-panel-wide {
+    grid-column: 1 / -1;
+  }
+
+  /* ── Rarity + element bars ────────────────────────────────────── */
+
+  .stats-bars,
+  .stats-element-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .stats-bar-row,
+  .stats-element-row {
+    display: grid;
+    grid-template-columns: 7rem 1fr 3.5rem;
+    align-items: center;
+    gap: var(--gap-tight);
+  }
+
+  .stats-bar-label {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--rarity-color, var(--text-muted));
+    text-align: right;
+  }
+  .stats-element-label {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    text-align: right;
+  }
+
+  .stats-bar-track {
+    height: 8px;
+    background: var(--bg-raised);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .stats-bar-fill {
+    height: 100%;
+    background: var(--rarity-color, var(--accent));
+    border-radius: inherit;
+    transition: width var(--motion-slow) var(--ease-soft);
+    min-width: 2px;
+  }
+  .stats-bar-count {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  /* ── Top performers ───────────────────────────────────────────── */
+
+  .stats-performers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--gap-normal);
+  }
+
+  .stats-performer {
+    display: flex;
+    gap: var(--gap-tight);
+    align-items: center;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    padding: 8px;
+    transition:
+      border-color var(--motion-fast) var(--ease-soft),
+      box-shadow var(--motion-fast) var(--ease-soft);
+  }
+  .stats-performer:hover {
+    border-color: var(--rarity-color, rgba(255, 255, 255, 0.12));
+    box-shadow: var(--rarity-glow, none);
+  }
+  .stats-performer-art-wrap {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--bg-raised);
+  }
+  .stats-performer-art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .stats-performer-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .stats-performer-name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .stats-performer-stats {
+    display: flex;
+    gap: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+  }
+  .perf-w { color: var(--success); }
+  .perf-l { color: #ff9a7a; }
+  .perf-k { color: var(--accent); }
+
+  /* ── Trophy showcase ──────────────────────────────────────────── */
+
+  .stats-trophy-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .stats-trophy-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    transition: transform var(--motion-fast) var(--ease-snap);
+  }
+  .stats-trophy-chip:hover {
+    transform: scale(1.05);
+  }
+  .stats-trophy-chip[data-family="combat"] {
+    background: rgba(208, 64, 64, 0.10);
+    border: 1px solid rgba(208, 64, 64, 0.30);
+    color: #d04040;
+  }
+  .stats-trophy-chip[data-family="streak"] {
+    background: rgba(224, 120, 32, 0.10);
+    border: 1px solid rgba(224, 120, 32, 0.30);
+    color: #e07820;
+  }
+  .stats-trophy-chip[data-family="provenance"] {
+    background: rgba(201, 168, 76, 0.10);
+    border: 1px solid rgba(201, 168, 76, 0.30);
+    color: #c9a84c;
+  }
+  .stats-trophy-count {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    opacity: 0.7;
+  }
+
+  /* ── Match timeline ───────────────────────────────────────────── */
+
+  .stats-timeline {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .stats-timeline-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    transition: transform var(--motion-fast) var(--ease-snap);
+    cursor: default;
+  }
+  .stats-timeline-dot:hover {
+    transform: scale(1.35);
+    z-index: 1;
+  }
+  .stats-timeline-dot.win {
+    background: var(--success);
+    box-shadow: 0 0 6px rgba(108, 217, 108, 0.35);
+  }
+  .stats-timeline-dot.loss {
+    background: #ff5a5a;
+    box-shadow: 0 0 6px rgba(255, 90, 90, 0.35);
+  }
+  .stats-timeline-dot.draw {
+    background: var(--accent);
+    box-shadow: 0 0 6px rgba(240, 196, 88, 0.35);
+  }
+
+}

@@ -189,25 +189,29 @@ class PullResult:
     seed_hex: str
 
 
-def roll_pull(catalog: Catalog, seed: bytes) -> PullResult:
+def roll_pull(catalog: Catalog, seed: bytes, *,
+              override_weights: Optional[Dict[str, int]] = None) -> PullResult:
     """Deterministically roll one card from the catalog.
 
     Steps:
-      1. Pick rarity weighted by `catalog.rarity_weights`, restricted to
-         rarities that exist in this catalog.
+      1. Pick rarity weighted by `catalog.rarity_weights` (or
+         ``override_weights`` when provided), restricted to rarities
+         that exist in this catalog.
       2. Pick a card uniformly within that rarity.
 
-    Same seed → same result. Always.
+    Same seed + same weights → same result. Always.
     """
     if len(seed) != 32:
         raise ValueError(f"seed must be 32 bytes, got {len(seed)}")
 
-    rarities = catalog.rarities()
+    weights = override_weights or catalog.rarity_weights
+    rarities = [r for r in RARITY_ORDER
+                if r in catalog.by_rarity and weights.get(r, 0) > 0]
     if not rarities:
         raise ValueError("catalog has no rollable rarities")
 
     rarity_roll = _drbg_uint32(seed, b"rarity")
-    rarity = _weighted_pick(catalog.rarity_weights, rarities, rarity_roll)
+    rarity = _weighted_pick(weights, rarities, rarity_roll)
 
     pool = catalog.by_rarity[rarity]
     card_roll = _drbg_uint32(seed, b"card")

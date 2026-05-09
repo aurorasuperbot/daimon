@@ -597,6 +597,7 @@
     background-repeat: repeat;
     background-size: 56px 56px;
     mix-blend-mode: overlay;
+    transition: background-position 150ms var(--ease-soft);
   }
   :scope[data-rarity="uncommon"]  .dm-card-holo,
   :scope[data-rarity="rare"]      .dm-card-holo,
@@ -607,18 +608,43 @@
   /* Rare and up: scale the holo tile down so the pattern reads denser
    * (foil-as-glyph effect — MTG Step-and-Compleat). Opacity stays low
    * — the goal is "tinted texture under the art", not "pattern over
-   * the art". */
+   * the art". Animated drift gives the holo a "living" quality —
+   * the pattern slowly migrates so the card reads as optically active
+   * even at rest. */
   :scope[data-rarity="rare"]      .dm-card-holo,
   :scope[data-rarity="epic"]      .dm-card-holo,
   :scope[data-rarity="legendary"] .dm-card-holo {
     background-size: 38px 38px;
     opacity: 0.32;
+    animation: dm-card-holo-drift 12s linear infinite;
+  }
+  @keyframes dm-card-holo-drift {
+    from { background-position: 0 0; }
+    to   { background-position: 38px 38px; }
+  }
+  /* Epic and legendary: faster drift + slightly higher opacity for
+   * a more active, premium feel. */
+  :scope[data-rarity="epic"]      .dm-card-holo {
+    opacity: 0.36;
+    animation-duration: 8s;
+  }
+  :scope[data-rarity="legendary"] .dm-card-holo {
+    opacity: 0.40;
+    animation-duration: 6s;
   }
   /* Suppress the holo when the art failed to load — the sigil on
    * .dm-card-art::after takes precedence then. */
   :scope[data-art-error] .dm-card-holo { display: none; }
 
   /* ----- Uncommon — element holo + soft halo ---------------------- */
+
+  :scope[data-rarity="uncommon"] .dm-card-holo {
+    animation: dm-card-holo-breathe 4s ease-in-out infinite;
+  }
+  @keyframes dm-card-holo-breathe {
+    0%, 100% { opacity: 0.22; }
+    50%      { opacity: 0.34; }
+  }
 
   :scope[data-rarity="uncommon"] .dm-card-frame {
     border-width: 2px;
@@ -894,6 +920,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     :scope .dm-card-frame,
+    :scope .dm-card-holo,
     :scope .dm-card-front::after,
     :scope .dm-card-frame::before,
     :scope .dm-card-art::before,

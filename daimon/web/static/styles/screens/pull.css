@@ -750,4 +750,334 @@
     display: none;
   }
 
+  /* ==================================================================
+   * 16. STATION VIEW — pull landing with balance + pity + buttons
+   * ================================================================ */
+
+  .station-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-loose);
+    min-height: 0;
+    flex: 1;
+    padding: var(--gap-loose);
+  }
+
+  .station-balance {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .station-balance-label {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    color: var(--text-muted);
+  }
+  .station-balance-val {
+    font-family: var(--font-display);
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  /* Pity counter */
+  .station-pity {
+    width: min(400px, 80vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .station-pity-header {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.35em;
+    color: var(--text-muted);
+  }
+  .station-pity-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-card);
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid var(--border-rest);
+  }
+  .station-pity-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--text-muted);
+    border-radius: 3px;
+    transition: width 0.6s var(--ease-soft);
+  }
+  .station-pity-fill[data-active="soft"] {
+    background: linear-gradient(90deg, var(--text-muted), #7ab8ff);
+  }
+  .station-pity-fill[data-active="hard"] {
+    background: linear-gradient(90deg, #7ab8ff, #ffdc78);
+    animation: pity-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pity-pulse {
+    0%, 100% { opacity: 0.7; }
+    50%      { opacity: 1; }
+  }
+  .station-pity-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+  .station-pity-status {
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+  }
+  .station-pity-status[data-state="soft"] {
+    color: #7ab8ff;
+  }
+  .station-pity-status[data-state="guaranteed"] {
+    color: var(--accent);
+    animation: pity-pulse 1.2s ease-in-out infinite;
+  }
+
+  /* Pull buttons */
+  .station-btn-row {
+    display: flex;
+    gap: var(--gap-normal);
+    margin-top: var(--gap-normal);
+  }
+  .station-pull-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 1rem 2rem;
+    background: transparent;
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition:
+      background var(--motion-fast) var(--ease-soft),
+      border-color var(--motion-fast) var(--ease-soft),
+      transform var(--motion-fast) var(--ease-snap),
+      box-shadow var(--motion-fast) var(--ease-soft);
+  }
+  .station-pull-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 15%, transparent);
+    transform: translateY(-2px);
+  }
+  .station-pull-btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  .station-pull-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    border-color: var(--border-rest);
+  }
+  .station-pull-label {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+  }
+  .station-pull-btn:disabled .station-pull-label {
+    color: var(--text-muted);
+  }
+  .station-pull-cost {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+  }
+  .station-pull-multi {
+    border-color: var(--accent-bright);
+  }
+  .station-pull-multi .station-pull-label {
+    color: var(--accent-bright);
+  }
+  .station-pull-multi:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-bright) 12%, transparent);
+    box-shadow: 0 0 25px color-mix(in srgb, var(--accent-bright) 18%, transparent);
+  }
+
+  .station-error {
+    color: var(--danger);
+    font-size: 0.8rem;
+    display: none;
+  }
+
+  /* ==================================================================
+   * 17. MULTI-PULL — cascade + grid
+   * ================================================================ */
+
+  .multi-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-normal);
+    min-height: 0;
+    position: relative;
+  }
+
+  .multi-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gap-normal);
+    z-index: 2;
+  }
+
+  :scope[data-phase="grid"] .multi-stage,
+  :scope[data-phase="settled"] .multi-stage {
+    display: none;
+  }
+
+  .multi-cascade {
+    width: min(240px, 60vw);
+    aspect-ratio: var(--card-aspect);
+    position: relative;
+  }
+
+  .multi-cascade-card {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  .multi-cascade-card dm-card {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Cascade tension — card shakes */
+  .multi-cascade-card[data-phase="tension"] dm-card {
+    animation: pull-card-shake 0.08s infinite steps(1);
+  }
+  .multi-cascade-card[data-phase="tension"][data-rarity="epic"] dm-card,
+  .multi-cascade-card[data-phase="tension"][data-rarity="legendary"] dm-card {
+    animation: pull-card-shake-heavy 0.06s infinite steps(1);
+  }
+
+  /* Cascade reveal — pop */
+  .multi-cascade-card[data-phase="reveal"] {
+    animation: multi-card-pop 0.3s ease-out;
+  }
+  @keyframes multi-card-pop {
+    0%   { transform: scale(0.95); }
+    40%  { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+
+  /* Cascade glow halo */
+  .multi-cascade-card[data-phase="reveal"] {
+    box-shadow:
+      0 0 40px 10px color-mix(in srgb, var(--rarity-color) 40%, transparent),
+      0 0 80px 25px color-mix(in srgb, var(--rarity-color) 15%, transparent);
+  }
+
+  .multi-counter {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+  }
+
+  /* Results grid */
+  .multi-grid {
+    display: none;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--gap-tight);
+    width: min(680px, 90vw);
+    z-index: 2;
+  }
+  :scope[data-phase="grid"] .multi-grid,
+  :scope[data-phase="settled"] .multi-grid {
+    display: grid;
+  }
+
+  .multi-grid-tile {
+    aspect-ratio: var(--card-aspect);
+    opacity: 0;
+    transform: translateY(15px) scale(0.9);
+    animation: multi-tile-enter 0.35s ease-out forwards;
+    animation-delay: calc(var(--i) * 80ms);
+    border-radius: var(--radius);
+    transition: box-shadow var(--motion-fast) var(--ease-soft);
+  }
+  .multi-grid-tile dm-card {
+    width: 100%;
+    height: 100%;
+  }
+  .multi-grid-tile[data-rarity="rare"],
+  .multi-grid-tile[data-rarity="epic"],
+  .multi-grid-tile[data-rarity="legendary"] {
+    box-shadow: 0 0 12px 3px color-mix(in srgb, var(--rarity-color) 30%, transparent);
+  }
+
+  @keyframes multi-tile-enter {
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Summary strip */
+  .multi-summary {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+      opacity 0.6s 0.4s var(--ease-soft),
+      transform 0.6s 0.4s var(--ease-soft);
+    z-index: 2;
+  }
+  :scope[data-phase="settled"] .multi-summary {
+    opacity: 1;
+    transform: none;
+  }
+
+  .multi-summary-chip {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: var(--rarity-color);
+    padding: 0.2rem 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--rarity-color) 35%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--rarity-color) 8%, transparent);
+  }
+  .multi-summary-balance {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    padding: 0.2rem 0.6rem;
+  }
+
+  /* ==================================================================
+   * 18. REDUCED MOTION
+   * ================================================================ */
+
+  @media (prefers-reduced-motion: reduce) {
+    .station-pity-fill[data-active="hard"],
+    .station-pity-status[data-state="guaranteed"] {
+      animation: none;
+    }
+    .multi-cascade-card[data-phase="tension"] dm-card,
+    .multi-cascade-card[data-phase="reveal"] {
+      animation: none;
+    }
+    .multi-grid-tile {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
 }

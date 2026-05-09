@@ -559,10 +559,60 @@ function cinTrace(msg) {
   console.log(`[cinematic] ${msg}`);
 }
 
+async function playEntranceStagger(refs, signal, speed) {
+  const allCells = [
+    ...Object.values(refs.cells.opponent),
+    ...Object.values(refs.cells.player),
+  ];
+  for (const r of allCells) {
+    r.cell.classList.add("unit-entrance");
+  }
+  for (let i = 0; i < allCells.length; i++) {
+    if (signal.aborted) return;
+    allCells[i].cell.classList.add("unit-entered");
+    await abortableSleep(80, signal, speed);
+  }
+  await abortableSleep(200, signal, speed);
+  for (const r of allCells) {
+    r.cell.classList.remove("unit-entrance", "unit-entered");
+  }
+}
+
+function showVsSplash(container) {
+  const splash = el("div", { class: "vs-splash" },
+    el("div", { class: "vs-text" }, "VS"),
+  );
+  container.appendChild(splash);
+  return splash;
+}
+
+function showRoundBanner(container, roundNum) {
+  const existing = container.querySelector(".round-banner");
+  if (existing) existing.remove();
+  const banner = el("div", { class: "round-banner" },
+    el("span", { class: "round-banner-text" }, `ROUND ${roundNum}`),
+  );
+  container.appendChild(banner);
+  setTimeout(() => banner.remove(), 1200);
+}
+
 async function playCinematic(transcript, refs, signal, speed) {
   window.__cinTrace = [];
   const rounds = transcript.rounds || [];
   cinTrace(`start: ${rounds.length} rounds`);
+
+  const field = refs.log.closest(".match-cinematic")
+    ?.querySelector(".cinematic-field");
+
+  const splash = field ? showVsSplash(field) : null;
+  await abortableSleep(900, signal, speed);
+  if (splash) {
+    splash.classList.add("vs-exit");
+    setTimeout(() => splash.remove(), 500);
+  }
+
+  await playEntranceStagger(refs, signal, speed);
+
   let totalActions = 0;
   for (const round of rounds) {
     if (signal.aborted) {
@@ -573,6 +623,10 @@ async function playCinematic(transcript, refs, signal, speed) {
     refs.roundChip.textContent = `ROUND ${round.round}`;
     refs.roundChip.classList.add("pulse");
     setTimeout(() => refs.roundChip.classList.remove("pulse"), 650);
+
+    if (field && round.round > 1) {
+      showRoundBanner(field, round.round);
+    }
     await abortableSleep(450, signal, speed);
 
     for (const action of (round.actions || [])) {
@@ -637,21 +691,32 @@ function resultView(root) {
   const youWon = r.winner === 0;
   const draw = r.winner === null || r.winner === undefined;
   const opponentName = state.npcsById[state.selectedNpc]?.name || state.selectedNpc;
+  const outcomeWord = draw ? "DRAW" : youWon ? "VICTORY" : "DEFEAT";
   return el("div", { class: `screen match-result fade-in${
     draw ? " draw" : youWon ? " win" : " loss"}` },
     el("header", { class: "screen-header" },
       el("button", { class: "back-btn",
         onClick: () => { state.view = "picker"; state.result = null; rerender(root); } }, "← BACK"),
-      el("h1", null,
-        draw ? "DRAW" : youWon ? "VICTORY" : "DEFEAT"),
+      el("h1", null, outcomeWord),
     ),
     el("div", { class: "match-result-body" },
-      el("div", { class: "match-result-line" },
-        `${r.round_count ?? 0} rounds`),
-      el("div", { class: "match-result-line" },
-        `your team: ${r.side_a_final_hp ?? "?"} hp`),
-      el("div", { class: "match-result-line" },
-        `${opponentName}: ${r.side_b_final_hp ?? "?"} hp`),
+      el("div", { class: "result-banner" },
+        el("div", { class: "result-banner-text" }, outcomeWord),
+      ),
+      el("div", { class: "result-stats-strip" },
+        el("div", { class: "result-stat" },
+          el("span", { class: "result-stat-label" }, "ROUNDS"),
+          el("span", { class: "result-stat-value" }, String(r.round_count ?? 0)),
+        ),
+        el("div", { class: "result-stat" },
+          el("span", { class: "result-stat-label" }, "YOUR HP"),
+          el("span", { class: "result-stat-value" }, String(r.side_a_final_hp ?? "?")),
+        ),
+        el("div", { class: "result-stat" },
+          el("span", { class: "result-stat-label" }, opponentName.toUpperCase()),
+          el("span", { class: "result-stat-value" }, String(r.side_b_final_hp ?? "?")),
+        ),
+      ),
       r.npc ? el("div", { class: "match-result-flavor" },
         r.npc.flavor || "") : null,
       state.error ? el("div", { class: "error-line" }, state.error) : null,

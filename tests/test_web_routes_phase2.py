@@ -226,8 +226,7 @@ def test_pull_no_balance_returns_insufficient_envelope(env):
     assert r.status_code == 200
     body = r.json()
     assert body.get("error") == "insufficient_balance"
-    assert "needed" in body
-    assert "cost" in body
+    assert "message" in body
 
 
 def test_pull_happy_path_returns_full_receipt(env):

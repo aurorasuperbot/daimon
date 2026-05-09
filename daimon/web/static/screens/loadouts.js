@@ -4,8 +4,8 @@
 // thumbnails, name, and actions. The active loadout gets accent glow.
 //
 // Editor view: two panels — catalog browse (tiles with add/remove
-// toggle) and the 6-slot deck strip. Clicking a tile opens the
-// full-detail card modal so players can read abilities before deciding.
+// toggle, element badges) and the 6-slot deck strip with drag-to-reorder,
+// synergy indicators, and power rating preview.
 
 import { backButton, el, fetchJSON, postJSON, promptText } from "/screens/_dom.js";
 import { openCardModal } from "/components/dm-card.js";
@@ -14,11 +14,21 @@ import { liveStore } from "/store.js";
 const LOADOUT_SIZE = 6;
 const CATALOG_PAGE_SIZE = 12;
 
+const ELEMENT_COLORS = {
+  FIRE:   "#ff6b4a",
+  WATER:  "#5ca8ff",
+  NATURE: "#6cd96c",
+  VOID:   "#c9a4ff",
+  VOLT:   "#ffdc78",
+  NORMAL: "#9b9b9b",
+};
+
 let state = {
   view: "list",        // "list" | "editor"
   loadouts: [],
   activeName: null,
   catalog: [],
+  catalogMap: {},      // card_id → card data for quick lookup
   page: 0,
   editingName: "",
   slots: [],           // card_ids in the editor; length <= LOADOUT_SIZE
@@ -153,7 +163,7 @@ async function deleteLoadout(name, root) {
 }
 
 // ---------------------------------------------------------------------------
-// editor view — 2-panel: catalog | slots
+// editor view — 2-panel: catalog | slots + synergy + power
 // ---------------------------------------------------------------------------
 
 async function beginNewLoadout(root) {
@@ -195,6 +205,39 @@ async function beginEditLoadout(name, root) {
   rerender(root);
 }
 
+function computeDeckStats() {
+  const elements = {};
+  let totalAtk = 0, totalDef = 0, totalHp = 0, totalSpd = 0;
+  let cardCount = 0;
+
+  for (const cid of state.slots) {
+    const card = state.catalogMap[cid];
+    if (!card) continue;
+    cardCount++;
+    const elem = card.element || "NORMAL";
+    elements[elem] = (elements[elem] || 0) + 1;
+    totalAtk += card.atk || 0;
+    totalDef += card.def || 0;
+    totalHp  += card.hp  || 0;
+    totalSpd += card.spd || 0;
+  }
+
+  const synergies = [];
+  for (const [elem, count] of Object.entries(elements)) {
+    if (count >= 2) {
+      synergies.push({ element: elem, count, bonus: count >= 3 ? "strong" : "weak" });
+    }
+  }
+
+  return {
+    elements,
+    synergies,
+    power: totalAtk + totalDef + totalHp + totalSpd,
+    stats: { atk: totalAtk, def: totalDef, hp: totalHp, spd: totalSpd },
+    cardCount,
+  };
+}
+
 function editorView(root) {
   const totalPages = Math.max(1, Math.ceil(state.catalog.length / CATALOG_PAGE_SIZE));
   const start = state.page * CATALOG_PAGE_SIZE;
@@ -202,6 +245,8 @@ function editorView(root) {
   const filled = state.slots.length;
   const remaining = LOADOUT_SIZE - filled;
   const ready = remaining === 0;
+
+  const deck = computeDeckStats();
 
   return el("div", { class: "screen loadouts-editor fade-in" },
     el("header", { class: "screen-header" },
@@ -242,8 +287,44 @@ function editorView(root) {
       ),
       el("div", { class: "editor-slots" },
         el("h3", null, `DECK (${filled}/${LOADOUT_SIZE})`),
-        el("div", { class: "slot-strip" },
+        el("div", { class: "slot-strip", "data-slot-strip": "" },
           ...Array.from({ length: LOADOUT_SIZE }, (_, i) => slotTile(i, root))),
+
+        // Synergy indicators
+        deck.cardCount > 0
+          ? el("div", { class: "synergy-row" },
+              ...Object.entries(deck.elements).map(([elem, count]) =>
+                el("span", {
+                  class: `synergy-chip${count >= 3 ? " strong" : count >= 2 ? " active" : ""}`,
+                  style: `--elem-color: ${ELEMENT_COLORS[elem] || ELEMENT_COLORS.NORMAL}`,
+                },
+                  el("span", { class: "synergy-dot" }),
+                  `${elem} ×${count}`,
+                )
+              ),
+              ...deck.synergies.map(s =>
+                el("span", { class: "synergy-bonus" },
+                  s.bonus === "strong" ? `${s.element} TRIO!` : `${s.element} DUO`),
+              ),
+            )
+          : null,
+
+        // Power rating preview
+        deck.cardCount > 0
+          ? el("div", { class: "power-preview" },
+              el("div", { class: "power-total" },
+                el("span", { class: "power-label" }, "POWER"),
+                el("span", { class: "power-value" }, String(deck.power)),
+              ),
+              el("div", { class: "power-stats" },
+                statBar("ATK", deck.stats.atk, "#ff6b4a"),
+                statBar("DEF", deck.stats.def, "#5ca8ff"),
+                statBar("HP",  deck.stats.hp,  "#6cd96c"),
+                statBar("SPD", deck.stats.spd, "#ffdc78"),
+              ),
+            )
+          : null,
+
         state.error ? el("div", { class: "error-line" }, state.error) : null,
         el("div", { class: "editor-actions" },
           el("button", {
@@ -261,10 +342,24 @@ function editorView(root) {
   );
 }
 
+function statBar(label, value, color) {
+  const maxStat = 60;
+  const pct = Math.min(100, (value / maxStat) * 100);
+  return el("div", { class: "stat-bar-row" },
+    el("span", { class: "stat-bar-label" }, label),
+    el("div", { class: "stat-bar-track" },
+      el("div", { class: "stat-bar-fill", style: `width: ${pct}%; background: ${color}` }),
+    ),
+    el("span", { class: "stat-bar-val" }, String(value)),
+  );
+}
+
 function catalogTile(card, root) {
   const inDeck = state.slots.includes(card.card_id);
   const full   = state.slots.length >= LOADOUT_SIZE;
   const dimmed = full && !inDeck;
+  const elem = card.element || "NORMAL";
+
   const node = el("button", {
     class: `catalog-tile${inDeck ? " in-deck" : ""}${dimmed ? " dimmed" : ""}`,
     onClick: () => openCardModal(card.card_id),
@@ -273,6 +368,13 @@ function catalogTile(card, root) {
   dm.setAttribute("card-id", card.card_id);
   dm.setAttribute("size", "tile");
   node.appendChild(dm);
+
+  // Element badge
+  const elemBadge = el("span", {
+    class: "tile-element-badge",
+    style: `--elem-color: ${ELEMENT_COLORS[elem] || ELEMENT_COLORS.NORMAL}`,
+  }, elem.slice(0, 3));
+  node.appendChild(elemBadge);
 
   const toggleBtn = el("button", {
     class: `tile-toggle ${inDeck ? "remove" : "add"}`,
@@ -298,22 +400,78 @@ function catalogTile(card, root) {
 function slotTile(idx, root) {
   const cardId = state.slots[idx];
   if (!cardId) {
-    return el("div", { class: "slot-tile empty" },
+    const empty = el("div", { class: "slot-tile empty" },
       el("span", { class: "slot-num" }, `${idx + 1}`),
     );
+    empty.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      empty.classList.add("drag-over");
+    });
+    empty.addEventListener("dragleave", () => empty.classList.remove("drag-over"));
+    empty.addEventListener("drop", (e) => {
+      e.preventDefault();
+      empty.classList.remove("drag-over");
+    });
+    return empty;
   }
+
+  const card = state.catalogMap[cardId];
+  const elem = card?.element || "NORMAL";
+
   const node = el("button", {
     class: "slot-tile filled",
-    title: "click to remove",
-    onClick: () => {
-      state.slots = state.slots.filter((_, i) => i !== idx);
-      rerender(root);
-    },
+    draggable: "true",
+    "data-slot-idx": idx,
+    title: "drag to reorder · click to remove",
   });
+
+  // Element indicator strip on left edge
+  const elemStrip = el("div", {
+    class: "slot-element-strip",
+    style: `background: ${ELEMENT_COLORS[elem] || ELEMENT_COLORS.NORMAL}`,
+  });
+  node.appendChild(elemStrip);
+
   const dm = document.createElement("dm-card");
   dm.setAttribute("card-id", cardId);
   dm.setAttribute("size", "tile");
   node.appendChild(dm);
+
+  // Click to remove
+  node.addEventListener("click", () => {
+    state.slots = state.slots.filter((_, i) => i !== idx);
+    rerender(root);
+  });
+
+  // Drag handlers
+  node.addEventListener("dragstart", (e) => {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(idx));
+    node.classList.add("dragging");
+  });
+  node.addEventListener("dragend", () => {
+    node.classList.remove("dragging");
+    document.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+  });
+  node.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    node.classList.add("drag-over");
+  });
+  node.addEventListener("dragleave", () => node.classList.remove("drag-over"));
+  node.addEventListener("drop", (e) => {
+    e.preventDefault();
+    node.classList.remove("drag-over");
+    const fromIdx = parseInt(e.dataTransfer.getData("text/plain"), 10);
+    const toIdx = idx;
+    if (fromIdx === toIdx || isNaN(fromIdx)) return;
+    const newSlots = [...state.slots];
+    const [moved] = newSlots.splice(fromIdx, 1);
+    newSlots.splice(toIdx, 0, moved);
+    state.slots = newSlots;
+    rerender(root);
+  });
+
   return node;
 }
 
@@ -352,13 +510,18 @@ async function loadList() {
 
 async function loadCatalog() {
   const payload = await fetchJSON("/api/catalog");
-  state.catalog = (payload.cards || []).slice().sort((a, b) => {
+  const cards = (payload.cards || []).slice().sort((a, b) => {
     const ORDER = ["legendary", "epic", "rare", "uncommon", "common"];
     const ra = ORDER.indexOf(a.rarity);
     const rb = ORDER.indexOf(b.rarity);
     if (ra !== rb) return ra - rb;
     return (a.card_id || "").localeCompare(b.card_id || "");
   });
+  state.catalog = cards;
+  state.catalogMap = {};
+  for (const c of cards) {
+    state.catalogMap[c.card_id] = c;
+  }
 }
 
 function rerender(root) {
@@ -370,7 +533,7 @@ export async function render(root) {
   state = {
     view: "list",
     loadouts: [], activeName: null,
-    catalog: [], page: 0,
+    catalog: [], catalogMap: {}, page: 0,
     editingName: "", slots: [],
     saving: false, error: null,
   };

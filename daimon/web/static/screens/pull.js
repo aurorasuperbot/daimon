@@ -1,25 +1,13 @@
-// Pull screen — cinematic gacha reveal.
+// Pull screen — station landing + single/multi gacha reveal.
 //
-// Phases: fetching → draw → tension → freeze → reveal → settled
+// Flow: station (choose x1 or x10) → cinematic → settled
 //
-// The reveal is a multi-layered spectacle driven by data-phase + data-rarity
-// on the screen root. Every visual effect is CSS-only; JS manages phase
-// timing and DOM construction.
-//
-// Effect layers (back to front):
-//   - Ambient background glow (CSS gradient on :scope)
-//   - Light rays (conic-gradient, epic+)
-//   - Vignette overlay (radial darkening)
-//   - Card with rarity glow halo
-//   - Converging sparks (tension phase)
-//   - Radial burst × 2
-//   - Expanding rings × 2
-//   - Scatter particles (40)
-//   - Radial streaks (8)
-//   - White flash overlay
-//   - Shimmer sweep + ambient sparkles (settled, rare+)
+// Single-pull: full multi-layered spectacle (phases + effects).
+// Multi-pull: cascade — cards revealed one at a time with abbreviated
+// animations, then displayed in a 5×2 results grid.
 
-import { backButton, el, postJSON } from "/screens/_dom.js";
+import { backButton, el, fetchJSON, postJSON } from "/screens/_dom.js";
+import { liveStore } from "/store.js";
 
 const RARITY_TIMING = {
   common:    { draw: 500,  tension: 400,  freeze: 0,   reveal: 500  },
@@ -30,12 +18,22 @@ const RARITY_TIMING = {
 };
 const DEFAULT_TIMING = RARITY_TIMING.rare;
 
+const MULTI_TIMING = {
+  common:    { tension: 200, reveal: 300 },
+  uncommon:  { tension: 300, reveal: 350 },
+  rare:      { tension: 400, reveal: 450 },
+  epic:      { tension: 600, reveal: 550 },
+  legendary: { tension: 800, reveal: 650 },
+};
+
 const PARTICLE_COUNT = 40;
 const SPARK_COUNT    = 16;
 const STREAK_COUNT   = 8;
 
+const RARITY_ORDER = ["common", "uncommon", "rare", "epic", "legendary"];
+
 // ---------------------------------------------------------------------------
-// Tiny async helpers
+// Async helpers
 // ---------------------------------------------------------------------------
 
 function abortableSleep(ms, signal) {
@@ -56,34 +54,129 @@ function abortableSleep(ms, signal) {
 }
 
 // ---------------------------------------------------------------------------
-// DOM construction (stable; runs ONCE per screen mount)
+// Station view — landing with balance, pity meter, pull buttons
 // ---------------------------------------------------------------------------
 
-function buildScreen(refs) {
+function buildStation(refs) {
   const back = backButton();
-  back.classList.add("pull-back-btn");
+  const header = el("header", { class: "screen-header" },
+    back,
+    el("h1", null, "PULL STATION"),
+    el("div"),
+  );
 
+  const balanceVal = el("span", { class: "station-balance-val" }, "—");
+  const balanceRow = el("div", { class: "station-balance" },
+    el("span", { class: "station-balance-label" }, "BALANCE"),
+    balanceVal,
+  );
+
+  const pityBar = el("div", { class: "station-pity-bar" });
+  const pityFill = el("div", { class: "station-pity-fill" });
+  pityBar.appendChild(pityFill);
+  const pityLabel = el("div", { class: "station-pity-label" }, "");
+  const pityStatus = el("div", { class: "station-pity-status" }, "");
+  const pitySection = el("div", { class: "station-pity" },
+    el("div", { class: "station-pity-header" }, "PITY COUNTER"),
+    pityBar,
+    pityLabel,
+    pityStatus,
+  );
+
+  const pullBtn = el("button", { class: "station-pull-btn", "data-mode": "single" },
+    el("span", { class: "station-pull-label" }, "PULL ×1"),
+    el("span", { class: "station-pull-cost" }, "100¤"),
+  );
+  const multiBtn = el("button", { class: "station-pull-btn station-pull-multi", "data-mode": "multi" },
+    el("span", { class: "station-pull-label" }, "PULL ×10"),
+    el("span", { class: "station-pull-cost" }, "1000¤"),
+  );
+
+  const btnRow = el("div", { class: "station-btn-row" }, pullBtn, multiBtn);
+
+  const errLine = el("div", { class: "error-line station-error" }, "");
+
+  const body = el("div", { class: "station-body" },
+    balanceRow, pitySection, btnRow, errLine,
+  );
+
+  const screen = el("div", { class: "screen pull-screen", "data-view": "station" }, header, body);
+
+  Object.assign(refs, {
+    screen, balanceVal, pityFill, pityLabel, pityStatus,
+    pullBtn, multiBtn, errLine,
+  });
+  return screen;
+}
+
+async function loadStationData(refs) {
+  try {
+    const data = await fetchJSON("/api/pull/pity");
+    refs.balanceVal.textContent = `${data.balance ?? 0}¤`;
+
+    const pct = Math.min(100, (data.pulls_since_rare_plus / data.hard_pity_at) * 100);
+    refs.pityFill.style.width = `${pct}%`;
+
+    if (data.pulls_since_rare_plus >= data.soft_pity_start) {
+      refs.pityFill.dataset.active = "soft";
+    }
+    if (data.next_is_guaranteed) {
+      refs.pityFill.dataset.active = "hard";
+    }
+
+    refs.pityLabel.textContent =
+      `${data.pulls_since_rare_plus} / ${data.hard_pity_at} pulls since rare+`;
+
+    if (data.next_is_guaranteed) {
+      refs.pityStatus.textContent = "GUARANTEED RARE+ ON NEXT PULL";
+      refs.pityStatus.dataset.state = "guaranteed";
+    } else if (data.soft_pity_active) {
+      refs.pityStatus.textContent = `SOFT PITY ACTIVE — +${Math.round(data.pity_bonus * 100)}% RARE+ BONUS`;
+      refs.pityStatus.dataset.state = "soft";
+    } else {
+      const remaining = data.soft_pity_start - data.pulls_since_rare_plus;
+      refs.pityStatus.textContent = `${remaining} pulls until soft pity`;
+      refs.pityStatus.dataset.state = "normal";
+    }
+
+    refs.pullBtn.disabled = !data.can_pull;
+    refs.multiBtn.disabled = !data.can_multi;
+
+    if (!data.can_pull) {
+      refs.pullBtn.title = "Not enough balance";
+    }
+    if (!data.can_multi) {
+      refs.multiBtn.title = data.can_pull ? "Need 1000¤ for x10" : "Not enough balance";
+    }
+  } catch (err) {
+    refs.errLine.textContent = `failed to load: ${err}`;
+    refs.errLine.style.display = "block";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Single-pull DOM construction
+// ---------------------------------------------------------------------------
+
+function buildSinglePull(refs) {
   const skip = el("button", { class: "pull-skip", type: "button" }, "SKIP");
 
   const header = el("header", { class: "screen-header" },
-    back,
+    el("div"),
     el("h1", null, "PULL"),
     skip,
   );
 
-  // Card
   const card = document.createElement("dm-card");
   card.setAttribute("size", "hero");
   card.setAttribute("face", "back");
 
-  // Effect layers inside card-wrap
   const burst      = el("div", { class: "pull-burst" });
   const burstInner = el("div", { class: "pull-burst-inner" });
   const rays       = el("div", { class: "pull-rays" });
   const ring1      = el("div", { class: "pull-ring" });
   const ring2      = el("div", { class: "pull-ring pull-ring-2" });
 
-  // Scatter particles — explode outward on reveal
   const particles = el("div", { class: "pull-particles" });
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     const angle = (i / PARTICLE_COUNT) * Math.PI * 2;
@@ -96,7 +189,6 @@ function buildScreen(refs) {
     particles.appendChild(p);
   }
 
-  // Converging sparks — energy drawn toward card during tension
   const sparks = el("div", { class: "pull-sparks" });
   for (let i = 0; i < SPARK_COUNT; i++) {
     const angle = (i / SPARK_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
@@ -109,7 +201,6 @@ function buildScreen(refs) {
     sparks.appendChild(s);
   }
 
-  // Radial streaks — light lines shooting outward on reveal
   const streaks = el("div", { class: "pull-streaks" });
   for (let i = 0; i < STREAK_COUNT; i++) {
     const angle = (i / STREAK_COUNT) * 360 + Math.random() * 15;
@@ -127,11 +218,9 @@ function buildScreen(refs) {
   const hint  = el("div", { class: "pull-rarity-hint" });
   const stage = el("div", { class: "pull-stage" }, cardWrap, hint);
 
-  // Overlays (sit above all stage content)
   const vignette = el("div", { class: "pull-vignette" });
   const flash    = el("div", { class: "pull-flash" });
 
-  // Detail panel
   const detailName   = el("h2", { class: "pull-detail-name" }, "—");
   const detailRarity = el("div", { class: "pull-detail-rarity" }, "");
   const detailMeta   = el("div", { class: "pull-detail-meta" });
@@ -156,7 +245,7 @@ function buildScreen(refs) {
   screen.dataset.phase = "fetching";
 
   Object.assign(refs, {
-    screen, card, burst, burstInner, hint, skip, back, rays, particles,
+    screen, card, burst, burstInner, hint, skip, rays, particles,
     sparks, streaks, ring1, ring2, vignette, flash,
     detailName, detailRarity, metaSerial, metaCost, metaBalance, metaEdition,
     errLine, cta,
@@ -165,7 +254,7 @@ function buildScreen(refs) {
 }
 
 // ---------------------------------------------------------------------------
-// Reveal-sequence orchestration
+// Single-pull orchestration
 // ---------------------------------------------------------------------------
 
 async function runReveal(refs, signal, rarity) {
@@ -199,10 +288,6 @@ async function runReveal(refs, signal, rarity) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Detail-panel population
-// ---------------------------------------------------------------------------
-
 function applyReceipt(refs, receipt) {
   const r = receipt || {};
   refs.card.setAttribute("card-id", r.card_id || "");
@@ -230,57 +315,260 @@ function applyError(refs, msg) {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-pull — cascade reveal
+// ---------------------------------------------------------------------------
+
+function buildMultiPull(refs) {
+  const skip = el("button", { class: "pull-skip", type: "button" }, "SKIP ALL");
+
+  const header = el("header", { class: "screen-header" },
+    el("div"),
+    el("h1", null, "PULL ×10"),
+    skip,
+  );
+
+  const cascade = el("div", { class: "multi-cascade" });
+  const counter = el("div", { class: "multi-counter" }, "0 / 10");
+  const stage = el("div", { class: "multi-stage" }, cascade, counter);
+
+  const grid = el("div", { class: "multi-grid" });
+
+  const summary = el("div", { class: "multi-summary" });
+  const cta = el("div", { class: "pull-cta" }, "PRESS SPACE TO CONTINUE");
+
+  const body = el("div", { class: "pull-body multi-body" }, stage, grid, summary, cta);
+  const screen = el("div", { class: "screen pull-screen", "data-view": "multi" }, header, body);
+  screen.dataset.phase = "fetching";
+
+  Object.assign(refs, { screen, skip, cascade, counter, grid, summary, cta });
+  return screen;
+}
+
+async function runMultiReveal(refs, receipts, signal) {
+  const { screen, cascade, counter, grid, summary } = refs;
+
+  screen.dataset.phase = "cascade";
+
+  const rarityCount = {};
+  let bestRarity = "common";
+
+  for (let i = 0; i < receipts.length; i++) {
+    if (signal.aborted) break;
+
+    const r = receipts[i];
+    const rarity = r.rarity || "common";
+    rarityCount[rarity] = (rarityCount[rarity] || 0) + 1;
+
+    const ri = RARITY_ORDER.indexOf(rarity);
+    if (ri > RARITY_ORDER.indexOf(bestRarity)) bestRarity = rarity;
+
+    counter.textContent = `${i + 1} / ${receipts.length}`;
+
+    // Cascade card reveal
+    const card = document.createElement("dm-card");
+    card.setAttribute("size", "detail");
+    card.setAttribute("card-id", r.card_id || "");
+    card.setAttribute("face", "back");
+    card.dataset.rarity = rarity;
+
+    const wrap = el("div", { class: "multi-cascade-card" }, card);
+    wrap.dataset.rarity = rarity;
+    cascade.innerHTML = "";
+    cascade.appendChild(wrap);
+
+    screen.dataset.rarity = rarity;
+
+    const timing = MULTI_TIMING[rarity] || MULTI_TIMING.rare;
+
+    try {
+      wrap.dataset.phase = "tension";
+      await abortableSleep(timing.tension, signal);
+      wrap.dataset.phase = "reveal";
+      card.setAttribute("face", "front");
+      await abortableSleep(timing.reveal, signal);
+    } catch (err) {
+      if (err.name === "AbortError") break;
+      throw err;
+    }
+  }
+
+  // Transition to grid view
+  screen.dataset.phase = "grid";
+  cascade.innerHTML = "";
+  counter.textContent = "";
+
+  for (let i = 0; i < receipts.length; i++) {
+    const r = receipts[i];
+    const card = document.createElement("dm-card");
+    card.setAttribute("size", "tile");
+    card.setAttribute("card-id", r.card_id || "");
+    card.setAttribute("face", "front");
+
+    const tile = el("div", { class: "multi-grid-tile" }, card);
+    tile.dataset.rarity = r.rarity || "common";
+    tile.style.setProperty("--i", i);
+    grid.appendChild(tile);
+  }
+
+  // Summary strip
+  const parts = [];
+  for (const r of RARITY_ORDER) {
+    if (rarityCount[r]) {
+      parts.push(el("span", { class: "multi-summary-chip", "data-rarity": r },
+        `${rarityCount[r]}× ${r.toUpperCase()}`));
+    }
+  }
+  const lastR = receipts[receipts.length - 1];
+  parts.push(el("span", { class: "multi-summary-balance" },
+    `Balance: ${lastR?.balance_after ?? "?"}¤`));
+  for (const p of parts) summary.appendChild(p);
+
+  screen.dataset.rarity = bestRarity;
+  screen.dataset.phase = "settled";
+}
+
+// ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 
 export async function render(root) {
   root.innerHTML = "";
-  const refs = {};
-  const screen = buildScreen(refs);
-  root.appendChild(screen);
 
-  const ctl = new AbortController();
+  const stationRefs = {};
+  const stationScreen = buildStation(stationRefs);
+  root.appendChild(stationScreen);
+  await loadStationData(stationRefs);
 
-  refs.skip.addEventListener("click", () => ctl.abort());
+  let cleanup = () => {};
+  let activeSub = null;
 
-  function onKey(e) {
-    if (e.key === " " || e.key === "Enter") {
-      e.preventDefault();
-      if (refs.screen.dataset.phase === "settled") {
-        location.hash = "#menu";
-      } else {
-        ctl.abort();
-      }
-    } else if (e.key === "Escape") {
-      location.hash = "#menu";
-    }
-  }
-  document.addEventListener("keydown", onKey);
-
-  let receipt;
-  try {
-    receipt = await postJSON("/api/pull");
-  } catch (err) {
-    applyError(refs, `pull failed: ${err}`);
-    return cleanup;
-  }
-  if (receipt?.error) {
-    applyError(refs, `${receipt.error}: ${receipt.message || receipt.hint || ""}`);
-    return cleanup;
-  }
-  applyReceipt(refs, receipt);
-
-  runReveal(refs, ctl.signal, receipt.rarity || "common").catch(err => {
-    if (err.name !== "AbortError") {
-      console.error("reveal sequence", err);
-      applyError(refs, "animation error — see console");
+  activeSub = liveStore.subscribe((_state, frame) => {
+    if (frame?.kind === "pull" || frame?.kind === "multi_pull") {
+      loadStationData(stationRefs);
     }
   });
 
-  return cleanup;
-
-  function cleanup() {
-    document.removeEventListener("keydown", onKey);
-    if (!ctl.signal.aborted) ctl.abort();
+  function stationCleanup() {
+    if (activeSub) { activeSub(); activeSub = null; }
   }
+
+  async function startSinglePull() {
+    stationCleanup();
+    root.innerHTML = "";
+    const refs = {};
+    const screen = buildSinglePull(refs);
+    root.appendChild(screen);
+
+    const ctl = new AbortController();
+
+    refs.skip.addEventListener("click", () => ctl.abort());
+
+    function onKey(e) {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        if (refs.screen.dataset.phase === "settled") {
+          location.hash = "#pull";
+        } else {
+          ctl.abort();
+        }
+      } else if (e.key === "Escape") {
+        location.hash = "#pull";
+      }
+    }
+    document.addEventListener("keydown", onKey);
+
+    cleanup = () => {
+      document.removeEventListener("keydown", onKey);
+      if (!ctl.signal.aborted) ctl.abort();
+    };
+
+    let receipt;
+    try {
+      receipt = await postJSON("/api/pull");
+    } catch (err) {
+      applyError(refs, `pull failed: ${err}`);
+      return;
+    }
+    if (receipt?.error) {
+      applyError(refs, `${receipt.error}: ${receipt.message || receipt.hint || ""}`);
+      return;
+    }
+    applyReceipt(refs, receipt);
+
+    runReveal(refs, ctl.signal, receipt.rarity || "common").catch(err => {
+      if (err.name !== "AbortError") {
+        console.error("reveal sequence", err);
+        applyError(refs, "animation error — see console");
+      }
+    });
+  }
+
+  async function startMultiPull() {
+    stationCleanup();
+    root.innerHTML = "";
+    const refs = {};
+    const screen = buildMultiPull(refs);
+    root.appendChild(screen);
+
+    const ctl = new AbortController();
+
+    refs.skip.addEventListener("click", () => ctl.abort());
+
+    function onKey(e) {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        if (refs.screen.dataset.phase === "settled") {
+          location.hash = "#pull";
+        } else {
+          ctl.abort();
+        }
+      } else if (e.key === "Escape") {
+        location.hash = "#pull";
+      }
+    }
+    document.addEventListener("keydown", onKey);
+
+    cleanup = () => {
+      document.removeEventListener("keydown", onKey);
+      if (!ctl.signal.aborted) ctl.abort();
+    };
+
+    let result;
+    try {
+      result = await postJSON("/api/pull/multi", { count: 10 });
+    } catch (err) {
+      refs.screen.dataset.phase = "settled";
+      refs.summary.textContent = `pull failed: ${err}`;
+      return;
+    }
+    if (result?.error) {
+      refs.screen.dataset.phase = "settled";
+      refs.summary.textContent = `${result.error}: ${result.message || ""}`;
+      return;
+    }
+
+    const receipts = result.receipts || [];
+    if (receipts.length === 0) {
+      refs.screen.dataset.phase = "settled";
+      refs.summary.textContent = "No pulls — insufficient balance";
+      return;
+    }
+
+    refs.counter.textContent = `0 / ${receipts.length}`;
+
+    runMultiReveal(refs, receipts, ctl.signal).catch(err => {
+      if (err.name !== "AbortError") {
+        console.error("multi-reveal", err);
+        refs.summary.textContent = "animation error — see console";
+      }
+    });
+  }
+
+  stationRefs.pullBtn.addEventListener("click", startSinglePull);
+  stationRefs.multiBtn.addEventListener("click", startMultiPull);
+
+  return () => {
+    stationCleanup();
+    cleanup();
+  };
 }

@@ -419,4 +419,179 @@
     border: 1px solid var(--accent-deep);
   }
 
+  /* ── Element badge on catalog tiles ────────────────────────────── */
+
+  .tile-element-badge {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    font-family: var(--font-display);
+    font-size: 0.45rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--elem-color, #9b9b9b);
+    background: rgba(0, 0, 0, 0.7);
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid color-mix(in srgb, var(--elem-color) 40%, transparent);
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  /* ── Slot element indicator strip ──────────────────────────────── */
+
+  .slot-element-strip {
+    position: absolute;
+    left: 0;
+    top: 10%;
+    bottom: 10%;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    z-index: 3;
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  /* ── Drag-to-reorder ───────────────────────────────────────────── */
+
+  .slot-tile[draggable="true"] {
+    cursor: grab;
+    position: relative;
+  }
+  .slot-tile[draggable="true"]:active {
+    cursor: grabbing;
+  }
+  .slot-tile.dragging {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+  .slot-tile.drag-over {
+    border-color: var(--accent-bright) !important;
+    box-shadow: 0 0 16px rgba(240, 196, 88, 0.3) !important;
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg-deep)) !important;
+  }
+
+  /* ── Synergy indicators ────────────────────────────────────────── */
+
+  .synergy-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+  }
+
+  .synergy-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-family: var(--font-display);
+    font-size: 0.55rem;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-rest);
+    background: transparent;
+    transition:
+      border-color var(--motion-fast) var(--ease-soft),
+      color var(--motion-fast) var(--ease-soft);
+  }
+  .synergy-chip.active {
+    color: var(--elem-color);
+    border-color: color-mix(in srgb, var(--elem-color) 50%, transparent);
+    background: color-mix(in srgb, var(--elem-color) 8%, transparent);
+  }
+  .synergy-chip.strong {
+    color: var(--elem-color);
+    border-color: var(--elem-color);
+    background: color-mix(in srgb, var(--elem-color) 14%, transparent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--elem-color) 20%, transparent);
+  }
+
+  .synergy-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--elem-color);
+    flex-shrink: 0;
+  }
+
+  .synergy-bonus {
+    font-family: var(--font-display);
+    font-size: 0.5rem;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    padding: 0.1rem 0.4rem;
+    border: 1px solid var(--accent-deep);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+
+  /* ── Power rating preview ──────────────────────────────────────── */
+
+  .power-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.6rem 0;
+    border-top: 1px solid var(--border-rest);
+  }
+
+  .power-total {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+  }
+  .power-label {
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    color: var(--text-muted);
+  }
+  .power-value {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  .power-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .stat-bar-row {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr 2rem;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .stat-bar-label {
+    font-family: var(--font-display);
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-align: right;
+  }
+  .stat-bar-track {
+    height: 4px;
+    background: var(--bg-deep);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .stat-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s var(--ease-soft);
+  }
+  .stat-bar-val {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--text-muted);
+  }
+
 }

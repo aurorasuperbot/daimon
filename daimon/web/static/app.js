@@ -26,6 +26,7 @@ const routes = {
   "pull":       () => import("/screens/pull.js"),
   "match":      () => import("/screens/match.js"),
   "pvp":        () => import("/screens/pvp.js"),
+  "stats":      () => import("/screens/stats.js"),
 };
 
 let currentCleanup = null;
