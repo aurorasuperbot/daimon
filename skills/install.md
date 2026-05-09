@@ -39,10 +39,8 @@ single interactive flow:
    mining hook into `~/.claude/settings.json` (one read, one backup,
    one write).
 
-> **Private alpha:** the engine + cards repos are private until
-> V1 launch. Set `GITHUB_TOKEN` (or `GH_TOKEN`) to a PAT with read
-> access before running `daimon onboard`, otherwise the manifest +
-> bundle fetches return 404 with a hint.
+> All repos (engine, arena, cards) are public. No `GITHUB_TOKEN`
+> is required.
 
 Verify with `daimon doctor` — every section should be green:
 
