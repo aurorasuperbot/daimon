@@ -34,6 +34,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import tempfile
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -114,10 +115,14 @@ def save_collection(data: Dict[str, Any], path: Optional[Path] = None) -> None:
     if path is None:
         path = COLLECTION_PATH
     _ensure_dir()
-    path.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        Path(tmp_path).replace(path)
+    except BaseException:
+        Path(tmp_path).unlink(missing_ok=True)
+        raise
 
 
 def append_serial(serial: Serial,

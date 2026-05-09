@@ -123,11 +123,26 @@ def _last_entry(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     """Cheap tail-read for the last entry without parsing the whole file."""
     if path is None:
         path = LEDGER_PATH
-    if not path.exists() or path.stat().st_size == 0:
+    if not path.exists():
         return None
-    # Small files: just read all. For big logs we could reverse-scan.
-    entries = _read_entries(path)
-    return entries[-1] if entries else None
+    with open(path, "rb") as f:
+        f.seek(0, 2)  # seek to end
+        size = f.tell()
+        if size == 0:
+            return None
+        # Read backwards to find last newline
+        pos = size - 1
+        while pos > 0:
+            f.seek(pos)
+            if f.read(1) == b"\n" and pos < size - 1:
+                break
+            pos -= 1
+        if pos == 0:
+            f.seek(0)
+        line = f.readline().decode().strip()
+        if not line:
+            return None
+        return json.loads(line)
 
 
 def _append_line(entry: Dict[str, Any], path: Optional[Path] = None) -> None:

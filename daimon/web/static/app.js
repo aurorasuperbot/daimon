@@ -36,7 +36,11 @@ function showLoading() {
 }
 
 function showError(msg) {
-  root.innerHTML = `<div class="error">${msg}</div>`;
+  const div = document.createElement("div");
+  div.className = "error";
+  div.textContent = msg;
+  root.innerHTML = "";
+  root.appendChild(div);
 }
 
 function parseHash() {

@@ -42,6 +42,24 @@ _LOCALHOST_PREFIXES = (
 )
 
 
+_CSP_VALUE = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src https://fonts.gstatic.com; "
+    "img-src 'self' data:;"
+)
+
+
+class _CSPMiddleware(BaseHTTPMiddleware):
+    """Attach a Content-Security-Policy header to every response."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Content-Security-Policy"] = _CSP_VALUE
+        return response
+
+
 class _LocalOriginMiddleware(BaseHTTPMiddleware):
     """Reject any request whose Origin header points outside localhost.
 
@@ -66,6 +84,7 @@ def create_app() -> FastAPI:
     """Build the FastAPI app. Idempotent — call once per process."""
     app = FastAPI(title="daimon", docs_url=None, redoc_url=None, openapi_url=None)
 
+    app.add_middleware(_CSPMiddleware)
     app.add_middleware(_LocalOriginMiddleware)
 
     @app.get("/health")

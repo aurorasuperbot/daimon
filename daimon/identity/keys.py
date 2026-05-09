@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
@@ -226,5 +227,5 @@ def verify(pubkey_hex: str, data: bytes, signature: bytes) -> bool:
         pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(pubkey_hex))
         pub.verify(signature, data)
         return True
-    except Exception:
+    except InvalidSignature:
         return False

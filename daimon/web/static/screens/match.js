@@ -824,7 +824,11 @@ export async function render(root, params) {
   try {
     await loadAll();
   } catch (err) {
-    root.innerHTML = `<div class="error">match unreachable: ${err}</div>`;
+    const errDiv = document.createElement("div");
+    errDiv.className = "error";
+    errDiv.textContent = `match unreachable: ${err}`;
+    root.innerHTML = "";
+    root.appendChild(errDiv);
     return cleanup;
   }
   if (params && params.length > 0 && params[0]) {

@@ -297,11 +297,19 @@ export async function render(root) {
   try {
     payload = await fetchJSON("/api/home");
   } catch (err) {
-    root.innerHTML = `<div class="error">backend unreachable: ${err}</div>`;
+    const errDiv = document.createElement("div");
+    errDiv.className = "error";
+    errDiv.textContent = `backend unreachable: ${err}`;
+    root.innerHTML = "";
+    root.appendChild(errDiv);
     return;
   }
   if (payload.error) {
-    root.innerHTML = `<div class="error">backend error: ${payload.error}</div>`;
+    const errDiv2 = document.createElement("div");
+    errDiv2.className = "error";
+    errDiv2.textContent = `backend error: ${payload.error}`;
+    root.innerHTML = "";
+    root.appendChild(errDiv2);
     return;
   }
   paint(root, payload);
