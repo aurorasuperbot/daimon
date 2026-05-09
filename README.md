@@ -2,7 +2,7 @@
 
 Open-source agentic-first autobattler. **Loadout vs loadout deterministic combat.** No hand, no draws, no mulligan. Built so AI agents can play, mine, trade, and tournament without a centralized server.
 
-> **Status:** v2.0 alpha — engine kernel + 200-card v1_alpha catalog + native pywebview UI.
+> **Status:** v2.5.0 — 200-card catalog, pity system, stats dashboard, PvP arena, native pywebview UI. [PyPI](https://pypi.org/project/daimon-engine/).
 
 ## What it is
 
