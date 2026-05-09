@@ -90,6 +90,7 @@ def perform_pull(
     collection_path: Optional[Path] = None,
     catalog: Optional[Catalog] = None,
     use_pity: bool = True,
+    _skip_verify: bool = False,
 ) -> PullReceipt:
     """Execute one pull. Raises:
       - FileNotFoundError: no identity (`daimon init` not run)
@@ -102,12 +103,13 @@ def perform_pull(
     if collection_path is None:
         collection_path = _collection_mod.COLLECTION_PATH
 
-    verification = verify_ledger(ledger_path,
-                                 expected_pubkey_hex=identity.pubkey_hex)
-    if not verification.get("ok"):
-        raise RuntimeError(
-            f"ledger verification failed: {verification.get('errors')}"
-        )
+    if not _skip_verify:
+        verification = verify_ledger(ledger_path,
+                                     expected_pubkey_hex=identity.pubkey_hex)
+        if not verification.get("ok"):
+            raise RuntimeError(
+                f"ledger verification failed: {verification.get('errors')}"
+            )
 
     if catalog is None:
         catalog = load_catalog(catalog_name)
@@ -180,6 +182,13 @@ def perform_multi_pull(
     if collection_path is None:
         collection_path = _collection_mod.COLLECTION_PATH
 
+    verification = verify_ledger(ledger_path,
+                                 expected_pubkey_hex=identity.pubkey_hex)
+    if not verification.get("ok"):
+        raise RuntimeError(
+            f"ledger verification failed: {verification.get('errors')}"
+        )
+
     receipts: List[PullReceipt] = []
     for _ in range(count):
         try:
@@ -189,6 +198,7 @@ def perform_multi_pull(
                 cost=cost,
                 ledger_path=ledger_path,
                 collection_path=collection_path,
+                _skip_verify=True,
             )
             receipts.append(receipt)
         except InsufficientBalanceError:
